@@ -8,6 +8,7 @@ Last update: August 2023
 
 QuorumSet class.
 """
+import math
 
 from Log import log
 
@@ -96,7 +97,7 @@ class QuorumSet():
         # TODO: Should we return self.nodes.copy() instead?
         return self.nodes
 
-    # TODO: Check minimum_quorum() method because it looks strange, I don't understanc it!
+    # TODO: Check minimum_quorum() method because it looks strange, I don't understand it!
     @property
     def minimum_quorum(self):
         # Minimum number of nodes (round up) required to reach threshold

@@ -22,6 +22,7 @@ from SCPNominate import SCPNominate
 from Value import Value
 from Storage import Storage
 from Globals import Globals
+from Prepare import Prepare
 
 import random
 import xdrlib3
@@ -132,7 +133,7 @@ class Node():
         self.quorum_set.set(nodes)
         return
 
-    def attach_mempool(self,mempool):
+    def attach_mempool(self, mempool):
         self.mempool = mempool
         return
 
@@ -147,7 +148,7 @@ class Node():
         Broadcast SCPNominate message to the storage.
         """
         # TODO: URGENT: FINISH THIS! We need to combine all messages in storage and then nominate!
-        temp = self.storage.get_combined_messages()
+        #temp = self.storage.get_combined_messages()
         # TODO: For now we assume that node votes for a value containing all transactions in its ledger!
         if len(self.ledger.transactions) > 0:
             # copy() is crucial here, otherwise we would be sending a reference to the transactions!
@@ -194,6 +195,40 @@ class Node():
             log.node.info('Node %s is his own highest priority neighbor!',self.name)
 
         return
+
+    def prepare(self):
+        """
+        Prepare Message for Nomination
+        """
+        # 1. Get Transactions from Mempool
+        # 2. Update ledger of the node with the collected values
+        # 3. Pack the collected Values into message
+        # 4. Update local memory (mempool of node) of the node with the collected values
+
+        #1 (a) - Get transactions from the Mempool
+        mempool_txs = [] # These are the transactions retrieved from the mempool
+        val_txs = []
+        self.retrieve_transaction_from_mempool() # Retrieve transcations from mempool
+        tx = self.ledger.get_transaction() # the previous function adds the transactions to the node's ledger so we need to retrieve these transactions from the ledger
+
+        if len(self.ledger.transactions) > 0:
+            # 2 - Get all transactions from ledger
+            for i in range(0,len(self.ledger.transactions)):
+                mempool_txs.append(tx)
+                tx = self.ledger.get_transaction()
+
+            # 3 (a) - Make the transactions a Value for message
+            val_txs.append(Value(transactions=mempool_txs))
+
+            # 3 (b) - Pack the collected Value into message format
+            message = Prepare(transactions=val_txs,broadcasted=True)
+
+            # 4 - add message to Node's storage
+            self.storage.add_messages(message)
+
+            log.node.info('Node %s appended Prepare message to its storage, message = %s', self.name, message)
+        else:
+            log.node.info('Node %s has no transactions in its ledger so it cannot Prepare   !', self.name)
 
     def get_messages(self):
         if len(self.storage.messages) == 0:

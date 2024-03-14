@@ -8,6 +8,7 @@ Last update: August 2023
 
 Storage class.
 """
+import numpy as np
 
 from Log import log
 from Value import Value
