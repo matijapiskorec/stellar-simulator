@@ -108,8 +108,6 @@ class Simulator:
                                      'tau_domain':None},
                              'retrieve_transaction_from_mempool':{'tau':2.0,
                                                       'tau_domain':self._nodes},
-                             'prepare': {'tau': 2.0,
-                                         'tau_domain': self._nodes},
                              'nominate':{'tau':3.0,
                                        'tau_domain':self._nodes},
                              'retrieve_message_from_peer':{'tau':3.0,
@@ -186,10 +184,6 @@ class Simulator:
 
                 random_node = np.random.choice(self._nodes)
                 random_node.retrieve_message_from_peer()
-
-            case 'prepare':
-                random_node = np.random.choice(self._nodes)
-                random_node.prepare()
 
 
 if __name__=='__main__':

@@ -6,7 +6,6 @@ from Event import Event
 from Network import Network
 from Mempool import Mempool
 from Log import log
-from Prepare import Prepare
 
 import unittest
 
@@ -106,33 +105,6 @@ class SimulatorTest(unittest.TestCase):
             log.test.debug('Node %s, quorum_set = %s',node.name,node.quorum_set)
             log.test.debug('Node %s, check_threshold = %s',node.name,node.quorum_set.get_quorum())
 
-
-
-    def test_preparation_phase(self):
-        for topology in ['FULL','ER']:
-            nodes = Network.generate_nodes(n_nodes=5, topology=topology)
-            mempool = Mempool()
-            for node in nodes:
-                node.attach_mempool(mempool)
-
-            # Simulate transaction mining to populate the mempool
-            for i in range(5):
-                mempool.mine()
-
-            for node in nodes:
-                node.prepare()
-
-            for node in nodes:
-                prepared_value = [msg for msg in node.storage.messages if isinstance(msg, Prepare)]
-                for msg in prepared_value:
-                    print("Message was" + str(msg))
-
-                self.assertTrue(len(prepared_value) > 0) # Prepare messages are in the storage
-                prepare_message = prepared_value[0]
-
-                # Check that the prepare message contains transactions
-                self.assertTrue(len(prepare_message._values) > 0)
-                print("WORKS")
 
 
 if __name__ == "__main__":
