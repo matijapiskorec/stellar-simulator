@@ -22,7 +22,6 @@ from SCPNominate import SCPNominate
 from Value import Value
 from Storage import Storage
 from Globals import Globals
-from Prepare import Prepare
 
 import random
 import xdrlib3
@@ -62,7 +61,7 @@ class Node():
         # TODO: Implement the logic for advancing the nomination rounds each n+1 seconds!
 
         # Although nomination rounds are synchronous (they last for "1+n" seconds), we don't have
-        # to implement them them with sychronous events, but rather just allow each node to update
+        # to implement them with sychronous events, but rather just allow each node to update
         # its state appropriately once its turn comes. Node check their time each time they update
         # and advance to another round if enough time has passed.
 
@@ -204,26 +203,14 @@ class Node():
         # 2. Update ledger of the node with the collected values
         # 3. Pack the collected Values into message
         # 4. Update local memory (mempool of node) of the node with the collected values
-
-        #1 (a) - Get transactions from the Mempool
-        mempool_txs = [] # These are the transactions retrieved from the mempool
         val_txs = []
-        self.retrieve_transaction_from_mempool() # Retrieve transcations from mempool
-        tx = self.ledger.get_transaction() # the previous function adds the transactions to the node's ledger so we need to retrieve these transactions from the ledger
+        self.retrieve_transaction_from_mempool() # Retrieve transactions from mempool
 
         if len(self.ledger.transactions) > 0:
-            # 2 - Get all transactions from ledger
-            for i in range(0,len(self.ledger.transactions)):
-                mempool_txs.append(tx)
-                tx = self.ledger.get_transaction()
-
-            # 3 (a) - Make the transactions a Value for message
+            mempool_txs = self.ledger.transactions.copy() # Should the transactions be removed from ledger?
             val_txs.append(Value(transactions=mempool_txs))
+            message = SCPNominate(transactions=val_txs,broadcasted=True)
 
-            # 3 (b) - Pack the collected Value into message format
-            message = Prepare(transactions=val_txs,broadcasted=True)
-
-            # 4 - add message to Node's storage
             self.storage.add_messages(message)
 
             log.node.info('Node %s appended Prepare message to its storage, message = %s', self.name, message)
