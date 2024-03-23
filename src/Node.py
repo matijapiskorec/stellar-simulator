@@ -47,6 +47,12 @@ class Node():
         # self.messages = []
         self.storage = storage if storage is not None else Storage(self)
 
+        self.nomination_state = {'voted': [], 'accepted': [], 'confirmed': []}
+        self.balloting_state = {'voted': [], 'accepted': [], 'confirmed': []}
+
+        # Nomination_state =  {voted: [], accepted: [], confirmed: []}
+        # Balloting states [ [], [], []]
+
         # From the documentation [1]:
         # A node always begins nomination in round "1".  Round "n" lasts for
         # "1+n" seconds, after which, if no value has been confirmed nominated,
@@ -90,7 +96,6 @@ class Node():
 
     def retrieve_transaction_from_mempool(self):
         transaction = self.mempool.get_transaction()
-        # transaction = Globals.mempool.get_transaction()
         if transaction is not None:
             # TODO: Check the validity of the transaction in the retrieve_transactions_from_mempool() in Node!
             log.node.info('Node %s retrieved %s from mempool.',self.name,transaction)
@@ -182,16 +187,16 @@ class Node():
         Prepare Message for Nomination
         """
         voted_vals = []
-        self.retrieve_transaction_from_mempool() # Retrieve transactions from mempool
 
+        self.retrieve_transaction_from_mempool() # Retrieve transactions from mempool and adds it to the Node's Ledger
         if len(self.ledger.transactions) > 0:
-            mempool_txs = self.ledger.transactions.copy() # Should the transactions be removed from ledger?
-            voted_vals.append(Value(transactions=mempool_txs))
+            voted_vals.append(Value(transactions=self.ledger.transactions.copy()))
             message = SCPNominate(voted=voted_vals,accepted=[],broadcasted=True) # No accepted as node is initalised
 
+            self.nomination_state['voted'].extend(voted_vals)
             self.storage.add_messages(message)
 
-            log.node.info('Node %s appended SCPNominate message to its storage, message = %s', self.name, message)
+            log.node.info('Node %s appended SCPNominate message to its storage and state, message = %s', self.name, message)
         else:
             log.node.info('Node %s has no transactions in its ledger so it cannot nominate!', self.name)
 

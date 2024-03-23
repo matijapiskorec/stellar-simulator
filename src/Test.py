@@ -9,6 +9,9 @@ from Log import log
 
 import unittest
 
+from Value import Value
+
+
 class SimulatorTest(unittest.TestCase):
 
     def setup(self):
@@ -105,6 +108,44 @@ class SimulatorTest(unittest.TestCase):
             log.test.debug('Node %s, quorum_set = %s',node.name,node.quorum_set)
             log.test.debug('Node %s, check_threshold = %s',node.name,node.quorum_set.get_quorum())
 
+    def test_prepare_nomination_msg_correctly_adds_value(self):
+        for topology in ['FULL','ER']:
+            nodes = Network.generate_nodes(n_nodes=5, topology=topology)
+            mempool = Mempool()
+            for node in nodes:
+                node.attach_mempool(mempool)
+
+            for i in range(5):
+                mempool.mine()
+
+            for node in nodes:
+                node.prepare_nomination_msg()
+
+            for node in nodes:
+                self.assertEqual(type(node.nomination_state['voted'][0]), Value)
+                # as extend is used to add new Values the list of
+                self.assertTrue(len(node.nomination_state['voted'][0].transactions) == len(node.ledger.transactions))
+                self.assertTrue(len(node.storage.messages) > 0)
+
+    def test_prepare_nomination_phase_correctly_adds_many_values(self):
+        for topology in ['FULL', 'ER']:
+            nodes = Network.generate_nodes(n_nodes=5, topology=topology)
+            mempool = Mempool()
+            for node in nodes:
+                node.attach_mempool(mempool)
+
+            for i in range(5):
+                mempool.mine()
+
+            for node in nodes:
+                node.prepare_nomination_msg()
+                node.prepare_nomination_msg()
+
+            for node in nodes:
+                assert all([isinstance(vote, Value) for vote in node.nomination_state['voted']])
+                # The second Value in the state should contain all txs from ledger which should now be 2
+                self.assertTrue(len(node.nomination_state['voted'][1].transactions) == len(node.ledger.transactions))
+                self.assertTrue(len(node.storage.messages) > 0)
 
 
 if __name__ == "__main__":
