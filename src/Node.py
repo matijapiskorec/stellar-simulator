@@ -13,6 +13,7 @@ Documentation:
 [2] Nicolas Barry and Giuliano Losa and David Mazieres and Jed McCaleb and Stanislas Polu, The Stellar Consensus Protocol (SCP) - technical implementation draft, https://datatracker.ietf.org/doc/draft-mazieres-dinrg-scp/05/
 """
 
+import copy
 from Log import log
 from Event import Event
 from FBAConsensus import FBAConsensus
@@ -46,6 +47,9 @@ class Node():
         # TODO: Consider making a special structure to store messages on nodes!
         # self.messages = []
         self.storage = storage if storage is not None else Storage(self)
+        default_state = {'voted': [], 'accepted': [], 'confirmed': []}
+        self.nomination_state = copy.deepcopy(default_state)
+        self.balloting_state = copy.deepcopy(default_state)
 
         # From the documentation [1]:
         # A node always begins nomination in round "1".  Round "n" lasts for
@@ -90,7 +94,6 @@ class Node():
 
     def retrieve_transaction_from_mempool(self):
         transaction = self.mempool.get_transaction()
-        # transaction = Globals.mempool.get_transaction()
         if transaction is not None:
             # TODO: Check the validity of the transaction in the retrieve_transactions_from_mempool() in Node!
             log.node.info('Node %s retrieved %s from mempool.',self.name,transaction)
@@ -146,27 +149,9 @@ class Node():
         """
         Broadcast SCPNominate message to the storage.
         """
-        # TODO: URGENT: FINISH THIS! We need to combine all messages in storage and then nominate!
-        #temp = self.storage.get_combined_messages()
-        # TODO: For now we assume that node votes for a value containing all transactions in its ledger!
-        if len(self.ledger.transactions) > 0:
-            # copy() is crucial here, otherwise we would be sending a reference to the transactions!
-            # voted_values = [Value(self.ledger.transactions.copy())]
-            voted_values = [Value(transactions=self.ledger.transactions.copy())]
-            accepted_values = []
-            # message = SCPNominate(voted_values,accepted_values)
-            # message = SCPNominate(voted=voted_values,accepted=accepted_values)
-            message = SCPNominate(voted=voted_values,accepted=accepted_values,broadcasted=True)
-
-            # Storing the message in the local storage of each node
-            # self.mempool.add_message(message)
-            # self.storage.add(message)
-            self.storage.add_messages(message)
-
-            # log.node.info('Node %s appended SCPNominate message to the mempool %s', self.name, message)
-            log.node.info('Node %s appended SCPNominate message to its storage, message = %s', self.name, message)
-        else:
-            log.node.info('Node %s has no transactions in its ledger so it cannot nominate!', self.name)
+        self.prepare_nomination_msg()
+        # TODO: nominate function should update nominations from peers until the quorum threshold is met
+        # TODO: the respective function should be implemented and called here
         return
 
     def retrieve_message_from_peer(self):
@@ -195,27 +180,23 @@ class Node():
 
         return
 
-    def prepare(self):
+    def prepare_nomination_msg(self):
         """
         Prepare Message for Nomination
         """
-        # 1. Get Transactions from Mempool
-        # 2. Update ledger of the node with the collected values
-        # 3. Pack the collected Values into message
-        # 4. Update local memory (mempool of node) of the node with the collected values
-        val_txs = []
-        self.retrieve_transaction_from_mempool() # Retrieve transactions from mempool
+        voted_vals = []
 
+        self.retrieve_transaction_from_mempool() # Retrieve transactions from mempool and adds it to the Node's Ledger
         if len(self.ledger.transactions) > 0:
-            mempool_txs = self.ledger.transactions.copy() # Should the transactions be removed from ledger?
-            val_txs.append(Value(transactions=mempool_txs))
-            message = SCPNominate(transactions=val_txs,broadcasted=True)
+            voted_vals.append(Value(transactions=self.ledger.transactions.copy()))
+            message = SCPNominate(voted=voted_vals,accepted=[],broadcasted=True) # No accepted as node is initalised
 
+            self.nomination_state['voted'].extend(voted_vals)
             self.storage.add_messages(message)
 
-            log.node.info('Node %s appended Prepare message to its storage, message = %s', self.name, message)
+            log.node.info('Node %s appended SCPNominate message to its storage and state, message = %s', self.name, message)
         else:
-            log.node.info('Node %s has no transactions in its ledger so it cannot Prepare   !', self.name)
+            log.node.info('Node %s has no transactions in its ledger so it cannot nominate!', self.name)
 
     def get_messages(self):
         if len(self.storage.messages) == 0:
