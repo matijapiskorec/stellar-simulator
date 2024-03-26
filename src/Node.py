@@ -13,6 +13,7 @@ Documentation:
 [2] Nicolas Barry and Giuliano Losa and David Mazieres and Jed McCaleb and Stanislas Polu, The Stellar Consensus Protocol (SCP) - technical implementation draft, https://datatracker.ietf.org/doc/draft-mazieres-dinrg-scp/05/
 """
 
+import copy
 from Log import log
 from Event import Event
 from FBAConsensus import FBAConsensus
@@ -46,12 +47,9 @@ class Node():
         # TODO: Consider making a special structure to store messages on nodes!
         # self.messages = []
         self.storage = storage if storage is not None else Storage(self)
-
-        self.nomination_state = {'voted': [], 'accepted': [], 'confirmed': []}
-        self.balloting_state = {'voted': [], 'accepted': [], 'confirmed': []}
-
-        # Nomination_state =  {voted: [], accepted: [], confirmed: []}
-        # Balloting states [ [], [], []]
+        default_state = {'voted': [], 'accepted': [], 'confirmed': []}
+        self.nomination_state = copy.deepcopy(default_state)
+        self.balloting_state = copy.deepcopy(default_state)
 
         # From the documentation [1]:
         # A node always begins nomination in round "1".  Round "n" lasts for
