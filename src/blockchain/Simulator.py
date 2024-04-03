@@ -23,17 +23,15 @@ Logging levels and verbosity levels (higher includes lower):
 
 import argparse
 import time
-import sys
 import numpy as np
 
-from Log import log
-from Node import Node
-from Gillespie import Gillespie
-from FBAConsensus import FBAConsensus
-from Network import Network
-from Mempool import Mempool
-# import Globals
-from Globals import Globals
+from src.common.Log import log
+from src.network.Node import Node
+from src.network.Gillespie import Gillespie
+from src.consensus.FBAConsensus import FBAConsensus
+from src.network.Network import Network
+from src.network.Mempool import Mempool
+from src.common.Globals import Globals
 
 VERBOSITY_DEFAULT = 5
 N_NODES_DEFAULT = 2
@@ -88,6 +86,7 @@ class Simulator:
             log.simulator.debug('Creating %s nodes.', self._n_nodes)
 
         self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='FULL')
+        # TODO: implement toggle for topology configs
         # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
 
         self._mempool = Mempool()
@@ -151,39 +150,20 @@ class Simulator:
             # log.simulator.info('Handling event %s at simulation time = %.3f',event.name,self._simulation_time)
             log.simulator.info('Handling event %s at simulation time = %.3f',event.name,Globals.simulation_time)
 
-        match event.name:
+        if event.name == 'mine':
+            self._mempool.mine()
+        elif event.name == 'retrieve_transaction_from_mempool':
+            # Choose a random node which retrieves the transaction from mempool.
+            node_random = np.random.choice(self._nodes)
 
-            case 'mine':
-
-                # Mempool is responsible for handling the mine event
-                self._mempool.mine()
-                # Globals.mempool.mine()
-
-            case 'retrieve_transaction_from_mempool':
-
-                # Choose a random node which retrieves the transaction from mempool.
-                node_random = np.random.choice(self._nodes)
-
-                # Send the event to the respective node and the mempool
-                node_random.retrieve_transaction_from_mempool()
-
-            # # TODO: Remove gossip event from the simulator!
-            # case 'gossip':
-
-            #     # Choose a random sender node (assuming equal probabilities for all nodes for now)
-            #     random_node = np.random.choice(self._nodes)
-
-            #     random_node.gossip()
-
-            case 'nominate':
-
-                random_node = np.random.choice(self._nodes)
-                random_node.nominate()
-
-            case 'retrieve_message_from_peer':
-
-                random_node = np.random.choice(self._nodes)
-                random_node.retrieve_message_from_peer()
+            # Send the event to the respective node and the mempool
+            node_random.retrieve_transaction_from_mempool()
+        elif event.name == 'nominate':
+            random_node = np.random.choice(self._nodes)
+            random_node.nominate()
+        elif event.name == 'retrieve_message_from_peer':
+            random_node = np.random.choice(self._nodes)
+            random_node.retrieve_message_from_peer()
 
 
 if __name__=='__main__':

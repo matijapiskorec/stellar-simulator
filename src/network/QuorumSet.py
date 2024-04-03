@@ -10,16 +10,14 @@ QuorumSet class.
 """
 import math
 
-from Log import log
+from src.common.Log import log
 
 import numpy as np
 
 THRESHOLD_DEFAULT = 10 # 10% threshold by default
 
 class QuorumSet():
-
     def __init__(self, node, **kvargs):
-
         if 'threshold' in kvargs:
             assert type(kvargs['threshold']) in (float, int)
             assert kvargs['threshold'] <= 100 and kvargs['threshold'] > 0  # threshold must be percentile
@@ -34,7 +32,7 @@ class QuorumSet():
         self.threshold = kvargs['threshold'] if 'threshold' in kvargs else THRESHOLD_DEFAULT
 
         # TODO: Important otherwise all QuorumSets will share a list of nodes!
-        self.nodes = []
+        self.nodes = set()
 
         log.quorum.info('Initialized quorum set for Node %s, threshold=%s, nodes=%s.',
                         self.node, self.threshold, self.nodes)
@@ -71,40 +69,38 @@ class QuorumSet():
 
     #     return
 
-    # Set quorum to the nodes
-    def set(self, nodes):
+    def add(self, nodes):
+        """Adds nodes to the quorum set, removing duplicates."""
 
-        # If there is only one node as input, convert it to list so that we can iterate over it
         if type(nodes) is not list:
             nodes = [nodes]
 
-        # TODO: Perform duplicate checks while adding nodes to the quorum!
-        self.nodes = nodes
+        self.nodes.update(nodes)
+        log.quorum.info('Added nodes %s to quorum set of Node %s.', nodes, self.node)
 
+    # Set quorum to the nodes
+    def set(self, nodes):
+        if type(nodes) is not list:
+            nodes = [nodes]
+        self.nodes = set(nodes)  # Use a set to eliminate duplicates
         log.quorum.info('Set nodes %s as the quorum set of Node %s.', nodes, self.node)
 
-        return
-
     def get_node(self):
-        # If there are no nodes in the quorum set, return None
-        if len(self.nodes) == 0:
-            return None
-        else:
-            # return np.random.choice(self.nodes)
-            return np.random.choice([node for node in self.nodes if node != self.node])
+        return list(self.nodes)
 
     def get_nodes(self):
         # TODO: Should we return self.nodes.copy() instead?
         return self.nodes
 
-    # TODO: Check minimum_quorum() method because it looks strange, I don't understand it!
     @property
     def minimum_quorum(self):
         # Minimum number of nodes (round up) required to reach threshold
-        return math.ceil((len(self.nodes) + 1) * (self.threshold / 100))
+        # return math.ceil((len(self.nodes) + 1) * (self.threshold / 100))
+        return math.ceil(len(self.nodes) * (self.threshold / 100)) # should be
 
     # TODO: Quorum is constructed by a union of all quorum sets of nodes in the quorum set!
     def get_quorum(self):
-        nodes = set().union(*[node.quorum_set.get_nodes() for node in self.node.quorum_set.get_nodes()])
-        return nodes
+        # nodes = set().union(*[node.quorum_set.get_nodes() for node in self.node.quorum_set.get_nodes()])
+        # return nodes
+        return self.nodes
 

@@ -9,10 +9,9 @@ Last update: August 2023
 Event class.
 """
 
-from Log import log
+from src.common.Log import log
 
 class Event:
-
     def __init__(self, name, **kvargs):
 
         self.name = name

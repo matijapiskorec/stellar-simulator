@@ -1,16 +1,13 @@
-import sys
-
-from Simulator import Simulator
-from Gillespie import Gillespie
-from Event import Event
-from Network import Network
-from Mempool import Mempool
-from Log import log
+from src.blockchain.Simulator import Simulator
+from src.network.Gillespie import Gillespie
+from src.network.Event import Event
+from src.network.Network import Network
+from src.network.Mempool import Mempool
+from src.common.Log import log
 
 import unittest
 
-from Value import Value
-
+from src.consensus.Value import Value
 
 class SimulatorTest(unittest.TestCase):
 

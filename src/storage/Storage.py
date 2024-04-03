@@ -71,4 +71,3 @@ class Storage:
             accepted_values = [value for message in messages for value in message.accepted]
 
             return Value.combine(voted_values), Value.combine(accepted_values)
-

@@ -1,6 +1,6 @@
 import unittest
-from Value import Value
-from Transaction import Transaction
+from src.consensus.Value import Value
+from src.network.Transaction import Transaction
 
 class ValueTest(unittest.TestCase):
 

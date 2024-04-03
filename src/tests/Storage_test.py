@@ -1,9 +1,9 @@
 import unittest
-from Storage import Storage
-from Value import Value
-from Node import Node
-from Transaction import Transaction
-from SCPNominate import SCPNominate
+from src.storage.Storage import Storage
+from src.consensus.Value import Value
+from src.network.Node import Node
+from src.network.Transaction import Transaction
+from src.network.SCPNominate import SCPNominate
 
 class StorageTest(unittest.TestCase):
 
