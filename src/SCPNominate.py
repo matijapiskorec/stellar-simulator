@@ -55,3 +55,7 @@ class SCPNominate(Message):
     def voted(self):
         return self._voted
 
+    @property
+    def accepted(self):
+        return self._accepted
+

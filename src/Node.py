@@ -13,7 +13,6 @@ Documentation:
 [2] Nicolas Barry and Giuliano Losa and David Mazieres and Jed McCaleb and Stanislas Polu, The Stellar Consensus Protocol (SCP) - technical implementation draft, https://datatracker.ietf.org/doc/draft-mazieres-dinrg-scp/05/
 """
 
-import copy
 from Log import log
 from Event import Event
 from FBAConsensus import FBAConsensus
@@ -23,6 +22,7 @@ from SCPNominate import SCPNominate
 from Value import Value
 from Storage import Storage
 from Globals import Globals
+import copy
 
 import random
 import xdrlib3
@@ -149,10 +149,42 @@ class Node():
         """
         Broadcast SCPNominate message to the storage.
         """
-        self.prepare_nomination_msg()
+        self.prepare_nomination_msg() # Prepares Values for Nomination and broadcasts message
+        priority_node = self.get_highest_priority_neighbor()
+        self.send_message_to_all_peers(priority_node)
         # TODO: nominate function should update nominations from peers until the quorum threshold is met
         # TODO: the respective function should be implemented and called here
         return
+
+    def send_message_to_all_peers(self, priority_node):
+        message = priority_node.storage.get_combined_messages() # returns a tuple of Values [0] is voted and [1] is accepted
+        if message is not None and len(message) > 0:
+            for peer in self.get_neighbors():
+                if peer != priority_node:
+                    peer.receive_message(priority_node, message)
+        else:
+            log.node.info('Priority node has no message to echo!')
+
+    def receive_message(self, other_node, message):
+        if message is not None and len(message) > 0:
+            self.process_received_message(message)
+            log.node.info('Node %s retrieving messages from his highest priority neighbor Node %s!', self.name,other_node.name)
+        else:
+            log.node.info('Node %s has no messages to retrieve from his highest priority neighbor Node %s!', self.name, other_node.name)
+
+    def process_received_message(self, message):
+        incoming_voted = message[0]
+        incoming_accepted = message[1]
+
+        if type(incoming_voted) == Value and self.is_duplicate_value(incoming_voted, self.nomination_state['voted']) == False:
+            if len(self.nomination_state['voted']) > 0:
+                self.nomination_state['voted'].append(incoming_voted)
+                log.node.info('Node %s has updated its voted field in nomination state')
+
+        if type(incoming_accepted) == Value: # If it's a Value it means that there are transactions to be combined
+            if len(self.nomination_state['accepted']) > 0:
+                self.nomination_state['accepted'].append([incoming_accepted])
+                log.node.info('Node %s has updated its accepted field in nomination state')
 
     def retrieve_message_from_peer(self):
         """
@@ -264,5 +296,10 @@ class Node():
     def get_highest_priority_neighbor(self):
         return max(self.get_neighbors(),key=self.priority)
 
+    def is_duplicate_value(self, other_val, current_vals):
+        for val in current_vals:
+            if other_val == val:
+                return True
+        return False
 
 

@@ -65,10 +65,12 @@ class Storage:
     def get_combined_messages(self):
         messages = self._messages.copy()
         if len(messages) == 0:
-            return Value(voted=[]), Value(accepted=[])
+            return [], []
         else:
             voted_values = [value for message in messages for value in message.voted]
             accepted_values = [value for message in messages for value in message.accepted]
+            if len(accepted_values) == 0:
+                return Value.combine(voted_values), []
 
             return Value.combine(voted_values), Value.combine(accepted_values)
 
