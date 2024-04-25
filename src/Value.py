@@ -42,6 +42,11 @@ class Value():
     def __eq__(self, other):
         return (self.hash == other.hash and self.state == other.state and set(self.transactions) == set(other.transactions))
 
+
+    def __hash__(self):
+        return hash(self._hash)
+
+
     @property
     def transactions(self):
         return self._transactions
