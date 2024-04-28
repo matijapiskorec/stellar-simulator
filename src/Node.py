@@ -3,8 +3,8 @@
 Node
 =========================
 
-Author: Matija Piskorec
-Last update: August 2023
+Author: Matija Piskorec, Jaime de Vivero Woods
+Last update: April 2024
 
 Node class.
 
@@ -50,6 +50,8 @@ class Node():
         default_state = {'voted': [], 'accepted': [], 'confirmed': []}
         self.nomination_state = copy.deepcopy(default_state)
         self.balloting_state = copy.deepcopy(default_state)
+        self.statement_counter = {} # This hashmap (or dictionary) keeps track of all Values added and how many times unique nodes have made statements on it
+        # This dictionary looks like this {Value_hash: {'voted': {node_id: count,...}}, {'accepted': {node_id:count}}}
 
         # From the documentation [1]:
         # A node always begins nomination in round "1".  Round "n" lasts for
@@ -102,27 +104,6 @@ class Node():
             log.node.info('Node %s cannot retrieve transaction from mempool because it is empty!',self.name)
         return
 
-    # # TODO: Remove gossip event from the node!
-    # def gossip(self):
-    #     transaction = self.ledger.get_transaction()
-    #     if transaction is not None:
-    #         # Choosing a receiver node from current node's qourum set
-    #         other_node = self.quorum_set.get_node()
-    #         if other_node is not None:
-    #             log.node.info('Node %s sent a transaction to Node %s!',self.name,other_node.name)
-    #             other_node.receive_transaction(transaction)
-    #         else:
-    #             log.node.info('Node %s has no one in quorum set so it cannot gossip!',self.name)
-    #     else:
-    #         log.node.info('Node %s has no transactions so cannot send any!', self.name)
-    #     return
-
-    # # TODO: Remove because we are not using gossip event anymore!
-    # def receive_transaction(self,transaction):
-    #     # TODO: Consider adding information from whom did transaction come from in receive_transaction()!
-    #     log.node.info('Node %s received a transaction %s.', self.name, transaction)
-    #     self.ledger.add(transaction)
-    #     return
 
     # Add nodes to quorum
     # TODO: Consider removing add_to_quorum() because we are only using set_quorum()!
@@ -168,6 +149,7 @@ class Node():
     def receive_message(self, other_node, message):
         if message is not None and len(message) > 0:
             self.process_received_message(message)
+            self.update_statement_count(other_node, message)
             log.node.info('Node %s retrieving messages from his highest priority neighbor Node %s!', self.name,other_node.name)
         else:
             log.node.info('Node %s has no messages to retrieve from his highest priority neighbor Node %s!', self.name, other_node.name)
@@ -177,13 +159,11 @@ class Node():
         incoming_accepted = message[1]
 
         if type(incoming_voted) == Value and self.is_duplicate_value(incoming_voted, self.nomination_state['voted']) == False:
-            if len(self.nomination_state['voted']) > 0:
                 self.nomination_state['voted'].append(incoming_voted)
                 log.node.info('Node %s has updated its voted field in nomination state')
 
         if type(incoming_accepted) == Value: # If it's a Value it means that there are transactions to be combined
-            if len(self.nomination_state['accepted']) > 0:
-                self.nomination_state['accepted'].append([incoming_accepted])
+                self.nomination_state['accepted'].append(incoming_accepted)
                 log.node.info('Node %s has updated its accepted field in nomination state')
 
     def retrieve_message_from_peer(self):
@@ -238,6 +218,33 @@ class Node():
             # TODO: Implement get_messages() in Storage which returns copy of the messages!
             messages = self.storage.messages.copy()
         return messages
+
+    def update_statement_count(self, other_node, message):
+        incoming_voted = message[0]
+        incoming_accepted = message[1]
+
+        if type(incoming_accepted) == Value:
+            if incoming_accepted.hash in self.statement_counter:
+                    if other_node.name in self.statement_counter[incoming_accepted.hash]['accepted']:
+                        # Update the count by 1
+                        self.statement_counter[incoming_accepted.hash]['accepted'][other_node.name] += 1
+                    else:
+                        # As value has a dictionary but this node isn't in it, simpy set the node counter to 1
+                        self.statement_counter[incoming_accepted.hash]['accepted'][other_node.name] = 1
+            else:
+                # Initiate dictionary for value & accepted for the value and then add the count for the node
+                self.statement_counter[incoming_accepted.hash] = {"voted": {}, "accepted": {}}
+                self.statement_counter[incoming_accepted.hash]['accepted'][other_node.name] = 1
+
+        if type(incoming_voted) == Value:
+                if incoming_voted.hash in self.statement_counter:
+                        if other_node.name in self.statement_counter[incoming_voted.hash]['voted']:
+                            self.statement_counter[incoming_voted.hash]['voted'][other_node.name] += 1
+                        else:
+                            self.statement_counter[incoming_voted.hash]['voted'][other_node.name] = 1
+                else:
+                    self.statement_counter[incoming_voted.hash] = {"voted": {}, "accepted": {}}
+                    self.statement_counter[incoming_voted.hash]['voted'] = {other_node.name: 1}
 
     # In round "n" of slot "i", each node determines an additional
     # peer whose nominated values it should incorporate in its own
@@ -301,5 +308,3 @@ class Node():
             if other_val == val:
                 return True
         return False
-
-
