@@ -90,6 +90,7 @@ class NodeTest(unittest.TestCase):
                 # as extend is used to add new Values the list of
                 self.assertTrue(len(node.nomination_state['voted'][0].transactions) == len(node.ledger.transactions))
                 self.assertTrue(len(node.storage.messages) > 0)
+                self.assertEqual(len(node.broadcast_flags), 1)
 
     def test_prepare_nomination_phase_correctly_adds_many_values(self):
         for topology in ['FULL', 'ER']:
@@ -110,6 +111,7 @@ class NodeTest(unittest.TestCase):
                 # The second Value in the state should contain all txs from ledger which should now be 2
                 self.assertTrue(len(node.nomination_state['voted'][1].transactions) == len(node.ledger.transactions))
                 self.assertTrue(len(node.storage.messages) > 0)
+                self.assertEqual(len(node.broadcast_flags), 2)
 
     def test_process_received_messages_processes_empty_state_correctly(self):
             self.node = Node("test_node")
@@ -143,7 +145,6 @@ class NodeTest(unittest.TestCase):
             self.storage = Storage(self.node)
             mempool = Mempool()
             self.node.attach_mempool(mempool)
-
 
             value1 = Value(transactions={Transaction(0), Transaction(1)})
 
@@ -268,3 +269,85 @@ class NodeTest(unittest.TestCase):
 
             # Function should not fail
             self.node.update_statement_count(self.other_node, [[], []])
+
+    def test_retrieve_broadcast_message_retrieves_correctly(self):
+        self.node = Node("test_node")
+        self.retrieving_node = Node("test_node2")
+        mempool = Mempool()
+        self.storage = Storage(self.node)
+        self.node.attach_mempool(mempool)
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0), Transaction(0)})
+
+        message = SCPNominate(voted=[value1], accepted=[value2])
+
+        self.node.broadcast_flags = [message]
+
+        retrieved = self.node.retrieve_broadcast_message(self.retrieving_node)
+
+        self.assertEqual(retrieved, message)
+        self.assertIn(retrieved, self.node.broadcast_flags)
+        self.assertIn(self.retrieving_node.name, self.node.received_broadcast_msgs)
+
+    def test_retrieve_broadcast_message_retrieves_correctly_for_multiple_messages(self):
+        self.node = Node("test_node")
+        self.retrieving_node = Node("test_node2")
+        mempool = Mempool()
+        self.storage = Storage(self.node)
+        self.node.attach_mempool(mempool)
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0), Transaction(0)})
+
+        message = SCPNominate(voted=[value1], accepted=[value2])
+
+        value3 = Value(transactions={Transaction(0), Transaction(0)})
+
+        message2 = SCPNominate(voted=[value2], accepted=[value3])
+
+        self.node.broadcast_flags = [message, message2]
+
+        retrieved = self.node.retrieve_broadcast_message(self.retrieving_node)
+        retrieved2 = self.node.retrieve_broadcast_message(self.retrieving_node)
+
+        self.assertIn(retrieved, self.node.broadcast_flags)
+        self.assertIn(retrieved2, self.node.broadcast_flags)
+        self.assertIn(self.retrieving_node.name, self.node.received_broadcast_msgs)
+        self.assertEqual(len(self.node.received_broadcast_msgs[self.retrieving_node.name]), 2)
+
+    def test_retrieve_broadcast_message_returns_none_for_empty(self):
+            self.node = Node("test_node")
+            self.retrieving_node = Node("test_node2")
+            mempool = Mempool()
+            self.storage = Storage(self.node)
+            self.node.attach_mempool(mempool)
+
+            retrieved = self.node.retrieve_broadcast_message(self.retrieving_node)
+
+            self.assertEqual(retrieved, None)
+            self.assertEqual([], self.node.broadcast_flags)
+            self.assertEqual({}, self.node.received_broadcast_msgs)
+
+    def test_retrieve_broadcast_message_returns_none_for_node_with_all_messages(self):
+        self.node = Node("test_node")
+        self.retrieving_node = Node("test_node2")
+        mempool = Mempool()
+        self.storage = Storage(self.node)
+        self.node.attach_mempool(mempool)
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0), Transaction(0)})
+
+        message = SCPNominate(voted=[value1], accepted=[value2])
+
+        value3 = Value(transactions={Transaction(0), Transaction(0)})
+
+        message2 = SCPNominate(voted=[value2], accepted=[value3])
+
+        self.node.broadcast_flags = [message, message2]
+        self.node.received_broadcast_msgs[self.retrieving_node.name] = [message, message2]
+
+        retrieved = self.node.retrieve_broadcast_message(self.retrieving_node)
+
+        self.assertEqual(retrieved, None)

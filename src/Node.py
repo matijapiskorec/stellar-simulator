@@ -12,7 +12,7 @@ Documentation:
 
 [2] Nicolas Barry and Giuliano Losa and David Mazieres and Jed McCaleb and Stanislas Polu, The Stellar Consensus Protocol (SCP) - technical implementation draft, https://datatracker.ietf.org/doc/draft-mazieres-dinrg-scp/05/
 """
-
+import numpy as np
 from Log import log
 from Event import Event
 from FBAConsensus import FBAConsensus
@@ -52,16 +52,10 @@ class Node():
         self.balloting_state = copy.deepcopy(default_state)
         self.statement_counter = {} # This hashmap (or dictionary) keeps track of all Values added and how many times unique nodes have made statements on it
         # This dictionary looks like this {Value_hash: {'voted': {node_id: count,...}}, {'accepted': {node_id:count}}}
+        self.broadcast_flags = []  # Add every message here for other
+        self.received_broadcast_msgs = {} # This hashmap (or dictionary) keeps track of all Messages retrieved by each node
+        # This dictionary looks like this {{node.name: SCPNominate,...},...}
 
-        # From the documentation [1]:
-        # A node always begins nomination in round "1".  Round "n" lasts for
-        # "1+n" seconds, after which, if no value has been confirmed nominated,
-        # the node proceeds to round "n+1".  A node continues to echo votes
-        # from the highest priority neighbor in prior rounds as well as the
-        # current round.  In particular, until any value is confirmed
-        # nominated, a node continues expanding its "voted" field with values
-        # nominated by highest priority neighbors from prior rounds even when
-        # the values appeared after the end of those prior rounds.
         self.nomination_round = 1
 
         # TODO: Implement the logic for advancing the nomination rounds each n+1 seconds!
@@ -104,7 +98,6 @@ class Node():
             log.node.info('Node %s cannot retrieve transaction from mempool because it is empty!',self.name)
         return
 
-
     # Add nodes to quorum
     # TODO: Consider removing add_to_quorum() because we are only using set_quorum()!
     def add_to_quorum(self, nodes):
@@ -136,6 +129,24 @@ class Node():
         # TODO: nominate function should update nominations from peers until the quorum threshold is met
         # TODO: the respective function should be implemented and called here
         return
+
+    def retrieve_broadcast_message(self, requesting_node):
+        # Select a random message and check if its already been sent to the requesting_node
+        # To check -> check if the value hash of the
+        if len(self.broadcast_flags) > 0:
+            if requesting_node.name not in self.received_broadcast_msgs:
+                retrieved_message = np.random.choice(self.broadcast_flags)
+                self.received_broadcast_msgs[requesting_node.name] = [retrieved_message]
+                return retrieved_message
+
+            elif len(self.received_broadcast_msgs[requesting_node.name]) != len(self.broadcast_flags):
+                statement = True
+                while statement:
+                    retrieved_message = np.random.choice(self.broadcast_flags)
+                    if retrieved_message not in self.received_broadcast_msgs[requesting_node.name]:
+                        self.received_broadcast_msgs[requesting_node.name].append(retrieved_message)
+                        return retrieved_message
+        return None
 
     def send_message_to_all_peers(self, priority_node):
         message = priority_node.storage.get_combined_messages() # returns a tuple of Values [0] is voted and [1] is accepted
@@ -205,6 +216,7 @@ class Node():
 
             self.nomination_state['voted'].extend(voted_vals)
             self.storage.add_messages(message)
+            self.broadcast_flags.append(message)
 
             log.node.info('Node %s appended SCPNominate message to its storage and state, message = %s', self.name, message)
         else:
