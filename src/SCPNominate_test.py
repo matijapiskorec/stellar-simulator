@@ -42,7 +42,6 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(parsed1[0], []) # value1 and value2 should be present
         self.assertEqual(parsed1[1], [])  # accepted field should be an empty list
 
-
     def test_parse_message_state_returns_voted_and_accepted(self):
         value1 = Value(transactions={Transaction(0), Transaction(0)})
         value2 = Value(transactions={Transaction(0), Transaction(0)})
@@ -54,4 +53,3 @@ class StorageTest(unittest.TestCase):
 
         self.assertEqual(parsed1[0], Value.combine([value1, value2])) # value1 and value2 should be present
         self.assertEqual(parsed1[1], value3)  # accepted field should be an empty list
-

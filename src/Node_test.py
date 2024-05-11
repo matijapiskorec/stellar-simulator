@@ -7,7 +7,7 @@ from SCPNominate import SCPNominate
 from Storage import Storage
 from Node import Node
 from Transaction import Transaction
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 class NodeTest(unittest.TestCase):
     def setup(self):
@@ -172,24 +172,10 @@ class NodeTest(unittest.TestCase):
             self.assertIn(value1, self.node.nomination_state['voted'])  # value1 should be present
             self.assertEqual(self.node.nomination_state['voted'].count(value1), 1) # value1 should only be there once as duplicates are not added
 
-    def test_receive_works(self):
-        self.node = Node("test_node")
-        self.storage = Storage(self.node)
-        self.other_node = Node("test_node2")
-        self.node.process_received_message = MagicMock()
-
-        value1 = Value(transactions={Transaction(0), Transaction(0)})
-        value2 = Value(transactions={Transaction(0), Transaction(0)})
-
-        self.node.receive_message(self.other_node, [value1, value2])
-
-        self.node.process_received_message.assert_called_once()
-
-    def test_send_message_to_all_peers_send_message(self):
+    def test_receive_message_receives_message(self):
         self.node = Node("test_node")
         self.storage = Storage(self.node)
         self.priority_node = Node("test_node2")
-        self.node.receive_message = MagicMock()
 
         value1 = Value(transactions={Transaction(0), Transaction(0)})
         value2 = Value(transactions={Transaction(0), Transaction(0)})
@@ -198,11 +184,42 @@ class NodeTest(unittest.TestCase):
 
         self.priority_node.storage.add_messages(message)
 
-        self.node.get_neighbors = MagicMock(return_value=[self.priority_node, self.node])
+        self.node.get_highest_priority_neighbor = MagicMock(return_value=self.priority_node)
+        self.node.retrieve_broadcast_message = MagicMock(return_value=message)
+        message.parse_message_state = MagicMock(return_value=[value1, value2])
+        self.node.process_received_message = MagicMock()
+        self.node.update_statement_count = MagicMock()
 
-        self.node.send_message_to_all_peers(self.priority_node)
+        self.node.receive_message()
 
-        self.node.receive_message.assert_called_once()
+        # Assert that functions are called
+        self.node.get_highest_priority_neighbor.assert_called()
+        self.node.retrieve_broadcast_message.assert_called()
+        message.parse_message_state.assert_called()
+        self.node.process_received_message.assert_called_once()
+        self.node.update_statement_count.assert_called_once()
+
+    def test_receive_empty_message_doesnt_call_functions_and_doesnt_fail(self):
+        self.node = Node("test_node")
+        self.storage = Storage(self.node)
+        self.priority_node = Node("test_node2")
+        message = SCPNominate(voted=[], accepted=[])
+
+
+        self.node.get_highest_priority_neighbor = MagicMock(return_value=self.priority_node)
+        self.node.retrieve_broadcast_message = MagicMock(return_value=None)
+        message.parse_message_state = MagicMock()
+        self.node.process_received_message = MagicMock()
+        self.node.update_statement_count = MagicMock()
+
+        self.node.receive_message()
+
+        # Assert that the first 2 functions are called and the others are not
+        self.node.get_highest_priority_neighbor.assert_called()
+        self.node.retrieve_broadcast_message.assert_called()
+        message.parse_message_state.assert_not_called()
+        self.node.process_received_message.assert_not_called()
+        self.node.update_statement_count.assert_not_called()
 
     def test_is_duplicate_value_should_return_true(self):
         self.node = Node("test_node")
