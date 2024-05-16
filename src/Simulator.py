@@ -176,14 +176,13 @@ class Simulator:
             #     random_node.gossip()
 
             case 'nominate':
-
                 random_node = np.random.choice(self._nodes)
                 random_node.nominate()
 
             case 'retrieve_message_from_peer':
 
                 random_node = np.random.choice(self._nodes)
-                random_node.retrieve_message_from_peer()
+                random_node.receive_message()
 
 
 if __name__=='__main__':

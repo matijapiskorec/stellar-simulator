@@ -4,7 +4,7 @@ Node
 =========================
 
 Author: Matija Piskorec, Jaime de Vivero Woods
-Last update: April 2024
+Last update: May 2024
 
 Node class.
 
@@ -125,7 +125,6 @@ class Node():
         """
         self.prepare_nomination_msg() # Prepares Values for Nomination and broadcasts message
         priority_node = self.get_highest_priority_neighbor()
-        self.send_message_to_all_peers(priority_node)
         # TODO: nominate function should update nominations from peers until the quorum threshold is met
         # TODO: the respective function should be implemented and called here
         return
@@ -148,22 +147,19 @@ class Node():
                         return retrieved_message
         return None
 
-    def send_message_to_all_peers(self, priority_node):
-        message = priority_node.storage.get_combined_messages() # returns a tuple of Values [0] is voted and [1] is accepted
-        if message is not None and len(message) > 0:
-            for peer in self.get_neighbors():
-                if peer != priority_node:
-                    peer.receive_message(priority_node, message)
-        else:
-            log.node.info('Priority node has no message to echo!')
 
-    def receive_message(self, other_node, message):
-        if message is not None and len(message) > 0:
-            self.process_received_message(message)
-            self.update_statement_count(other_node, message)
-            log.node.info('Node %s retrieving messages from his highest priority neighbor Node %s!', self.name,other_node.name)
-        else:
-            log.node.info('Node %s has no messages to retrieve from his highest priority neighbor Node %s!', self.name, other_node.name)
+    def receive_message(self):
+        priority_node = self.get_highest_priority_neighbor()
+        if priority_node != self:
+            message = self.retrieve_broadcast_message(priority_node)
+
+            if message is not None:
+                message = message.parse_message_state(message)
+                self.process_received_message(message)
+                self.update_statement_count(priority_node, message)
+                log.node.info('Node %s retrieving messages from his highest priority neighbor Node %s!', self.name,priority_node.name)
+            else:
+                log.node.info('Node %s has no messages to retrieve from his highest priority neighbor Node %s!', self.name, priority_node.name)
 
     def process_received_message(self, message):
         incoming_voted = message[0]
@@ -240,23 +236,32 @@ class Node():
                     if other_node.name in self.statement_counter[incoming_accepted.hash]['accepted']:
                         # Update the count by 1
                         self.statement_counter[incoming_accepted.hash]['accepted'][other_node.name] += 1
+                        log.node.info('Node %s has updated its accepted statement counter for Node %s with nominated values!', self.name, other_node.name)
+
                     else:
                         # As value has a dictionary but this node isn't in it, simpy set the node counter to 1
                         self.statement_counter[incoming_accepted.hash]['accepted'][other_node.name] = 1
+                        log.node.info('Node %s has set an accepted statement counter for Node %s with nominated values!', self.name, other_node.name)
             else:
                 # Initiate dictionary for value & accepted for the value and then add the count for the node
                 self.statement_counter[incoming_accepted.hash] = {"voted": {}, "accepted": {}}
                 self.statement_counter[incoming_accepted.hash]['accepted'][other_node.name] = 1
+                log.node.info('Node %s has added an accepted statement counter for Node %s with nominated values!', self.name, other_node.name)
 
         if type(incoming_voted) == Value:
                 if incoming_voted.hash in self.statement_counter:
                         if other_node.name in self.statement_counter[incoming_voted.hash]['voted']:
                             self.statement_counter[incoming_voted.hash]['voted'][other_node.name] += 1
+                            log.node.info('Node %s has updated its voted statement counter for Node %s with nominated values!', self.name, other_node.name)
+
                         else:
                             self.statement_counter[incoming_voted.hash]['voted'][other_node.name] = 1
+                            log.node.info('Node %s has added an accepted statement counter for Node %s with nominated values!',self.name, other_node.name)
+
                 else:
                     self.statement_counter[incoming_voted.hash] = {"voted": {}, "accepted": {}}
                     self.statement_counter[incoming_voted.hash]['voted'] = {other_node.name: 1}
+                    log.node.info('Node %s has set its voted statement counter for %s with nominated values!', self.name, other_node.name)
 
     # In round "n" of slot "i", each node determines an additional
     # peer whose nominated values it should incorporate in its own

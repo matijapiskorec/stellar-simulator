@@ -3,8 +3,8 @@
 SCPNominate
 =========================
 
-Author: Matija Piskorec
-Last update: August 2023
+Author: Matija Piskorec, Jaime de Vivero Woods
+Last update: May 2024
 
 SCPNominate message class.
 """
@@ -59,3 +59,16 @@ class SCPNominate(Message):
     def accepted(self):
         return self._accepted
 
+
+    def parse_message_state(self, message):
+        if len(message.voted) == 0 and len(message.accepted) == 0:
+            return [], []
+        else:
+            voted_values = [value for value in message.voted]
+            accepted_values = [value for value in message.accepted]
+            if len(accepted_values) == 0:
+                return Value.combine(voted_values), []
+            elif len(voted_values) == 0:
+                return [], Value.combine(accepted_values)
+
+            return Value.combine(voted_values), Value.combine(accepted_values)
