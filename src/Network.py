@@ -42,9 +42,9 @@ class Network():
                     log.network.debug('Adding nodes %s to the quorum set of Node %s', nodes, node)
                     node.set_quorum(nodes)
             case 'ER':
-                graph = nx.fast_gnp_random_graph(n_nodes,0.5)
-                lcc_set = max(nx.connected_components(graph), key=len)
-                missing = list(set(int(node.name) for node in nodes) - lcc_set)
+                graph = nx.fast_gnp_random_graph(n_nodes,0.5) # make a random graph - could include all or only a few, some nodes may have many connections and some few or none
+                lcc_set = max(nx.connected_components(graph), key=len) # LCC is the main node with the most connections
+                missing = list(set(int(node.name) for node in nodes) - lcc_set) # nodes are not included in any quorum set and are considered "missing" in the context of the simulation
                 if len(missing) > 0:
                     # Now there are nodes with no quorum set, so they cannot gossip messages!
                     # TODO: Consider removing nodes which are not part of anyone's quorum set!

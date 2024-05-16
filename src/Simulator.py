@@ -35,7 +35,7 @@ from Mempool import Mempool
 # import Globals
 from Globals import Globals
 
-VERBOSITY_DEFAULT = 4
+VERBOSITY_DEFAULT = 5
 N_NODES_DEFAULT = 2
 
 class Simulator:
@@ -113,6 +113,9 @@ class Simulator:
                              'retrieve_message_from_peer':{'tau':3.0,
                                        'tau_domain':self._nodes}}
 
+        # ALL SIMULATION EVENTS COULD OCCUR AT ANY POINT, WHEN WE IMPLEMENT BALLOTING WE'LL HAVE TO
+        # DISABLE NOMINATE
+
         # Concatenate events you get from the FBAConsensus and Node class
         self._events = [*FBAConsensus.get_events(), *Node.get_events()]
 
@@ -173,14 +176,14 @@ class Simulator:
             #     random_node.gossip()
 
             case 'nominate':
-
                 random_node = np.random.choice(self._nodes)
                 random_node.nominate()
 
             case 'retrieve_message_from_peer':
 
                 random_node = np.random.choice(self._nodes)
-                random_node.retrieve_message_from_peer()
+                random_node.receive_message()
+
 
 if __name__=='__main__':
 
