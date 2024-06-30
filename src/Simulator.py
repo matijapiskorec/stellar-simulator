@@ -34,6 +34,7 @@ from Network import Network
 from Mempool import Mempool
 # import Globals
 from Globals import Globals
+from Event import Event
 
 VERBOSITY_DEFAULT = 5
 N_NODES_DEFAULT = 2
@@ -141,6 +142,28 @@ class Simulator:
             # Update time for mempool so that newly mined transactions would have correct timestamps.
             # self._mempool.update_time(self._simulation_time)
             self._handle_event(event_random)
+
+    def add_transaction(self, transaction: str):
+        self.transactions.append(transaction)
+
+    def simulate(self):
+        self.log.logger.info("Starting SCP simulation")
+        self.network.generate_nodes()
+        # Add some initial events to the simulation
+        for transaction in self.transactions:
+            self.gillespie.add_event(
+                Event("create_transaction", {"transaction_hash": transaction, "time_stamp": 1234567890}))
+            self.gillespie.add_event(Event("process_transaction", {}))
+            self.gillespie.add_event(Event("consensus_event", {}))
+
+        # Simulate events
+        for _ in range(self.gillespie.max_time):
+            event = self.gillespie.next_event()
+            if event:
+                event.simulate_event(self.network)
+            else:
+                break
+        self.log.logger.info("SCP simulation completed")
 
     def _handle_event(self,event):
         """
