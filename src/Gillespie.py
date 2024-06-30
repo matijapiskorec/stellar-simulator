@@ -48,6 +48,9 @@ class Gillespie:
 
         log.gillespie.info('Initialized Gillespie algorithm.')
 
+    def add_event(self, event):
+        self.events.append(event)
+
     def next_event(self):
 
         # TODO: We are assuming that all events are asynchronous, while this is not true!

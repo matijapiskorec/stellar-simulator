@@ -90,13 +90,10 @@ class Node():
 
     def retrieve_transaction_from_mempool(self):
         transaction = self.mempool.get_transaction()
-        if transaction is not None:
-            # TODO: Check the validity of the transaction in the retrieve_transactions_from_mempool() in Node!
-            log.node.info('Node %s retrieved %s from mempool.',self.name,transaction)
-            self.ledger.add(transaction)
-        else:
-            log.node.info('Node %s cannot retrieve transaction from mempool because it is empty!',self.name)
-        return
+        if transaction:
+            self.ledger.add_transaction(transaction)
+            self.storage.add_message(SCPNominate(voted=[transaction], accepted=[]))
+        log.node.info(f"Node {self.node_id} retrieved transaction from mempool: {transaction}")
 
     # Add nodes to quorum
     # TODO: Consider removing add_to_quorum() because we are only using set_quorum()!
@@ -128,6 +125,9 @@ class Node():
         # TODO: nominate function should update nominations from peers until the quorum threshold is met
         # TODO: the respective function should be implemented and called here
         return
+
+    def nominate(self, transaction: str):
+        self.votes.add(transaction)
 
     def retrieve_broadcast_message(self, requesting_node):
         # Select a random message and check if its already been sent to the requesting_node
@@ -325,3 +325,37 @@ class Node():
             if other_val == val:
                 return True
         return False
+
+
+
+class SNode:
+    def __init__(self, node_id: int, quorum_set: QuorumSet):
+        self.node_id = node_id
+        self.quorum_set = quorum_set
+        self.ledger = Ledger(node_id)
+        self.mempool = Mempool(node_id)
+        self.storage = Storage(node_id)
+        self.votes = set()
+        self.ballots = set()
+
+    def nominate(self, transaction: str):
+        self.votes.add(transaction)
+
+    def vote(self, transaction: str):
+        self.ballots.add(transaction)
+
+    def retrieve_transaction_from_mempool(self):
+        transaction = self.mempool.get_transaction()
+        if transaction:
+            self.ledger.add_transaction(transaction)
+            self.storage.add_message(SCPNominate(voted=[transaction], accepted=[]))
+            log.node.info(f"Node {self.node_id} retrieved transaction from mempool: {transaction}")
+
+    def get_highest_priority_neighbor(self):
+        # Assuming neighbors are the nodes in the quorum set
+        neighbors = list(self.quorum_set.nodes)
+        if not neighbors:
+            return None
+        # Sort neighbors by node_id to get the highest priority neighbor
+        highest_priority_neighbor = min(neighbors)
+        return highest_priority_neighbor

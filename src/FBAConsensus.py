@@ -11,8 +11,12 @@ Federated Byzantine Agreement (FBA) consensus class.
 
 from Log import log
 from Event import Event
+from SCPNominate import SCPNominate
+
 
 class FBAConsensus:
+    def __init__(self, network):
+        self.network = network
 
     @classmethod
     def get_events(cls):
@@ -41,8 +45,15 @@ class FBAConsensus:
     def __gossip(cls):
         log.consensus.info('GOSSIP!')
 
-    def mine(self, data):
-        raise NotImplementedError()
+    def mine(self):
+        log.consensus.info('Mining a new block')
+        # Implement mining logic here
+        for node in self.network.nodes:
+            transaction = node.mempool.get_transaction()
+            if transaction:
+                node.ledger.add_transaction(transaction)
+                node.storage.add_message(SCPNominate(voted=[transaction], accepted=[]))
+                log.consensus.info(f"Node {node.node_id} mined transaction: {transaction}")
 
     def gossip(self, data):
         raise NotImplementedError()
