@@ -11,6 +11,7 @@ QuorumSet class.
 import math
 
 from Log import log
+from typing import List
 
 import numpy as np
 
@@ -46,9 +47,11 @@ class QuorumSet():
         return len(list(filter(lambda x: x == node, self.nodes))) > 0
 
     # Remove node from quorum set
-    def remove(self, node):
-        self.nodes = filter(lambda x: x != node, self.nodes)
-        return
+    def remove(self, node_id: int):
+        # self.nodes = filter(lambda x: x != node, self.nodes)
+        # return
+        self.nodes.discard(node_id)
+        log.quorum.info(f'Removed node {node_id} from quorum set.')
 
     # # Add nodes to quorum
     # # TODO: Consider removing QuorumSet.add() because we are only using QuorumSet.set()!
@@ -107,4 +110,14 @@ class QuorumSet():
     def get_quorum(self):
         nodes = set().union(*[node.quorum_set.get_nodes() for node in self.node.quorum_set.get_nodes()])
         return nodes
+
+    def is_quorum_reached(self, votes: set) -> bool:
+        return len(votes.intersection(self.nodes)) >= self.threshold
+
+    def add_node(self, node_id: int):
+        self.nodes.add(node_id)
+        log.quorum.info(f'Added node {node_id} to quorum set.')
+
+    def remove_node(self, node_id: int):
+        self.nodes.discard(node_id)
 

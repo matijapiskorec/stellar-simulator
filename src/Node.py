@@ -359,3 +359,6 @@ class SNode:
         # Sort neighbors by node_id to get the highest priority neighbor
         highest_priority_neighbor = min(neighbors)
         return highest_priority_neighbor
+
+    def check_quorum(self) -> bool:
+        return self.quorum_set.is_quorum_reached(self.votes)
