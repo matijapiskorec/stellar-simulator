@@ -3,8 +3,8 @@
 Quorum Set
 =========================
 
-Author: Matija Piskorec
-Last update: August 2023
+Author: Matija Piskorec, Jaime de Vivero Woods
+Last update: July 2024
 
 QuorumSet class.
 """
@@ -31,7 +31,7 @@ class QuorumSet():
         self.nodes = []
         self.inner_sets = [] # will keep to 1 layer of depth for now, rarely gets deeper
 
-        log.quorum.info('Initialized quorum set for Node %s, threshold=%s, nodes=%s.',
+        log.quorum.info('Initialized quorum set for Node %s, threshold=%s, nodes=%s, inner sets=%s.',
                         self.node, self.threshold, self.nodes, self.inner_sets)
 
     def __repr__(self):
@@ -57,6 +57,7 @@ class QuorumSet():
         self.inner_sets = inner_sets if inner_sets is not None else []
 
         log.quorum.info('Set nodes %s as the quorum set of Node %s.', nodes, self.node)
+        log.quorum.info('Set nodes %s as the inner sets of Node %s.', inner_sets, self.node)
 
         return
 
@@ -65,7 +66,6 @@ class QuorumSet():
         if len(self.nodes) == 0:
             return None
         else:
-            # return np.random.choice(self.nodes)
             return np.random.choice([node for node in self.nodes if node != self.node])
 
     def get_nodes(self):
@@ -74,7 +74,6 @@ class QuorumSet():
     def get_inner_sets(self):
         return self.inner_sets.copy()
 
-    # TODO: Check minimum_quorum() method because it looks strange, I don't understand it!
     @property
     def minimum_quorum(self):
         # Minimum number of nodes (round up) required to reach threshold
@@ -83,17 +82,15 @@ class QuorumSet():
     def get_quorum(self):
         return self.get_nodes(), self.get_inner_sets()
 
-    def check_threshold(self, val, node_statement_counter):
-        node_counter = 0
-        inner_set_counter = 0
+    # This function checks if the quorum meets threshold - it checks every node, it doesn't check for nested QuorumSlices
+    def check_threshold(self, val, quorum, threshold, node_statement_counter):
+        signed_counter = 0
 
-        for node in self.nodes:
+        for node in quorum:
             if node in node_statement_counter[val.hash]["voted"] or node in node_statement_counter[val.hash]["accepted"]:
-                node_counter += 1
+                signed_counter += 1
 
-        for set in self.inner_sets:
-            for node in set:
-                if node in node_statement_counter[val.hash]["voted"] or node in node_statement_counter[val]["acccepted"]:
-                    inner_set_counter += 1
-
-
+        if signed_counter >= threshold:
+            return True
+        else:
+            return False

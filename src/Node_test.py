@@ -65,12 +65,39 @@ class NodeTest(unittest.TestCase):
             self.assertTrue( node.get_highest_priority_neighbor() == max_priority_neighbor )
             self.assertTrue( node.priority(node.get_highest_priority_neighbor()) == max_priority )
 
-    def test_quorum_of_nodes(self):
-
+    def test_quorum_of_nodes_ER(self):
         nodes = Network.generate_nodes(n_nodes=5, topology='ER')
         for node in nodes:
             log.test.debug('Node %s, quorum_set = %s',node.name,node.quorum_set)
             log.test.debug('Node %s, check_threshold = %s',node.name,node.quorum_set.get_quorum())
+            self.assertTrue(len(node.quorum_set.nodes) >= 1)
+            if len(node.quorum_set.nodes) > 2: # if more than one node added to Quorum (then 2 nodes are in Quorum, node itself + added one) then an inner set (or two) should be defined
+                print(node.quorum_set.inner_sets)
+                self.assertTrue(len(node.quorum_set.inner_sets) >= 1)
+
+    def test_quorum_of_nodes_FULL(self):
+        nodes = Network.generate_nodes(n_nodes=5, topology='FULL')
+        for node in nodes:
+            log.test.debug('Node %s, quorum_set = %s',node.name,node.quorum_set)
+            log.test.debug('Node %s, check_threshold = %s',node.name,node.quorum_set.get_quorum())
+            self.assertTrue(len(node.quorum_set.nodes) == 5)
+            self.assertTrue(node.quorum_set.nodes, nodes)
+            self.assertEqual(node.quorum_set.inner_sets, [])
+
+
+    def test_get_neighbors(self):
+        # Node names have to be numbers for Gi function to work
+        node2 = Node(name="2")
+        node3 = Node(name="3")
+        node4 = Node(name="4")
+        node5 = Node(name="5")
+        self.node = Node(name="1")
+
+        self.node.quorum_set.set(nodes=[node2, node3], inner_sets=[[node3, node4], [node4, node5]])
+
+        neighbors = self.node.get_neighbors()
+        self.assertEqual(len(neighbors),4) # All 4 nodes should be returned
+
 
     def test_prepare_nomination_msg_correctly_adds_value(self):
         for topology in ['FULL','ER']:
@@ -368,3 +395,76 @@ class NodeTest(unittest.TestCase):
         retrieved = self.node.retrieve_broadcast_message(self.retrieving_node)
 
         self.assertEqual(retrieved, None)
+
+    def test_node_itself_signed_message(self):
+        node2 = Node("test_node2")
+        self.node = Node(name="Node1")
+
+        self.node.quorum_set.set(nodes=node2, inner_sets=[])
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+
+        # Mock nomination_state and statement_counter
+        self.node.nomination_state = {
+            "voted": [value],
+            "accepted": [],
+            "confirmed": []
+        }
+        self.node.statement_counter = {
+            value.hash: {
+                "voted": {"test_node2": 1},
+                "accepted": {}
+            }
+        }
+
+        result = self.node.check_Quorum_threshold(value)
+        self.assertTrue(result)
+
+    def test_threshold_not_met(self):
+        self.node = Node(name="Node1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+
+        # Mock nomination_state and statement_counter
+        self.node.nomination_state = {
+            "voted": [],
+            "accepted": [],
+            "confirmed": []
+        }
+        self.node.statement_counter = {
+            value.hash: {
+                "voted": {},
+                "accepted": {}
+            }
+        }
+
+        result = self.node.check_Quorum_threshold(value)
+        self.assertFalse(result)
+
+    def test_threshold_met_for_inner_sets(self):
+        node2 = Node("test_node2")
+        node3 = Node("test_node3")
+        node4 = Node("test_node4")
+        node5 = Node("test_node5")
+        self.node = Node(name="Node1")
+
+        self.node.quorum_set.set(nodes=[node2, node3], inner_sets=[[node3, node4], [node4, node5]])
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0), Transaction(0)})
+
+        # Mock nomination_state and statement_counter
+        self.node.nomination_state = {
+            "voted": [value, value2],
+            "accepted": [],
+            "confirmed": []
+        }
+        self.node.statement_counter = {
+            value.hash: {
+                "voted": {"test_node2": 1, "test_node3": 1, "test_node4": 1},
+                "accepted": {"test_node5": 1}
+            }
+        }
+
+        result = self.node.check_Quorum_threshold(value)
+        self.assertTrue(result)

@@ -14,8 +14,8 @@ class StorageTest(unittest.TestCase):
     def test_empty_messages(self):
         # Test that empty messages return empty Value objects for voted and accepted
         voted, accepted = self.storage.get_combined_messages()
-        self.assertEqual(len(voted.transactions), 0) # Voted field should be empty
-        self.assertEqual(len(accepted.transactions), 0) # Accepted field should be empty
+        self.assertEqual(len(voted), 0) # Voted field should be empty
+        self.assertEqual(len(accepted), 0) # Accepted field should be empty
 
     def test_single_message(self):
         # Test combining a single message
