@@ -94,3 +94,12 @@ class QuorumSet():
             return True
         else:
             return False
+
+    def check_inner_set_blocking_threshold(self, calling_node, val, quorum):
+        # Check if any node in the Quorum has issued message "m" - not including the node itself
+        count = 0
+        for node in quorum:
+            if (node != calling_node) and (node in calling_node.statement_counter[val.hash]["voted"]) or (node != calling_node) and (node in calling_node.statement_counter[val.hash]["accepted"]):
+                count += 1
+
+        return count

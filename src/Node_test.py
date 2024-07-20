@@ -72,7 +72,6 @@ class NodeTest(unittest.TestCase):
             log.test.debug('Node %s, check_threshold = %s',node.name,node.quorum_set.get_quorum())
             self.assertTrue(len(node.quorum_set.nodes) >= 1)
             if len(node.quorum_set.nodes) > 2: # if more than one node added to Quorum (then 2 nodes are in Quorum, node itself + added one) then an inner set (or two) should be defined
-                print(node.quorum_set.inner_sets)
                 self.assertTrue(len(node.quorum_set.inner_sets) >= 1)
 
     def test_quorum_of_nodes_FULL(self):
@@ -301,7 +300,7 @@ class NodeTest(unittest.TestCase):
             self.assertIn(self.node.name, self.other_node.statement_counter[value1.hash]["voted"])
             self.assertIn(self.node.name, self.other_node.statement_counter[value2.hash]["accepted"])
 
-            self.assertEqual(self.node.statement_counter[value1.hash]["voted"][self.other_node.name], 2)
+            self.assertEqual(self.node.statement_counter[value1.hash]["voted"][self.other_node.name], 1)
 
     def test_update_statement_count_works_with_empty_vals(self):
             self.node = Node("test_node")
@@ -468,3 +467,102 @@ class NodeTest(unittest.TestCase):
 
         result = self.node.check_Quorum_threshold(value)
         self.assertTrue(result)
+
+
+    def test_blocking_threshold_met(self):
+        node2 = Node("test_node2")
+        node3 = Node("test_node3")
+        node4 = Node("test_node4")
+        node5 = Node("test_node5")
+
+        self.node = Node(name="Node1")
+        self.node.quorum_set.set(nodes=[node2, node3], inner_sets=[[node3, node4, self.node], [node5, self.node]])
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+
+        # Mock nomination_state and statement_counter
+        self.node.nomination_state = {
+            "voted": [value],
+            "accepted": [],
+            "confirmed": []
+        }
+        self.node.statement_counter = {
+            value.hash: {
+                "voted": {"test_node2": 1, "test_node3": 1, "test_node4": 1},
+                "accepted": {"test_node5": 1}
+            }
+        }
+
+        result = self.node.check_Blocking_threshold(value)
+        self.assertTrue(result)
+
+    def test_blocking_threshold_does_not_meet(self):
+        node2 = Node("2")
+        node3 = Node("3")
+        node4 = Node("4")
+        node5 = Node("5")
+
+        self.node = Node(name="Node1")
+        self.node.quorum_set.set(nodes=[node2, node3], inner_sets=[[node4], [node5]])
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+
+        # Mock nomination_state and statement_counter
+        self.node.nomination_state = {
+            "voted": [value],
+            "accepted": [],
+            "confirmed": []
+        }
+        self.node.statement_counter = {
+            value.hash: {
+                "voted": {"2": 1},
+                "accepted": {"3": 1}
+            }
+        }
+
+        result = self.node.check_Blocking_threshold(value)
+        self.assertFalse(result)
+
+    def test_blocking_threshold_returns_False_when_not_in_nomination_state(self):
+        node2 = Node("2")
+        node3 = Node("3")
+        node4 = Node("4")
+        node5 = Node("5")
+
+        self.node = Node(name="Node1")
+        self.node.quorum_set.set(nodes=[node2, node3], inner_sets=[[node4], [node5]])
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+
+        # Mock nomination_state and statement_counter
+        self.node.nomination_state = {
+            "voted": [],
+            "accepted": [],
+            "confirmed": []
+        }
+        self.node.statement_counter = {
+            value.hash: {
+                "voted": {"2": 1},
+                "accepted": {"3": 1}
+            }
+        }
+
+        result = self.node.check_Blocking_threshold(value)
+        self.assertFalse(result)
+
+    def test_blocking_threshold_returns_False_for_empty_Quorum(self):
+        self.node = Node(name="Node1")
+        self.node.quorum_set.set(nodes=[], inner_sets=[])
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+
+        # Mock statement_counter
+        self.node.statement_counter = {
+            value.hash: {
+                "voted": {},
+                "accepted": {}
+            }
+        }
+
+        result = self.node.check_Blocking_threshold(value)
+        self.assertFalse(result)
