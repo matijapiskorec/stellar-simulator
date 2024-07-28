@@ -5,7 +5,7 @@ from Node import Node
 from Transaction import Transaction
 from SCPNominate import SCPNominate
 
-class StorageTest(unittest.TestCase):
+class SCPNominateTest(unittest.TestCase):
 
     def test_parse_message_state_returns_correctly(self):
         value1 = Value(transactions={Transaction(0), Transaction(0)})

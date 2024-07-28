@@ -3,8 +3,8 @@
 Storage
 =========================
 
-Author: Matija Piskorec
-Last update: August 2023
+Author: Matija Piskorec, Jaime de Vivero Woods
+Last update: April 2024
 
 Storage class.
 """

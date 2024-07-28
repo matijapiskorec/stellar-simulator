@@ -4,7 +4,7 @@ Node
 =========================
 
 Author: Matija Piskorec, Jaime de Vivero Woods
-Last update: May 2024
+Last update: July 2024
 
 Node class.
 
@@ -44,8 +44,12 @@ class Node():
 
         self.mempool = None
 
+        # self.nomination_rounds = value.hash : [round_number: timestamp, ]
+
+        # round_time = "simulation_time + n"
+
         # TODO: Consider making a special structure to store messages on nodes!
-        # self.messages = []
+
         self.storage = storage if storage is not None else Storage(self)
         default_state = {'voted': [], 'accepted': [], 'confirmed': []}
         self.nomination_state = copy.deepcopy(default_state)
@@ -105,8 +109,8 @@ class Node():
         return
 
     # Set quorum to the nodes
-    def set_quorum(self, nodes):
-        self.quorum_set.set(nodes)
+    def set_quorum(self, nodes, inner_sets):
+        self.quorum_set.set(nodes=nodes, inner_sets=inner_sets)
         return
 
     def attach_mempool(self, mempool):
@@ -125,6 +129,8 @@ class Node():
         """
         self.prepare_nomination_msg() # Prepares Values for Nomination and broadcasts message
         priority_node = self.get_highest_priority_neighbor()
+
+        # TODO: Neighbour should check global time & priority neighbour
         # TODO: nominate function should update nominations from peers until the quorum threshold is met
         # TODO: the respective function should be implemented and called here
         return
@@ -154,10 +160,26 @@ class Node():
             message = self.retrieve_broadcast_message(priority_node)
 
             if message is not None:
-                message = message.parse_message_state(message)
+                message = message.parse_message_state(message) # message is an array of 2 arrays, the first being the voted values and the second the accepted values
                 self.process_received_message(message)
                 self.update_statement_count(priority_node, message)
                 log.node.info('Node %s retrieving messages from his highest priority neighbor Node %s!', self.name,priority_node.name)
+
+                voted_val = message[0] # message[0] is voted field
+                if type(voted_val) is Value and self.check_Quorum_threshold(voted_val):
+                    log.node.info('Quorum threshold met for value %s at Node %s', voted_val, self.name)
+                    # TODO: Implement update_state function to move val to 'accepted' field in nomination_state
+
+                if type(voted_val) is Value and self.check_Blocking_threshold(voted_val):
+                    log.node.info('Blocking threshold met for value %s at Node %s', voted_val, self.name)
+
+                accepted_val = message[1] # message[1] is voted field
+                if type(accepted_val) is Value and self.check_Quorum_threshold(accepted_val):
+                    log.node.info('Quorum threshold met for value %s at Node %s', accepted_val, self.name)
+
+                if type(accepted_val) is Value and self.check_Blocking_threshold(accepted_val):
+                    log.node.info('Blocking threshold met for value %s at Node %s', accepted_val, self.name)
+
             else:
                 log.node.info('Node %s has no messages to retrieve from his highest priority neighbor Node %s!', self.name, priority_node.name)
 
@@ -233,12 +255,7 @@ class Node():
 
         if type(incoming_accepted) == Value:
             if incoming_accepted.hash in self.statement_counter:
-                    if other_node.name in self.statement_counter[incoming_accepted.hash]['accepted']:
-                        # Update the count by 1
-                        self.statement_counter[incoming_accepted.hash]['accepted'][other_node.name] += 1
-                        log.node.info('Node %s has updated its accepted statement counter for Node %s with nominated values!', self.name, other_node.name)
-
-                    else:
+                    if other_node.name not in self.statement_counter[incoming_accepted.hash]['accepted']:
                         # As value has a dictionary but this node isn't in it, simpy set the node counter to 1
                         self.statement_counter[incoming_accepted.hash]['accepted'][other_node.name] = 1
                         log.node.info('Node %s has set an accepted statement counter for Node %s with nominated values!', self.name, other_node.name)
@@ -250,11 +267,7 @@ class Node():
 
         if type(incoming_voted) == Value:
                 if incoming_voted.hash in self.statement_counter:
-                        if other_node.name in self.statement_counter[incoming_voted.hash]['voted']:
-                            self.statement_counter[incoming_voted.hash]['voted'][other_node.name] += 1
-                            log.node.info('Node %s has updated its voted statement counter for Node %s with nominated values!', self.name, other_node.name)
-
-                        else:
+                        if other_node.name not in self.statement_counter[incoming_voted.hash]['voted']:
                             self.statement_counter[incoming_voted.hash]['voted'][other_node.name] = 1
                             log.node.info('Node %s has added an accepted statement counter for Node %s with nominated values!',self.name, other_node.name)
 
@@ -273,7 +286,6 @@ class Node():
     #   concatenation of serialized XDR values.  Treat the output of "Gi"
     #   as a 256-bit binary number in big-endian format.
     def Gi(self,values):
-
         # If there is only one value as input, convert it to list so that we can iterate over it
         if type(values) is not list:
             values = [values]
@@ -307,10 +319,24 @@ class Node():
     # Because Gi(1 || n || v) is a random function with a maximum value of 2^{256}, this formula effectivelly
     # selects a peer as a neighbor with a probability equal to its weight!
 
-    # TODO: Because our QuorumSet only has a single slice, all peers in it are neighbors!
     def get_neighbors(self):
-        return [node for node in self.quorum_set.get_nodes()
-                if self.Gi([1,self.nomination_round,node.name]) < (2**256 * self.weight(node))]
+        unique_nodes = set()  # Use set to avoid duplication - used to check for duplicates in loops
+
+        for node in self.quorum_set.get_nodes():
+            if self.Gi([1, self.nomination_round, node.name]) < (2 ** 256 * self.weight(node)):
+                unique_nodes.add(node)  # Add to set
+
+        for inner_set in self.quorum_set.get_inner_sets():
+            if type(inner_set) is list:
+                for node in inner_set:
+                    if self.Gi([1, self.nomination_round, node.name]) < (2 ** 256 * self.weight(node)) and node not in unique_nodes:
+                        unique_nodes.add(node)
+            else:
+                if self.Gi([1, self.nomination_round, inner_set.name]) < (
+                        2 ** 256 * self.weight(inner_set)) and inner_set not in unique_nodes:
+                    unique_nodes.add(inner_set)
+
+        return unique_nodes
 
     # - Define "priority(n, v)" as "Gi(2 || n || v)", where "2" and "n"
     #   are both 32-bit XDR "int" values.
@@ -318,10 +344,84 @@ class Node():
         return self.Gi([2,self.nomination_round,v.name])
 
     def get_highest_priority_neighbor(self):
+        # TODO: Check globals.simulation_time
         return max(self.get_neighbors(),key=self.priority)
 
     def is_duplicate_value(self, other_val, current_vals):
         for val in current_vals:
             if other_val == val:
                 return True
+        return False
+
+    # TODO: Call this after receiving a message + Update state in this event once its met
+    def check_Quorum_threshold(self, val):
+        # Check for Quorum threshold:
+        # 1. the node itself has signed the message
+        # 2. Number of nodes in the current QuorumSet who have signed + the number of innerSets that meet threshold is at least k
+        # 3. These conditions apply recursively to the inner sets to fulfill condition 2.
+        if val in (self.nomination_state["voted"]) or val in (self.nomination_state["accepted"]): # Condition 1. - node itself has signed message
+            signed_count = 1 # Node itself has voted for it so alrady has a count of 1
+            inner_sets_meeting_threshold_count = 0
+            nodes, inner_sets = self.quorum_set.get_quorum()
+            threshold = self.quorum_set.minimum_quorum
+
+            for node in nodes:
+                # check if the node name from the quorum is in the value's voted or accepted dict - meaning it has voted for the message
+                if node.name in self.statement_counter[val.hash]['voted'] or node.name in self.statement_counter[val.hash]['accepted']:
+                    signed_count += 1
+
+            for element in inner_sets: # Keep to just 1 layer of depth for now - so only 1 inner set per quorum, [ [], [] ], not [ [], [[]] ]
+                if isinstance(element, list):
+                        # 2. Check if the innerSets meet threshold
+                        threshold_met = self.quorum_set.check_threshold(val=val, quorum=element, threshold=threshold, node_statement_counter=self.statement_counter.copy())
+                        if threshold_met:
+                            inner_sets_meeting_threshold_count += 1
+
+            if signed_count + inner_sets_meeting_threshold_count >= threshold: # 3. conditions apply recursively to the inner sets to fulfill condition 2
+                return True
+            else:
+                return False
+        else:
+            return False
+
+    def check_Blocking_threshold(self, val):
+        # Check for Blocking threshold:
+        # A message reaches blocking threshold at "v" when the number of
+        # "validators" making the statement plus (recursively) the number
+        # "innerSets" reaching blocking threshold exceeds "n-k".
+        # Blocking threshold is met when  at least one member of each of "v"'s
+        # quorum slices (a set that does not necessarily include "v" itself) has issued message "m"
+        if val in (self.nomination_state["voted"]) or val in (self.nomination_state["accepted"]):  # Condition 1. - node itself has signed message
+            signed_count = 1
+            validators, inner_sets = self.quorum_set.get_quorum()
+            n = len(validators)
+            seen = set()
+            for node in validators:
+                seen.add(node)
+
+            for element in inner_sets:
+                if isinstance(element, list):
+                    for node in element:
+                        if node not in seen:
+                            n += 1
+                            seen.add(node)
+
+            k = self.quorum_set.minimum_quorum
+
+            if n == 0:
+                return False
+
+            signed_seen = set()
+            for node in validators:
+                if node.name != self.name and (node in self.statement_counter[val.hash]["voted"] or node in self.statement_counter[val.hash]["accepted"]) and (node not in signed_seen):
+                    signed_count += 1
+                    signed_seen.add(node)
+
+            inner_set_count = 0
+            for slice in inner_sets:
+                if isinstance(slice, list):
+                    inner_set_count += self.quorum_set.check_inner_set_blocking_threshold(calling_node=self, val=val, quorum=slice)
+
+            return (signed_count + inner_set_count) > (n - k)
+
         return False

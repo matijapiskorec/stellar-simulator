@@ -3,8 +3,8 @@
 Simulator
 ================================================
 
-Author: Matija Piskorec
-Last update: August 2023
+Author: Matija Piskorec, Jaime de Vivero Woods
+Last update: July 2023
 
 The following class contains command line (CLI) interface for the Stellar Consensus Protocol (SCP) simulator.
 
@@ -36,7 +36,7 @@ from Mempool import Mempool
 from Globals import Globals
 
 VERBOSITY_DEFAULT = 5
-N_NODES_DEFAULT = 2
+N_NODES_DEFAULT = 5
 
 class Simulator:
     '''
@@ -87,8 +87,8 @@ class Simulator:
         if self._verbosity:
             log.simulator.debug('Creating %s nodes.', self._n_nodes)
 
-        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='FULL')
-        # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
+        # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='FULL')
+        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
 
         self._mempool = Mempool()
         # self._mempool = Mempool(simulation_time=self._simulation_time)
