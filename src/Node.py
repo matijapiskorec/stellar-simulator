@@ -168,7 +168,7 @@ class Node():
                 voted_val = message[0] # message[0] is voted field
                 if type(voted_val) is Value and self.check_Quorum_threshold(voted_val):
                     log.node.info('Quorum threshold met for value %s at Node %s', voted_val, self.name)
-                    # TODO: Implement update_state function to move val to 'accepted' field in nomination_state
+                    self.update_nomination_state(voted_val)
 
                 if type(voted_val) is Value and self.check_Blocking_threshold(voted_val):
                     log.node.info('Blocking threshold met for value %s at Node %s', voted_val, self.name)
@@ -425,3 +425,17 @@ class Node():
             return (signed_count + inner_set_count) > (n - k)
 
         return False
+
+    def update_nomination_state(self, val):
+        if len(self.nomination_state["voted"]) > 0 :
+            if val in self.nomination_state['accepted']:
+                log.node.info('Value %s is already accepted in Node %s', val, self.name)
+                return
+
+            if val in self.nomination_state['voted']:
+                self.nomination_state['voted'].remove(val)
+
+            self.nomination_state['accepted'].append(val)
+            log.node.info('Value %s has been moved to accepted in Node %s', val, self.name)
+        else:
+            log.node.info('No values in voted state, cannot move Value %s to accepted in Node %s', val, self.name)

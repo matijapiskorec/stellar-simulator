@@ -566,3 +566,83 @@ class NodeTest(unittest.TestCase):
 
         result = self.node.check_Blocking_threshold(value)
         self.assertFalse(result)
+
+    def test_update_nomination_state_correctly_updates(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+
+        self.node.nomination_state = {
+            "voted": [value, value2],
+            "accepted": [value3],
+            "confirmed": []
+        }
+        self.node.update_nomination_state(value)
+
+        assert all([isinstance(vote, Value) for vote in self.node.nomination_state['voted']])
+        assert all([isinstance(vote, Value) for vote in self.node.nomination_state['accepted']])
+        # The second Value in the state should contain all txs from ledger which should now be 2
+        self.assertTrue(self.node.nomination_state['voted'] == [value2])
+        self.assertTrue(self.node.nomination_state['accepted'] == [value3, value])
+        self.assertTrue(len(self.node.nomination_state['accepted']) == 2)
+
+    def test_update_nomination_state_updates_voted_to_accepted(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+
+        self.node.nomination_state = {
+            "voted": [value2],
+            "accepted": [value, value3],
+            "confirmed": []
+        }
+        self.node.update_nomination_state(value)
+
+        assert all([isinstance(vote, Value) for vote in self.node.nomination_state['voted']])
+        assert all([isinstance(vote, Value) for vote in self.node.nomination_state['accepted']])
+        self.assertTrue(self.node.nomination_state['voted'] == [value2])
+        self.assertTrue(self.node.nomination_state['accepted'] == [value, value3])
+        self.assertTrue(len(self.node.nomination_state['accepted']) == 2)
+
+    def test_update_nomination_state_does_not_update_accepted(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+
+        self.node.nomination_state = {
+            "voted": [value2],
+            "accepted": [value, value3],
+            "confirmed": []
+        }
+        self.node.update_nomination_state(value)
+
+        assert all([isinstance(vote, Value) for vote in self.node.nomination_state['voted']])
+        assert all([isinstance(vote, Value) for vote in self.node.nomination_state['accepted']])
+        self.assertTrue(self.node.nomination_state['voted'] == [value2])
+        self.assertTrue(self.node.nomination_state['accepted'] == [value, value3])
+        self.assertTrue(len(self.node.nomination_state['accepted']) == 2)
+
+    def test_update_nomination_state_does_not_fail_when_empty(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+
+        self.node.nomination_state = {
+            "voted": [],
+            "accepted": [value3],
+            "confirmed": []
+        }
+        self.node.update_nomination_state(value)
+
+        assert all([isinstance(vote, Value) for vote in self.node.nomination_state['voted']])
+        assert all([isinstance(vote, Value) for vote in self.node.nomination_state['accepted']])
+        self.assertTrue(self.node.nomination_state['voted'] == [])
+        self.assertTrue(self.node.nomination_state['accepted'] == [value3])
+        self.assertTrue(len(self.node.nomination_state['accepted']) == 1)
