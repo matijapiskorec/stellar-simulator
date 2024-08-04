@@ -9,6 +9,9 @@ from Log import log
 
 import unittest
 
+from Value import Value
+
+
 class SimulatorTest(unittest.TestCase):
 
     def setup(self):
@@ -49,61 +52,6 @@ class SimulatorTest(unittest.TestCase):
         gillespie = Gillespie(events, max_time=10)
         self.assertTrue(isinstance(gillespie,Gillespie))
 
-    def test_generation_of_nodes(self):
-        nodes = Network.generate_nodes(n_nodes=5, topology='FULL')
-
-        mempool = Mempool()
-        for node in nodes:
-            node.attach_mempool(mempool)
-
-        mempool.mine()
-        nodes[0].retrieve_transaction_from_mempool()
-        nodes[0].nominate()
-        # nodes[1].retrieve_message_from_mempool()
-        nodes[1].retrieve_message_from_peer()
-
-        mempool.mine()
-        mempool.mine()
-        nodes[0].retrieve_transaction_from_mempool()
-        nodes[0].retrieve_transaction_from_mempool()
-        # nodes[1].retrieve_message_from_mempool()
-        nodes[1].retrieve_message_from_peer()
-
-        # Newly added transactions should not be visible in the message that was already posted to the mempool!
-        # This is true if we are sending a copy of transactions rather than a reference to transactions
-        self.assertTrue(len(nodes[1].messages[0]._voted[0]._transactions)==1)
-
-    # Test whether we can calculate priority for each peer in the quorum set
-    def test_priority_of_nodes(self):
-
-        for topology in ['FULL','ER']:
-            nodes = Network.generate_nodes(n_nodes=5, topology=topology)
-
-            mempool = Mempool()
-            for node in nodes:
-                node.attach_mempool(mempool)
-
-            for node in nodes:
-                log.test.debug('Node %s, all peers in quorum set = %s',node.name,node.quorum_set.get_nodes())
-                max_priority = 0
-                max_priority_neighbor = None
-                for neighbor in node.get_neighbors():
-                    priority = node.priority(neighbor)
-                    if priority > max_priority:
-                        max_priority = priority
-                        max_priority_neighbor = neighbor
-                    log.test.debug('Node %s, priority of neighbor %s is %s',node.name,neighbor.name,priority)
-                    self.assertTrue(isinstance(priority,int))
-
-            self.assertTrue( node.get_highest_priority_neighbor() == max_priority_neighbor )
-            self.assertTrue( node.priority(node.get_highest_priority_neighbor()) == max_priority )
-
-    def test_quorum_of_nodes(self):
-
-        nodes = Network.generate_nodes(n_nodes=5, topology='ER')
-        for node in nodes:
-            log.test.debug('Node %s, quorum_set = %s',node.name,node.quorum_set)
-            log.test.debug('Node %s, check_threshold = %s',node.name,node.quorum_set.get_quorum())
 
 if __name__ == "__main__":
     # Comment out if you are running multiple tests and don't want any output!

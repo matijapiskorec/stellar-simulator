@@ -3,11 +3,12 @@
 Storage
 =========================
 
-Author: Matija Piskorec
-Last update: August 2023
+Author: Matija Piskorec, Jaime de Vivero Woods
+Last update: April 2024
 
 Storage class.
 """
+import numpy as np
 
 from Log import log
 from Value import Value
@@ -64,7 +65,12 @@ class Storage:
     def get_combined_messages(self):
         messages = self._messages.copy()
         if len(messages) == 0:
-            return []
+            return [], []
         else:
-            return Value.combine([message.voted for message in messages])
+            voted_values = [value for message in messages for value in message.voted]
+            accepted_values = [value for message in messages for value in message.accepted]
+            if len(accepted_values) == 0:
+                return Value.combine(voted_values), []
+
+            return Value.combine(voted_values), Value.combine(accepted_values)
 

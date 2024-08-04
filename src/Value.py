@@ -39,6 +39,14 @@ class Value():
 
     # TODO: With @property we are returning a reference while we would probably want to return a copy!
 
+    def __eq__(self, other):
+        return (self.hash == other.hash and self.state == other.state and set(self.transactions) == set(other.transactions))
+
+
+    def __hash__(self):
+        return hash(self._hash)
+
+
     @property
     def transactions(self):
         return self._transactions
@@ -46,6 +54,10 @@ class Value():
     @property
     def state(self):
         return self._state
+
+    @property
+    def hash(self):
+        return self._hash
 
     @classmethod
     def combine(cls,values):
@@ -56,6 +68,8 @@ class Value():
         if len(values)==0:
             transactions = []
         else:
-            transactions = set().union(*[value.transactions for value in values[0]])
-        return Value(transactions=transactions)
+            transactions = set()
+            for value in values:
+                transactions.update(value.transactions)
 
+        return Value(transactions=transactions)

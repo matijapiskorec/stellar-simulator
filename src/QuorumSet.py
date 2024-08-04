@@ -3,11 +3,12 @@
 Quorum Set
 =========================
 
-Author: Matija Piskorec
-Last update: August 2023
+Author: Matija Piskorec, Jaime de Vivero Woods
+Last update: July 2024
 
 QuorumSet class.
 """
+import math
 
 from Log import log
 
@@ -25,18 +26,13 @@ class QuorumSet():
 
         # Quorum set knows to which node it belongs to
         self.node = node
-
-        # No input nodes should be of different type than Node
-        # TODO: We cannot check for Node instance in QuorumSet class because of circular import!
-        # assert len([not isinstance(node,Node) for node in nodes])<1 # Allows for empty list of nodes!
-
         self.threshold = kvargs['threshold'] if 'threshold' in kvargs else THRESHOLD_DEFAULT
 
-        # TODO: Important otherwise all QuorumSets will share a list of nodes!
         self.nodes = []
+        self.inner_sets = [] # will keep to 1 layer of depth for now, rarely gets deeper
 
-        log.quorum.info('Initialized quorum set for Node %s, threshold=%s, nodes=%s.',
-                        self.node, self.threshold, self.nodes)
+        log.quorum.info('Initialized quorum set for Node %s, threshold=%s, nodes=%s, inner sets=%s.',
+                        self.node, self.threshold, self.nodes, self.inner_sets)
 
     def __repr__(self):
         return '[Quorum Set: threshold=%(threshold)s, nodes=%(nodes)s.' % self.__dict__
@@ -49,29 +45,8 @@ class QuorumSet():
         self.nodes = filter(lambda x: x != node, self.nodes)
         return
 
-    # # Add nodes to quorum
-    # # TODO: Consider removing QuorumSet.add() because we are only using QuorumSet.set()!
-    # def add(self, nodes):
-
-    #     # If there is only one node as input, convert it to list so that we can iterate over it
-    #     if type(nodes) is not list:
-    #         nodes = [nodes]
-
-    #     # No input nodes should be of different type than Node
-    #     # TODO: We cannot check for Node instance in QuorumSet class because of circular import!
-    #     # assert len([not isinstance(node,Node) for node in nodes])<1 # Allows for empty list of nodes!
-
-    #     for node in nodes:
-    #         # Only add the node to the quorum set if it isn't already there!
-    #         # Quorum set always contains the node itself, so we allow to add it to the quorum set 
-    #         if (node not in self.nodes):
-    #             self.nodes.append(node)
-    #             log.quorum.info('Added node %s to quorum set of Node %s.', node, self.node)
-
-    #     return
-
     # Set quorum to the nodes
-    def set(self, nodes):
+    def set(self, nodes, inner_sets):
 
         # If there is only one node as input, convert it to list so that we can iterate over it
         if type(nodes) is not list:
@@ -79,8 +54,10 @@ class QuorumSet():
 
         # TODO: Perform duplicate checks while adding nodes to the quorum!
         self.nodes = nodes
+        self.inner_sets = inner_sets if inner_sets is not None else []
 
         log.quorum.info('Set nodes %s as the quorum set of Node %s.', nodes, self.node)
+        log.quorum.info('Set nodes %s as the inner sets of Node %s.', inner_sets, self.node)
 
         return
 
@@ -89,21 +66,40 @@ class QuorumSet():
         if len(self.nodes) == 0:
             return None
         else:
-            # return np.random.choice(self.nodes)
             return np.random.choice([node for node in self.nodes if node != self.node])
 
     def get_nodes(self):
-        # TODO: Should we return self.nodes.copy() instead?
-        return self.nodes
+        return self.nodes.copy()
 
-    # TODO: Check minimum_quorum() method because it looks strange, I don't understanc it!
+    def get_inner_sets(self):
+        return self.inner_sets.copy()
+
     @property
     def minimum_quorum(self):
         # Minimum number of nodes (round up) required to reach threshold
         return math.ceil((len(self.nodes) + 1) * (self.threshold / 100))
 
-    # TODO: Quorum is constructed by a union of all quorum sets of nodes in the quorum set!
     def get_quorum(self):
-        nodes = set().union(*[node.quorum_set.get_nodes() for node in self.node.quorum_set.get_nodes()])
-        return nodes
+        return self.get_nodes(), self.get_inner_sets()
 
+    # This function checks if the quorum meets threshold - it checks every node, it doesn't check for nested QuorumSlices
+    def check_threshold(self, val, quorum, threshold, node_statement_counter):
+        signed_counter = 0
+
+        for node in quorum:
+            if node in node_statement_counter[val.hash]["voted"] or node in node_statement_counter[val.hash]["accepted"]:
+                signed_counter += 1
+
+        if signed_counter >= threshold:
+            return True
+        else:
+            return False
+
+    def check_inner_set_blocking_threshold(self, calling_node, val, quorum):
+        # Check if any node in the Quorum has issued message "m" - not including the node itself
+        count = 0
+        for node in quorum:
+            if (node != calling_node) and (node in calling_node.statement_counter[val.hash]["voted"]) or (node != calling_node) and (node in calling_node.statement_counter[val.hash]["accepted"]):
+                count += 1
+
+        return count

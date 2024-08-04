@@ -3,8 +3,8 @@
 Node
 =========================
 
-Author: Matija Piskorec
-Last update: August 2023
+Author: Matija Piskorec, Jaime de Vivero Woods
+Last update: July 2024
 
 Node class.
 
@@ -12,7 +12,7 @@ Documentation:
 
 [2] Nicolas Barry and Giuliano Losa and David Mazieres and Jed McCaleb and Stanislas Polu, The Stellar Consensus Protocol (SCP) - technical implementation draft, https://datatracker.ietf.org/doc/draft-mazieres-dinrg-scp/05/
 """
-
+import numpy as np
 from Log import log
 from Event import Event
 from FBAConsensus import FBAConsensus
@@ -22,6 +22,7 @@ from SCPNominate import SCPNominate
 from Value import Value
 from Storage import Storage
 from Globals import Globals
+import copy
 
 import random
 import xdrlib3
@@ -43,25 +44,28 @@ class Node():
 
         self.mempool = None
 
-        # TODO: Consider making a special structure to store messages on nodes!
-        # self.messages = []
-        self.storage = storage if storage is not None else Storage(self)
+        # self.nomination_rounds = value.hash : [round_number: timestamp, ]
 
-        # From the documentation [1]:
-        # A node always begins nomination in round "1".  Round "n" lasts for
-        # "1+n" seconds, after which, if no value has been confirmed nominated,
-        # the node proceeds to round "n+1".  A node continues to echo votes
-        # from the highest priority neighbor in prior rounds as well as the
-        # current round.  In particular, until any value is confirmed
-        # nominated, a node continues expanding its "voted" field with values
-        # nominated by highest priority neighbors from prior rounds even when
-        # the values appeared after the end of those prior rounds.
+        # round_time = "simulation_time + n"
+
+        # TODO: Consider making a special structure to store messages on nodes!
+
+        self.storage = storage if storage is not None else Storage(self)
+        default_state = {'voted': [], 'accepted': [], 'confirmed': []}
+        self.nomination_state = copy.deepcopy(default_state)
+        self.balloting_state = copy.deepcopy(default_state)
+        self.statement_counter = {} # This hashmap (or dictionary) keeps track of all Values added and how many times unique nodes have made statements on it
+        # This dictionary looks like this {Value_hash: {'voted': {node_id: count,...}}, {'accepted': {node_id:count}}}
+        self.broadcast_flags = []  # Add every message here for other
+        self.received_broadcast_msgs = {} # This hashmap (or dictionary) keeps track of all Messages retrieved by each node
+        # This dictionary looks like this {{node.name: SCPNominate,...},...}
+
         self.nomination_round = 1
 
         # TODO: Implement the logic for advancing the nomination rounds each n+1 seconds!
 
         # Although nomination rounds are synchronous (they last for "1+n" seconds), we don't have
-        # to implement them them with sychronous events, but rather just allow each node to update
+        # to implement them with sychronous events, but rather just allow each node to update
         # its state appropriately once its turn comes. Node check their time each time they update
         # and advance to another round if enough time has passed.
 
@@ -90,7 +94,6 @@ class Node():
 
     def retrieve_transaction_from_mempool(self):
         transaction = self.mempool.get_transaction()
-        # transaction = Globals.mempool.get_transaction()
         if transaction is not None:
             # TODO: Check the validity of the transaction in the retrieve_transactions_from_mempool() in Node!
             log.node.info('Node %s retrieved %s from mempool.',self.name,transaction)
@@ -99,28 +102,6 @@ class Node():
             log.node.info('Node %s cannot retrieve transaction from mempool because it is empty!',self.name)
         return
 
-    # # TODO: Remove gossip event from the node!
-    # def gossip(self):
-    #     transaction = self.ledger.get_transaction()
-    #     if transaction is not None:
-    #         # Choosing a receiver node from current node's qourum set
-    #         other_node = self.quorum_set.get_node()
-    #         if other_node is not None:
-    #             log.node.info('Node %s sent a transaction to Node %s!',self.name,other_node.name)
-    #             other_node.receive_transaction(transaction)
-    #         else:
-    #             log.node.info('Node %s has no one in quorum set so it cannot gossip!',self.name)
-    #     else:
-    #         log.node.info('Node %s has no transactions so cannot send any!', self.name)
-    #     return
-
-    # # TODO: Remove because we are not using gossip event anymore!
-    # def receive_transaction(self,transaction):
-    #     # TODO: Consider adding information from whom did transaction come from in receive_transaction()!
-    #     log.node.info('Node %s received a transaction %s.', self.name, transaction)
-    #     self.ledger.add(transaction)
-    #     return
-
     # Add nodes to quorum
     # TODO: Consider removing add_to_quorum() because we are only using set_quorum()!
     def add_to_quorum(self, nodes):
@@ -128,11 +109,11 @@ class Node():
         return
 
     # Set quorum to the nodes
-    def set_quorum(self, nodes):
-        self.quorum_set.set(nodes)
+    def set_quorum(self, nodes, inner_sets):
+        self.quorum_set.set(nodes=nodes, inner_sets=inner_sets)
         return
 
-    def attach_mempool(self,mempool):
+    def attach_mempool(self, mempool):
         self.mempool = mempool
         return
 
@@ -146,28 +127,73 @@ class Node():
         """
         Broadcast SCPNominate message to the storage.
         """
-        # TODO: URGENT: FINISH THIS! We need to combine all messages in storage and then nominate!
-        temp = self.storage.get_combined_messages()
-        # TODO: For now we assume that node votes for a value containing all transactions in its ledger!
-        if len(self.ledger.transactions) > 0:
-            # copy() is crucial here, otherwise we would be sending a reference to the transactions!
-            # voted_values = [Value(self.ledger.transactions.copy())]
-            voted_values = [Value(transactions=self.ledger.transactions.copy())]
-            accepted_values = []
-            # message = SCPNominate(voted_values,accepted_values)
-            # message = SCPNominate(voted=voted_values,accepted=accepted_values)
-            message = SCPNominate(voted=voted_values,accepted=accepted_values,broadcasted=True)
+        self.prepare_nomination_msg() # Prepares Values for Nomination and broadcasts message
+        priority_node = self.get_highest_priority_neighbor()
 
-            # Storing the message in the local storage of each node
-            # self.mempool.add_message(message)
-            # self.storage.add(message)
-            self.storage.add_messages(message)
-
-            # log.node.info('Node %s appended SCPNominate message to the mempool %s', self.name, message)
-            log.node.info('Node %s appended SCPNominate message to its storage, message = %s', self.name, message)
-        else:
-            log.node.info('Node %s has no transactions in its ledger so it cannot nominate!', self.name)
+        # TODO: Neighbour should check global time & priority neighbour
+        # TODO: nominate function should update nominations from peers until the quorum threshold is met
+        # TODO: the respective function should be implemented and called here
         return
+
+    def retrieve_broadcast_message(self, requesting_node):
+        # Select a random message and check if its already been sent to the requesting_node
+        # To check -> check if the value hash of the
+        if len(self.broadcast_flags) > 0:
+            if requesting_node.name not in self.received_broadcast_msgs:
+                retrieved_message = np.random.choice(self.broadcast_flags)
+                self.received_broadcast_msgs[requesting_node.name] = [retrieved_message]
+                return retrieved_message
+
+            elif len(self.received_broadcast_msgs[requesting_node.name]) != len(self.broadcast_flags):
+                statement = True
+                while statement:
+                    retrieved_message = np.random.choice(self.broadcast_flags)
+                    if retrieved_message not in self.received_broadcast_msgs[requesting_node.name]:
+                        self.received_broadcast_msgs[requesting_node.name].append(retrieved_message)
+                        return retrieved_message
+        return None
+
+
+    def receive_message(self):
+        priority_node = self.get_highest_priority_neighbor()
+        if priority_node != self:
+            message = self.retrieve_broadcast_message(priority_node)
+
+            if message is not None:
+                message = message.parse_message_state(message) # message is an array of 2 arrays, the first being the voted values and the second the accepted values
+                self.process_received_message(message)
+                self.update_statement_count(priority_node, message)
+                log.node.info('Node %s retrieving messages from his highest priority neighbor Node %s!', self.name,priority_node.name)
+
+                voted_val = message[0] # message[0] is voted field
+                if type(voted_val) is Value and self.check_Quorum_threshold(voted_val):
+                    log.node.info('Quorum threshold met for value %s at Node %s', voted_val, self.name)
+                    self.update_nomination_state(voted_val)
+
+                if type(voted_val) is Value and self.check_Blocking_threshold(voted_val):
+                    log.node.info('Blocking threshold met for value %s at Node %s', voted_val, self.name)
+
+                accepted_val = message[1] # message[1] is voted field
+                if type(accepted_val) is Value and self.check_Quorum_threshold(accepted_val):
+                    log.node.info('Quorum threshold met for value %s at Node %s', accepted_val, self.name)
+
+                if type(accepted_val) is Value and self.check_Blocking_threshold(accepted_val):
+                    log.node.info('Blocking threshold met for value %s at Node %s', accepted_val, self.name)
+
+            else:
+                log.node.info('Node %s has no messages to retrieve from his highest priority neighbor Node %s!', self.name, priority_node.name)
+
+    def process_received_message(self, message):
+        incoming_voted = message[0]
+        incoming_accepted = message[1]
+
+        if type(incoming_voted) == Value and self.is_duplicate_value(incoming_voted, self.nomination_state['voted']) == False:
+                self.nomination_state['voted'].append(incoming_voted)
+                log.node.info('Node %s has updated its voted field in nomination state')
+
+        if type(incoming_accepted) == Value: # If it's a Value it means that there are transactions to be combined
+                self.nomination_state['accepted'].append(incoming_accepted)
+                log.node.info('Node %s has updated its accepted field in nomination state')
 
     def retrieve_message_from_peer(self):
         """
@@ -195,6 +221,25 @@ class Node():
 
         return
 
+    def prepare_nomination_msg(self):
+        """
+        Prepare Message for Nomination
+        """
+        voted_vals = []
+
+        self.retrieve_transaction_from_mempool() # Retrieve transactions from mempool and adds it to the Node's Ledger
+        if len(self.ledger.transactions) > 0:
+            voted_vals.append(Value(transactions=self.ledger.transactions.copy()))
+            message = SCPNominate(voted=voted_vals,accepted=[],broadcasted=True) # No accepted as node is initalised
+
+            self.nomination_state['voted'].extend(voted_vals)
+            self.storage.add_messages(message)
+            self.broadcast_flags.append(message)
+
+            log.node.info('Node %s appended SCPNominate message to its storage and state, message = %s', self.name, message)
+        else:
+            log.node.info('Node %s has no transactions in its ledger so it cannot nominate!', self.name)
+
     def get_messages(self):
         if len(self.storage.messages) == 0:
             messages = None
@@ -203,6 +248,33 @@ class Node():
             # TODO: Implement get_messages() in Storage which returns copy of the messages!
             messages = self.storage.messages.copy()
         return messages
+
+    def update_statement_count(self, other_node, message):
+        incoming_voted = message[0]
+        incoming_accepted = message[1]
+
+        if type(incoming_accepted) == Value:
+            if incoming_accepted.hash in self.statement_counter:
+                    if other_node.name not in self.statement_counter[incoming_accepted.hash]['accepted']:
+                        # As value has a dictionary but this node isn't in it, simpy set the node counter to 1
+                        self.statement_counter[incoming_accepted.hash]['accepted'][other_node.name] = 1
+                        log.node.info('Node %s has set an accepted statement counter for Node %s with nominated values!', self.name, other_node.name)
+            else:
+                # Initiate dictionary for value & accepted for the value and then add the count for the node
+                self.statement_counter[incoming_accepted.hash] = {"voted": {}, "accepted": {}}
+                self.statement_counter[incoming_accepted.hash]['accepted'][other_node.name] = 1
+                log.node.info('Node %s has added an accepted statement counter for Node %s with nominated values!', self.name, other_node.name)
+
+        if type(incoming_voted) == Value:
+                if incoming_voted.hash in self.statement_counter:
+                        if other_node.name not in self.statement_counter[incoming_voted.hash]['voted']:
+                            self.statement_counter[incoming_voted.hash]['voted'][other_node.name] = 1
+                            log.node.info('Node %s has added an accepted statement counter for Node %s with nominated values!',self.name, other_node.name)
+
+                else:
+                    self.statement_counter[incoming_voted.hash] = {"voted": {}, "accepted": {}}
+                    self.statement_counter[incoming_voted.hash]['voted'] = {other_node.name: 1}
+                    log.node.info('Node %s has set its voted statement counter for %s with nominated values!', self.name, other_node.name)
 
     # In round "n" of slot "i", each node determines an additional
     # peer whose nominated values it should incorporate in its own
@@ -214,7 +286,6 @@ class Node():
     #   concatenation of serialized XDR values.  Treat the output of "Gi"
     #   as a 256-bit binary number in big-endian format.
     def Gi(self,values):
-
         # If there is only one value as input, convert it to list so that we can iterate over it
         if type(values) is not list:
             values = [values]
@@ -248,10 +319,24 @@ class Node():
     # Because Gi(1 || n || v) is a random function with a maximum value of 2^{256}, this formula effectivelly
     # selects a peer as a neighbor with a probability equal to its weight!
 
-    # TODO: Because our QuorumSet only has a single slice, all peers in it are neighbors!
     def get_neighbors(self):
-        return [node for node in self.quorum_set.get_nodes()
-                if self.Gi([1,self.nomination_round,node.name]) < (2**256 * self.weight(node))]
+        unique_nodes = set()  # Use set to avoid duplication - used to check for duplicates in loops
+
+        for node in self.quorum_set.get_nodes():
+            if self.Gi([1, self.nomination_round, node.name]) < (2 ** 256 * self.weight(node)):
+                unique_nodes.add(node)  # Add to set
+
+        for inner_set in self.quorum_set.get_inner_sets():
+            if type(inner_set) is list:
+                for node in inner_set:
+                    if self.Gi([1, self.nomination_round, node.name]) < (2 ** 256 * self.weight(node)) and node not in unique_nodes:
+                        unique_nodes.add(node)
+            else:
+                if self.Gi([1, self.nomination_round, inner_set.name]) < (
+                        2 ** 256 * self.weight(inner_set)) and inner_set not in unique_nodes:
+                    unique_nodes.add(inner_set)
+
+        return unique_nodes
 
     # - Define "priority(n, v)" as "Gi(2 || n || v)", where "2" and "n"
     #   are both 32-bit XDR "int" values.
@@ -259,7 +344,98 @@ class Node():
         return self.Gi([2,self.nomination_round,v.name])
 
     def get_highest_priority_neighbor(self):
+        # TODO: Check globals.simulation_time
         return max(self.get_neighbors(),key=self.priority)
 
+    def is_duplicate_value(self, other_val, current_vals):
+        for val in current_vals:
+            if other_val == val:
+                return True
+        return False
 
+    # TODO: Call this after receiving a message + Update state in this event once its met
+    def check_Quorum_threshold(self, val):
+        # Check for Quorum threshold:
+        # 1. the node itself has signed the message
+        # 2. Number of nodes in the current QuorumSet who have signed + the number of innerSets that meet threshold is at least k
+        # 3. These conditions apply recursively to the inner sets to fulfill condition 2.
+        if val in (self.nomination_state["voted"]) or val in (self.nomination_state["accepted"]): # Condition 1. - node itself has signed message
+            signed_count = 1 # Node itself has voted for it so alrady has a count of 1
+            inner_sets_meeting_threshold_count = 0
+            nodes, inner_sets = self.quorum_set.get_quorum()
+            threshold = self.quorum_set.minimum_quorum
 
+            for node in nodes:
+                # check if the node name from the quorum is in the value's voted or accepted dict - meaning it has voted for the message
+                if node.name in self.statement_counter[val.hash]['voted'] or node.name in self.statement_counter[val.hash]['accepted']:
+                    signed_count += 1
+
+            for element in inner_sets: # Keep to just 1 layer of depth for now - so only 1 inner set per quorum, [ [], [] ], not [ [], [[]] ]
+                if isinstance(element, list):
+                        # 2. Check if the innerSets meet threshold
+                        threshold_met = self.quorum_set.check_threshold(val=val, quorum=element, threshold=threshold, node_statement_counter=self.statement_counter.copy())
+                        if threshold_met:
+                            inner_sets_meeting_threshold_count += 1
+
+            if signed_count + inner_sets_meeting_threshold_count >= threshold: # 3. conditions apply recursively to the inner sets to fulfill condition 2
+                return True
+            else:
+                return False
+        else:
+            return False
+
+    def check_Blocking_threshold(self, val):
+        # Check for Blocking threshold:
+        # A message reaches blocking threshold at "v" when the number of
+        # "validators" making the statement plus (recursively) the number
+        # "innerSets" reaching blocking threshold exceeds "n-k".
+        # Blocking threshold is met when  at least one member of each of "v"'s
+        # quorum slices (a set that does not necessarily include "v" itself) has issued message "m"
+        if val in (self.nomination_state["voted"]) or val in (self.nomination_state["accepted"]):  # Condition 1. - node itself has signed message
+            signed_count = 1
+            validators, inner_sets = self.quorum_set.get_quorum()
+            n = len(validators)
+            seen = set()
+            for node in validators:
+                seen.add(node)
+
+            for element in inner_sets:
+                if isinstance(element, list):
+                    for node in element:
+                        if node not in seen:
+                            n += 1
+                            seen.add(node)
+
+            k = self.quorum_set.minimum_quorum
+
+            if n == 0:
+                return False
+
+            signed_seen = set()
+            for node in validators:
+                if node.name != self.name and (node in self.statement_counter[val.hash]["voted"] or node in self.statement_counter[val.hash]["accepted"]) and (node not in signed_seen):
+                    signed_count += 1
+                    signed_seen.add(node)
+
+            inner_set_count = 0
+            for slice in inner_sets:
+                if isinstance(slice, list):
+                    inner_set_count += self.quorum_set.check_inner_set_blocking_threshold(calling_node=self, val=val, quorum=slice)
+
+            return (signed_count + inner_set_count) > (n - k)
+
+        return False
+
+    def update_nomination_state(self, val):
+        if len(self.nomination_state["voted"]) > 0 :
+            if val in self.nomination_state['accepted']:
+                log.node.info('Value %s is already accepted in Node %s', val, self.name)
+                return
+
+            if val in self.nomination_state['voted']:
+                self.nomination_state['voted'].remove(val)
+
+            self.nomination_state['accepted'].append(val)
+            log.node.info('Value %s has been moved to accepted in Node %s', val, self.name)
+        else:
+            log.node.info('No values in voted state, cannot move Value %s to accepted in Node %s', val, self.name)
