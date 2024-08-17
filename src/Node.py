@@ -4,7 +4,7 @@ Node
 =========================
 
 Author: Matija Piskorec, Jaime de Vivero Woods
-Last update: July 2024
+Last update: August 2024
 
 Node class.
 
@@ -52,15 +52,25 @@ class Node():
 
         self.storage = storage if storage is not None else Storage(self)
         default_state = {'voted': [], 'accepted': [], 'confirmed': []}
+
+        ###############################
+        # NOMINATION PHASE STRUCTURES #
+        ###############################
         self.nomination_state = copy.deepcopy(default_state)
-        self.balloting_state = copy.deepcopy(default_state)
         self.statement_counter = {} # This hashmap (or dictionary) keeps track of all Values added and how many times unique nodes have made statements on it
         # This dictionary looks like this {Value_hash: {'voted': {node_id: count,...}}, {'accepted': {node_id:count}}}
-        self.broadcast_flags = []  # Add every message here for other
         self.received_broadcast_msgs = {} # This hashmap (or dictionary) keeps track of all Messages retrieved by each node
         # This dictionary looks like this {{node.name: SCPNominate,...},...}
-
+        self.broadcast_flags = [] # Add every SCPNominate message here
         self.nomination_round = 1
+
+        ###################################
+        # PREPARE BALLOT PHASE STRUCTURES #
+        ###################################
+        self.balloting_state = {'voted': [], 'accepted': [], 'confirmed': [], 'aborted': []} # This will look like: {'voted': [SCPBallot1{counter:x, value:x}], 'accepted': [SCPBallot2{counter:x, value:x}], 'confirmed': [SCPBallot3{counter:x, value:x}], ‘aborted’ : {[SCPBallot4{counter:x, value:x}]}}
+        self.ballot_statement_counter = {} # This will use sets for node names as opposed to counts, so will look like: {SCPBallot1.value: {'voted': set(Node1), ‘accepted’: set(Node2, Node3), ‘confirmed’: set(), ‘aborted’: set(), SCPBallot2.value: {'voted': set(), ‘accepted’: set(), ‘confirmed’: set(), ‘aborted’: set(node1, node2, node3)}
+        self.ballot_prepare_broadcast_flags = set() # Add every SCPPrepare message here - this will look like
+        self.prepared_ballots = {} # This looks like: self.prepared_ballots[ballot.value] = {'aCounter': aCounter,'cCounter': cCounter,'hCounter': hCounter,'highestCounter': ballot.counter}
 
         # TODO: Implement the logic for advancing the nomination rounds each n+1 seconds!
 
@@ -439,3 +449,17 @@ class Node():
             log.node.info('Value %s has been moved to accepted in Node %s', val, self.name)
         else:
             log.node.info('No values in voted state, cannot move Value %s to accepted in Node %s', val, self.name)
+
+    # retrieve a confirmed Value from nomination_state
+    def retrieve_confirmed_value(self):
+        if len(self.nomination_state['confirmed']) > 0:
+            confirmed_value = np.random.choice(self.nomination_state['confirmed'])  # Take a random Value from the confirmed state
+            log.node.info('Node %s retrieved confirmed value %s for SCPPrepare', self.name, confirmed_value)
+            return confirmed_value
+        else:
+            log.node.info('Node %s has no confirmed values to use for SCPPrepare!', self.name)
+            return None
+
+    # Get the counters for balloting state given a value
+    def get_prepared_ballot_counters(self, value):
+        return self.prepared_ballots.get(value)

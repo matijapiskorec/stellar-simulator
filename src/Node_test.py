@@ -646,3 +646,64 @@ class NodeTest(unittest.TestCase):
         self.assertTrue(self.node.nomination_state['voted'] == [])
         self.assertTrue(self.node.nomination_state['accepted'] == [value3])
         self.assertTrue(len(self.node.nomination_state['accepted']) == 1)
+
+    def test_retrieved_confirmed_values(self):
+        self.node = Node(name="1")
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        self.node.nomination_state['confirmed'] = [value1, value2, value3]
+        self.node.prepared_ballots = {
+            value1: {'aCounter': 1, 'cCounter': 1, 'hCounter': 1,
+                                                         'highestCounter': 1},
+            value2: {'aCounter': 2, 'cCounter': 2, 'hCounter': 2,
+                                                         'highestCounter': 2},
+        }
+
+        retrieved_value = self.node.retrieve_confirmed_value()
+        self.assertIsNotNone(retrieved_value)
+        self.assertIn(retrieved_value, self.node.nomination_state['confirmed'])
+
+    def test_retrieved_confirmed_values_returns_None_for_empty(self):
+        self.node = Node(name="1")
+        self.node.nomination_state['confirmed'] = []
+
+        retrieved_value = self.node.retrieve_confirmed_value()
+        self.assertIsNone(retrieved_value)
+
+    def test_get_prepared_ballot_counters(self):
+        self.node = Node(name="1")
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+
+        self.node.prepared_ballots = {
+            value1: {'aCounter': 1, 'cCounter': 1, 'hCounter': 1, 'highestCounter': 1},
+            value2: {'aCounter': 2, 'cCounter': 2, 'hCounter': 2, 'highestCounter': 2},
+        }
+
+        state_val1 = self.node.get_prepared_ballot_counters(value1)
+        self.assertIsNotNone(state_val1)
+        self.assertEqual(state_val1['aCounter'], 1)
+        self.assertEqual(state_val1['cCounter'], 1)
+        self.assertEqual(state_val1['hCounter'], 1)
+
+        state_val2 = self.node.get_prepared_ballot_counters(value2)
+        self.assertIsNotNone(state_val2)
+        self.assertEqual(state_val2['aCounter'], 2)
+        self.assertEqual(state_val2['cCounter'], 2)
+        self.assertEqual(state_val2['hCounter'], 2)
+
+        self.assertNotEqual(state_val1, state_val2)
+
+    def test_get_prepared_ballot_counters_returns_None_for_empty(self):
+        self.node = Node(name="1")
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+
+        self.node.prepared_ballots = {
+            value1: {'aCounter': 1, 'cCounter': 1, 'hCounter': 1, 'highestCounter': 1},
+        }
+
+        state_val2 = self.node.get_prepared_ballot_counters(value2)
+        self.assertIsNone(state_val2)
+
