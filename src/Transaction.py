@@ -14,10 +14,9 @@ from Log import log
 import random
 
 class Transaction():
-
     def __init__(self,time=None):
         self._hash = '%x' % random.getrandbits(32)
-        self._time = time
+        self._time = time if time is not None else time.time()
         log.transaction.info('Created transaction with hash %s and time %s', self._hash,self._time)
 
     def __repr__(self):
