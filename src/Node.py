@@ -20,6 +20,8 @@ from Ledger import Ledger
 from QuorumSet import QuorumSet
 from SCPNominate import SCPNominate
 from Value import Value
+from SCPBallot import SCPBallot
+from SCPPrepare import SCPPrepare
 from Storage import Storage
 from Globals import Globals
 import copy
@@ -67,7 +69,7 @@ class Node():
         ###################################
         # PREPARE BALLOT PHASE STRUCTURES #
         ###################################
-        self.balloting_state = {'voted': [], 'accepted': [], 'confirmed': [], 'aborted': []} # This will look like: {'voted': [SCPBallot1{counter:x, value:x}], 'accepted': [SCPBallot2{counter:x, value:x}], 'confirmed': [SCPBallot3{counter:x, value:x}], ‘aborted’ : {[SCPBallot4{counter:x, value:x}]}}
+        self.balloting_state = {'voted': {}, 'accepted': {}, 'confirmed': {}, 'aborted': {}} # This will look like: {'voted': [SCPBallot1{counter:x, value:x}], 'accepted': [SCPBallot2{counter:x, value:x}], 'confirmed': [SCPBallot3{counter:x, value:x}], ‘aborted’ : {[SCPBallot4{counter:x, value:x}]}}
         self.ballot_statement_counter = {} # This will use sets for node names as opposed to counts, so will look like: {SCPBallot1.value: {'voted': set(Node1), ‘accepted’: set(Node2, Node3), ‘confirmed’: set(), ‘aborted’: set(), SCPBallot2.value: {'voted': set(), ‘accepted’: set(), ‘confirmed’: set(), ‘aborted’: set(node1, node2, node3)}
         self.ballot_prepare_broadcast_flags = set() # Add every SCPPrepare message here - this will look like
         self.prepared_ballots = {} # This looks like: self.prepared_ballots[ballot.value] = {'aCounter': aCounter,'cCounter': cCounter,'hCounter': hCounter,'highestCounter': ballot.counter}
@@ -177,18 +179,18 @@ class Node():
 
                 voted_val = message[0] # message[0] is voted field
                 if type(voted_val) is Value and self.check_Quorum_threshold(voted_val):
-                    log.node.info('Quorum threshold met for value %s at Node %s', voted_val, self.name)
+                    log.node.info('Quorum threshold met for voted value %s at Node %s', voted_val, self.name)
                     self.update_nomination_state(voted_val)
 
                 if type(voted_val) is Value and self.check_Blocking_threshold(voted_val):
-                    log.node.info('Blocking threshold met for value %s at Node %s', voted_val, self.name)
+                    log.node.info('Blocking threshold met for voted value %s at Node %s', voted_val, self.name)
 
                 accepted_val = message[1] # message[1] is voted field
                 if type(accepted_val) is Value and self.check_Quorum_threshold(accepted_val):
-                    log.node.info('Quorum threshold met for value %s at Node %s', accepted_val, self.name)
+                    log.node.info('Quorum threshold met for accepted value %s at Node %s', accepted_val, self.name)
 
                 if type(accepted_val) is Value and self.check_Blocking_threshold(accepted_val):
-                    log.node.info('Blocking threshold met for value %s at Node %s', accepted_val, self.name)
+                    log.node.info('Blocking threshold met for accepted value %s at Node %s', accepted_val, self.name)
 
             else:
                 log.node.info('Node %s has no messages to retrieve from his highest priority neighbor Node %s!', self.name, priority_node.name)
@@ -463,3 +465,40 @@ class Node():
     # Get the counters for balloting state given a value
     def get_prepared_ballot_counters(self, value):
         return self.prepared_ballots.get(value)
+
+    def prepare_ballot_msg(self):
+        """
+        Prepare Ballot for Prepare Balloting phase
+        """
+        if len(self.nomination_state['confirmed']) == 0: # Check if there are any values to prepare
+            log.node.info('Node %s has no confirmed values in nomination state to prepare for balloting.', self.name)
+            return
+
+        # Retrieve a Value from the Nomination 'confirmed' state
+        confirmed_val = self.retrieve_confirmed_value()
+        # If the value has been aborted in the past then it should not be prepared
+        if confirmed_val.hash in self.balloting_state['aborted']:
+            log.node.info('Node %s has aborted value %s previously, so it cannot be prepared.', self.name,
+                          confirmed_val.hash)
+            return
+
+        if len(self.balloting_state['voted']) > 0 and confirmed_val.hash in self.balloting_state['voted']:
+            # Retrieve the counter from the state and increase it by one for the new ballot to be created
+            new_counter = self.balloting_state['voted'][confirmed_val.hash].counter + 1
+            ballot = SCPBallot(counter=new_counter, value=confirmed_val)
+        else:
+            ballot = SCPBallot(counter=1, value=confirmed_val)
+
+        # Get counters for new SCPPrepare message
+        prepare_msg_counters = self.get_prepared_ballot_counters(confirmed_val)
+        if prepare_msg_counters is not None:
+            prepare_msg = SCPPrepare(ballot=ballot, aCounter=prepare_msg_counters['aCounter'], cCounter=prepare_msg_counters['cCounter'], hCounter=prepare_msg_counters['hCounter'])
+            log.node.info('Node %s has prepared SCPPrepare message with ballot %s, h_counter=%d, a_counter=%d, c_counter=%d.',self.name, confirmed_val, prepare_msg_counters['aCounter'], prepare_msg_counters['cCounter'],prepare_msg_counters['hCounter'])
+            self.ballot_prepare_broadcast_flags.add(prepare_msg)
+        else:
+            # If prepare_msg_counters is none then there are no counters for this value and we have to set the defaults
+            prepare_msg = SCPPrepare(ballot=ballot)
+            self.ballot_prepare_broadcast_flags.add(prepare_msg)
+            log.node.info('Node %s has prepared SCPPrepare message with ballot %s, h_counter=%d, a_counter=%d, c_counter=%d.', self.name, confirmed_val, 0, 0,0)
+
+        log.node.info('Node %s appended SCPPrepare message to its storage and state, message = %s', self.name, prepare_msg)
