@@ -1,3 +1,18 @@
+"""
+=========================
+SCPBallot
+=========================
+
+Author: Azizbek Asadov
+Last update: August 2024
+
+SCPBallot struct/class.
+
+Documentation:
+
+[2] Nicolas Barry and Giuliano Losa and David Mazieres and Jed McCaleb and Stanislas Polu, The Stellar Consensus Protocol (SCP) - technical implementation draft, https://datatracker.ietf.org/doc/draft-mazieres-dinrg-scp/05/
+"""
+
 from Value import Value
 from Log import log
 

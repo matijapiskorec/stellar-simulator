@@ -3,7 +3,7 @@
 Simulator
 ================================================
 
-Author: Matija Piskorec, Jaime de Vivero Woods
+Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
 Last update: August 2024
 
 The following class contains command line (CLI) interface for the Stellar Consensus Protocol (SCP) simulator.

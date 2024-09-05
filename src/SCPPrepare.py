@@ -1,3 +1,14 @@
+"""
+=========================
+SCPPrepare
+=========================
+
+Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
+Last update: August 2024
+
+SCPPrepare class.
+"""
+
 from typing import Optional
 from SCPBallot import SCPBallot
 from Log import log

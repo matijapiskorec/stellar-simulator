@@ -3,7 +3,7 @@
 Storage
 =========================
 
-Author: Matija Piskorec, Jaime de Vivero Woods
+Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
 Last update: April 2024
 
 Storage class.
