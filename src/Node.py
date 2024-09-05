@@ -236,19 +236,24 @@ class Node():
         Prepare Message for Nomination
         """
         voted_vals = []
+        accepted_vals = []
 
         self.retrieve_transaction_from_mempool() # Retrieve transactions from mempool and adds it to the Node's Ledger
         if len(self.ledger.transactions) > 0:
             voted_vals.append(Value(transactions=self.ledger.transactions.copy()))
-            message = SCPNominate(voted=voted_vals,accepted=[],broadcasted=True) # No accepted as node is initalised
-
             self.nomination_state['voted'].extend(voted_vals)
-            self.storage.add_messages(message)
-            self.broadcast_flags.append(message)
+        if len(self.nomination_state['accepted']) > 0:
+            accepted_vals.extend(self.nomination_state['accepted'])
 
-            log.node.info('Node %s appended SCPNominate message to its storage and state, message = %s', self.name, message)
-        else:
-            log.node.info('Node %s has no transactions in its ledger so it cannot nominate!', self.name)
+        if len(voted_vals) == 0 and len(accepted_vals) == 0:
+            log.node.info('Node %s has no transactions or accepted values to nominate!', self.name)
+            return
+
+        message = SCPNominate(voted=voted_vals,accepted=accepted_vals,broadcasted=True) # No accepted as node is initalised
+
+        self.storage.add_messages(message)
+        self.broadcast_flags.append(message)
+        log.node.info('Node %s appended SCPNominate message to its storage and state, message = %s', self.name, message)
 
     def get_messages(self):
         if len(self.storage.messages) == 0:
