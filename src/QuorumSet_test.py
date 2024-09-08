@@ -2,6 +2,9 @@ import unittest
 from Value import Value
 from Node import Node
 from Transaction import Transaction
+from src.SCPBallot import SCPBallot
+from src.SCPPrepare import SCPPrepare
+
 
 class QuorumSetTest(unittest.TestCase):
     def setUp(self):
@@ -45,6 +48,67 @@ class QuorumSetTest(unittest.TestCase):
         check = self.node.quorum_set.check_inner_set_blocking_threshold(test_node1, value, quorum)
         self.assertEqual(check, 0)
 
+    def test_get_nodes_with_broadcast_prepare_msgs_returns_correctly(self):
+        # If only the calling node has voted, then it should return False
+        test_node1 = Node("test_node1")
+        test_node2 = Node("2")
+        test_node3 = Node("3")
+        test_node4 = Node("4")
+        test_node5 = Node("5")
+
+        test_value = Value(transactions={Transaction(0), Transaction(0)})
+        test_ballot = SCPBallot(counter=1, value=test_value)
+        test_message = SCPPrepare(ballot=test_ballot)
+
+        test_node2.ballot_prepare_broadcast_flags.add(test_message)
+        test_node3.ballot_prepare_broadcast_flags.add(test_message)
+        test_node5.ballot_prepare_broadcast_flags.add(test_message)
+
+        test_quorum = [test_node1, test_node2, test_node3, test_node4, test_node5]
+
+        result = test_node1.quorum_set.get_nodes_with_broadcast_prepare_msgs(test_node1, test_quorum)
+
+        self.assertEqual([test_node2, test_node3, test_node5], result)
+
+    def test_get_nodes_with_broadcast_prepare_msgs_returns_empty_for_none(self):
+        # No nodes in the quorum have broadcast prepare messages
+        test_node1 = Node("test_node1")
+        test_node2 = Node("2")
+        test_node3 = Node("3")
+        test_node4 = Node("4")
+        test_node5 = Node("5")
+
+        # No ballot prepare broadcast messages for any node
+        test_quorum = [test_node1, test_node2, test_node3, test_node4, test_node5]
+
+        result = test_node1.quorum_set.get_nodes_with_broadcast_prepare_msgs(test_node1, test_quorum)
+
+        # Expect an empty list since no nodes broadcast prepare messages
+        self.assertEqual([], result)
+
+    def test_get_nodes_with_broadcast_prepare_msgs_returns_correctly_for_only_itself_and_another(self):
+        # The calling node itself has broadcast prepare messages, should not be included in the result
+        test_node1 = Node("test_node1")
+        test_node2 = Node("2")
+        test_node3 = Node("3")
+        test_node4 = Node("4")
+        test_node5 = Node("5")
+
+        test_value = Value(transactions={Transaction(0), Transaction(0)})
+        test_ballot = SCPBallot(counter=1, value=test_value)
+        test_message = SCPPrepare(ballot=test_ballot)
+
+        test_node1.ballot_prepare_broadcast_flags.add(test_message) # test_node1 shouldnt be in the result
+        test_node2.ballot_prepare_broadcast_flags.add(test_message)
+
+        test_quorum = [test_node1, test_node2, test_node3, test_node4, test_node5]
+
+        result = test_node1.quorum_set.get_nodes_with_broadcast_prepare_msgs(test_node1, test_quorum)
+
+        # test_node1 should be excluded from the result
+        self.assertEqual([test_node2], result)
+
 
 if __name__ == '__main__':
     unittest.main()
+

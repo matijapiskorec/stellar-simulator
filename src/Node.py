@@ -502,3 +502,24 @@ class Node():
             log.node.info('Node %s has prepared SCPPrepare message with ballot %s, h_counter=%d, a_counter=%d, c_counter=%d.', self.name, confirmed_val, 0, 0,0)
 
         log.node.info('Node %s appended SCPPrepare message to its storage and state, message = %s', self.name, prepare_msg)
+
+    def receive_prepare_ballot_message(self):
+        # First retrieve all nodes in QuorumSet & Inner Sets
+        # Find all nodes that have at least one broadcast prepare message
+        # Pick a random message from a random node that has broadcasted
+        # Process message
+        quorum = [node for node in self.quorum_set.get_nodes() + self.quorum_set.get_inner_sets()]
+
+        broadcast_nodes = self.quorum_set.get_nodes_with_broadcast_prepare_msgs(calling_node=self, quorum=quorum)
+
+        if len(broadcast_nodes) < 1:
+            log.node.info("Node %s has no neighbours in its Quorum which have broadcast an SCPPrepare message!", self.name)
+            return
+
+        retrieved_node = np.random.choice(broadcast_nodes)
+        msg_to_process = np.random.choice(retrieved_node.ballot_prepare_broadcast_flags)
+        print(msg_to_process)
+
+        # TODO: PROCESS MESSAGE
+        return
+
