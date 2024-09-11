@@ -198,7 +198,7 @@ class NodeTest(unittest.TestCase):
             self.assertIn(value1, self.node.nomination_state['voted'])  # value1 should be present
             self.assertEqual(self.node.nomination_state['voted'].count(value1), 1) # value1 should only be there once as duplicates are not added
 
-    def test_receive_message_receives_message(self):
+    def test_receive_message_receives_accepted_message(self):
         self.node = Node("test_node")
         self.storage = Storage(self.node)
         self.priority_node = Node("test_node2")
@@ -215,6 +215,9 @@ class NodeTest(unittest.TestCase):
         message.parse_message_state = MagicMock(return_value=[value1, value2])
         self.node.process_received_message = MagicMock()
         self.node.update_statement_count = MagicMock()
+        self.node.check_Quorum_threshold = MagicMock(return_value=True)
+        self.node.check_Blocking_threshold = MagicMock(return_value=False)
+        self.node.update_nomination_state = MagicMock()
 
         self.node.receive_message()
 
@@ -225,12 +228,46 @@ class NodeTest(unittest.TestCase):
         self.node.process_received_message.assert_called_once()
         self.node.update_statement_count.assert_called_once()
 
+        # Assert that nomination state is updated when quorum threshold is met
+        self.node.update_nomination_state.assert_called_with(value2, "accepted")
+
+    def test_receive_message_receives_voted_message(self):
+        self.node = Node("test_node")
+        self.storage = Storage(self.node)
+        self.priority_node = Node("test_node2")
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+
+        message = SCPNominate(voted=[value1], accepted=[])
+
+        self.priority_node.storage.add_messages(message)
+
+        self.node.get_highest_priority_neighbor = MagicMock(return_value=self.priority_node)
+        self.node.retrieve_broadcast_message = MagicMock(return_value=message)
+        message.parse_message_state = MagicMock(return_value=[value1, []])
+        self.node.process_received_message = MagicMock()
+        self.node.update_statement_count = MagicMock()
+        self.node.check_Quorum_threshold = MagicMock(return_value=True)
+        self.node.check_Blocking_threshold = MagicMock(return_value=False)
+        self.node.update_nomination_state = MagicMock()
+
+        self.node.receive_message()
+
+        # Assert that functions are called
+        self.node.get_highest_priority_neighbor.assert_called()
+        self.node.retrieve_broadcast_message.assert_called()
+        message.parse_message_state.assert_called()
+        self.node.process_received_message.assert_called_once()
+        self.node.update_statement_count.assert_called_once()
+
+        # Assert that nomination state is updated when quorum threshold is met
+        self.node.update_nomination_state.assert_called_with(value1, "voted")
+
     def test_receive_empty_message_doesnt_call_functions_and_doesnt_fail(self):
         self.node = Node("test_node")
         self.storage = Storage(self.node)
         self.priority_node = Node("test_node2")
         message = SCPNominate(voted=[], accepted=[])
-
 
         self.node.get_highest_priority_neighbor = MagicMock(return_value=self.priority_node)
         self.node.retrieve_broadcast_message = MagicMock(return_value=None)
@@ -579,7 +616,7 @@ class NodeTest(unittest.TestCase):
             "accepted": [value3],
             "confirmed": []
         }
-        self.node.update_nomination_state(value)
+        self.node.update_nomination_state(value, "voted")
 
         assert all([isinstance(vote, Value) for vote in self.node.nomination_state['voted']])
         assert all([isinstance(vote, Value) for vote in self.node.nomination_state['accepted']])
@@ -600,13 +637,33 @@ class NodeTest(unittest.TestCase):
             "accepted": [value, value3],
             "confirmed": []
         }
-        self.node.update_nomination_state(value)
+        self.node.update_nomination_state(value, "voted")
 
         assert all([isinstance(vote, Value) for vote in self.node.nomination_state['voted']])
         assert all([isinstance(vote, Value) for vote in self.node.nomination_state['accepted']])
         self.assertTrue(self.node.nomination_state['voted'] == [value2])
         self.assertTrue(self.node.nomination_state['accepted'] == [value, value3])
         self.assertTrue(len(self.node.nomination_state['accepted']) == 2)
+
+    def test_update_nomination_state_updates_accepted_to_confirmed(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+
+        self.node.nomination_state = {
+            "voted": [],
+            "accepted": [value, value2],
+            "confirmed": [value3]
+        }
+        self.node.update_nomination_state(value, "accepted")
+
+        assert all([isinstance(vote, Value) for vote in self.node.nomination_state['voted']])
+        assert all([isinstance(vote, Value) for vote in self.node.nomination_state['accepted']])
+        self.assertTrue(self.node.nomination_state['accepted'] == [value2])
+        self.assertTrue(self.node.nomination_state['confirmed'] == [value3, value])
+        self.assertTrue(len(self.node.nomination_state['confirmed']) == 2)
 
     def test_update_nomination_state_does_not_update_accepted(self):
         self.node = Node(name="1")
@@ -620,7 +677,7 @@ class NodeTest(unittest.TestCase):
             "accepted": [value, value3],
             "confirmed": []
         }
-        self.node.update_nomination_state(value)
+        self.node.update_nomination_state(value, "voted")
 
         assert all([isinstance(vote, Value) for vote in self.node.nomination_state['voted']])
         assert all([isinstance(vote, Value) for vote in self.node.nomination_state['accepted']])
@@ -639,7 +696,7 @@ class NodeTest(unittest.TestCase):
             "accepted": [value3],
             "confirmed": []
         }
-        self.node.update_nomination_state(value)
+        self.node.update_nomination_state(value, "voted")
 
         assert all([isinstance(vote, Value) for vote in self.node.nomination_state['voted']])
         assert all([isinstance(vote, Value) for vote in self.node.nomination_state['accepted']])
