@@ -4,6 +4,8 @@ from Log import log
 import unittest
 from Value import Value
 from SCPNominate import SCPNominate
+from SCPBallot import SCPBallot
+from SCPPrepare import SCPPrepare
 from Storage import Storage
 from Node import Node
 from Transaction import Transaction
@@ -763,4 +765,60 @@ class NodeTest(unittest.TestCase):
 
         state_val2 = self.node.get_prepared_ballot_counters(value2)
         self.assertIsNone(state_val2)
+
+    def test_prepare_ballot_msg(self):
+        self.node = Node(name="1")
+        confirmed_value = Value(transactions={Transaction(0), Transaction(0)})
+        self.node.nomination_state['confirmed'] = [confirmed_value]
+
+        self.node.prepare_ballot_msg()
+        # Ensure the message was prepared
+        self.assertEqual(len(self.node.ballot_prepare_broadcast_flags), 1)
+        prepared_msg = self.node.ballot_prepare_broadcast_flags.pop()
+        self.assertIsInstance(prepared_msg, SCPPrepare)
+
+    def test_prepare_ballot_msg_for_no_confirmed_values(self):
+        self.node = Node(name="1")
+        self.node.nomination_state['confirmed'] = []
+        self.node.retrieve_confirmed_value = MagicMock(return_value=None)
+
+        self.node.prepare_ballot_msg()
+        self.node.retrieve_confirmed_value.assert_not_called()
+        self.assertEqual(len(self.node.ballot_prepare_broadcast_flags), 0)
+
+    def test_prepare_ballot_msg_for_existing_voted_value(self):
+        self.node = Node(name="1")
+        confirmed_value = Value(transactions={Transaction(0)})
+        self.node.nomination_state['confirmed'] = [confirmed_value]
+
+        # Mock Functions
+        self.node.retrieve_confirmed_value = MagicMock(return_value=confirmed_value)
+        self.node.get_prepared_ballot_counters = MagicMock(return_value={'aCounter': 1, 'cCounter': 1, 'hCounter': 1})
+
+        self.node.balloting_state['aborted'] = {}
+        self.node.balloting_state['voted'][confirmed_value.hash] = SCPBallot(counter=1, value=confirmed_value)
+
+        self.node.prepare_ballot_msg()
+        # Ensure the message was prepared
+        self.assertEqual(len(self.node.ballot_prepare_broadcast_flags), 1)
+
+        prepared_msg = self.node.ballot_prepare_broadcast_flags.pop()
+        self.assertIsInstance(prepared_msg, SCPPrepare)
+        self.assertEqual(prepared_msg.ballot.counter, 2)  # Incremented counter for existing voted value
+
+    def test_prepare_ballot_msg_for_no_aborted_value(self):
+        self.node = Node(name="1")
+        confirmed_value = Value(transactions={Transaction(0)})
+        self.node.nomination_state['confirmed'] = [confirmed_value]
+        self.node.balloting_state['aborted'][confirmed_value.hash] = SCPBallot(counter=1, value=confirmed_value)
+
+        self.node.get_prepared_ballot_counters = MagicMock(return_value=None)
+
+        self.node.prepare_ballot_msg()
+        # get_prepared_ballot_counters is the first function to be called if the value is not in the aborted field so we check if it gets called, it should NOT
+        self.node.get_prepared_ballot_counters.assert_not_called()
+        self.assertEqual(len(self.node.ballot_prepare_broadcast_flags), 0)
+
+
+
 
