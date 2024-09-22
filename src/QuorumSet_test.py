@@ -78,7 +78,6 @@ class QuorumSetTest(unittest.TestCase):
         test_node4 = Node("4")
         test_node5 = Node("5")
 
-        # No ballot prepare broadcast messages for any node
         test_quorum = [test_node1, test_node2, test_node3, test_node4, test_node5]
 
         result = test_node1.quorum_set.get_nodes_with_broadcast_prepare_msgs(test_node1, test_quorum)
