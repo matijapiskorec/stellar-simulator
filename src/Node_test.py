@@ -762,6 +762,147 @@ class NodeTest(unittest.TestCase):
         self.node.get_prepared_ballot_counters.assert_not_called()
         self.assertEqual(len(self.node.ballot_prepare_broadcast_flags), 0)
 
+    def test_process_prepare_ballot_message_works_for_case1(self):
+        self.node = Node(name="1")
 
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value1)
 
+        self.node.balloting_state['voted'][value1.hash] = ballot
+        mock_ballot = SCPBallot(counter=2, value=value1)
+        mock_msg = SCPPrepare(ballot=mock_ballot)
 
+        self.node.process_prepare_ballot_message(mock_msg)
+
+        self.assertIn(ballot.value.hash, self.node.balloting_state['voted'])
+        self.assertEqual(self.node.balloting_state['voted'][value1.hash], mock_ballot)
+
+    def test_process_prepare_ballot_message_works_for_case2(self):
+        self.node = Node(name="1")
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+
+        ballot1 = SCPBallot(counter=1, value=value1)
+
+        self.node.balloting_state['voted'][value1.hash] = ballot1
+
+        mock_ballot = SCPBallot(counter=2, value=value2)
+        mock_msg = SCPPrepare(ballot=mock_ballot)
+
+        self.node.process_prepare_ballot_message(mock_msg)
+
+        self.assertIn(ballot1.value.hash, self.node.balloting_state['aborted'])
+        self.assertNotIn(ballot1.value.hash, self.node.balloting_state['voted'])
+
+        self.assertEqual(self.node.balloting_state['voted'][value2.hash], mock_ballot)
+        self.assertEqual(self.node.balloting_state['aborted'][value1.hash], ballot1)
+
+    def test_process_prepare_ballot_message_works_for_case3(self):
+        self.node = Node(name="1")
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+
+        smaller_ballot1 = SCPBallot(counter=2, value=value1)
+        larger_ballot2 = SCPBallot(counter=3, value=value1)
+
+        self.node.balloting_state['voted'][value1.hash] = larger_ballot2
+
+        mock_msg = SCPPrepare(ballot=smaller_ballot1)
+
+        self.node.process_prepare_ballot_message(mock_msg)
+
+        self.assertIn(larger_ballot2.value.hash, self.node.balloting_state['voted'])
+        self.assertEqual(self.node.balloting_state['voted'][value1.hash].counter, larger_ballot2.counter)
+        self.assertNotEqual(self.node.balloting_state['voted'][value1.hash].counter, smaller_ballot1.counter)
+
+    def test_process_prepare_ballot_message_works_for_case4(self):
+        self.node = Node(name="1")
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 =  Value(transactions={Transaction(0)})
+
+        ballot1 = SCPBallot(counter=3, value=value1)
+        smaller_different_ballot2 = SCPBallot(counter=2, value=value2)
+
+        self.node.balloting_state['voted'][value1.hash] = ballot1
+
+        mock_msg = SCPPrepare(ballot=smaller_different_ballot2)
+
+        self.node.process_prepare_ballot_message(mock_msg)
+
+        self.assertNotIn(smaller_different_ballot2.value.hash, self.node.balloting_state['voted'])
+        self.assertNotIn(smaller_different_ballot2.value.hash, self.node.balloting_state['accepted'])
+        self.assertNotIn(smaller_different_ballot2.value.hash, self.node.balloting_state['confirmed'])
+        self.assertIn(smaller_different_ballot2.value.hash, self.node.balloting_state['aborted'])
+        self.assertIn(ballot1.value.hash, self.node.balloting_state['voted'])
+        self.assertEqual(self.node.balloting_state['voted'][value1.hash].counter, ballot1.counter)
+        self.assertEqual(self.node.balloting_state['aborted'][value2.hash].counter, smaller_different_ballot2.counter)
+
+    def test_abort_ballots_works(self):
+        self.node = Node(name="1")
+        self.node.balloting_state = {'voted': {}, 'accepted': {}, 'aborted': {}}
+
+        Value1 = Value(transactions={Transaction(0), Transaction(0)})
+
+        ballot1 = SCPBallot(counter=1, value=Value(transactions={Transaction(0)}))
+        ballot2 = SCPBallot(counter=2, value=Value(transactions={Transaction(0)}))
+        ballot3 = SCPBallot(counter=1, value=Value(transactions={Transaction(1)}))
+        ballot4 = SCPBallot(counter=2, value=Value(transactions={Transaction(1)}))
+
+        self.node.balloting_state['voted'] = {ballot1.value.hash: ballot1, ballot2.value.hash: ballot2}
+        self.node.balloting_state['accepted'] = {ballot3.value.hash: ballot3, ballot4.value.hash: ballot4}
+
+        received_ballot = SCPBallot(counter=3, value=Value1) # Make a ballot with a higher counter
+        self.node.abort_ballots(received_ballot)
+
+        # All ballots from voted and accepted should be removed from voted & accepted and added to aborted
+        # Check voted
+        self.assertNotIn(ballot1.value.hash, self.node.balloting_state['voted'])
+        self.assertIn(ballot1.value.hash, self.node.balloting_state['aborted'])
+        self.assertNotIn(ballot2.value.hash, self.node.balloting_state['voted'])
+        self.assertIn(ballot2.value.hash, self.node.balloting_state['aborted'])
+
+        # Check accepted
+        self.assertNotIn(ballot3.value.hash, self.node.balloting_state['accepted'])
+        self.assertIn(ballot3.value.hash, self.node.balloting_state['aborted'])
+        self.assertNotIn(ballot4.value.hash, self.node.balloting_state['accepted'])
+        self.assertIn(ballot4.value.hash, self.node.balloting_state['aborted'])
+
+    def test_abort_ballots_doesnt_remove_equal_counters(self):
+        self.node = Node(name="1")
+        self.node.balloting_state = {'voted': {}, 'accepted': {}, 'aborted': {}}
+
+        Value1 = Value(transactions={Transaction(0), Transaction(0)})
+
+        ballot1 = SCPBallot(counter=3, value=Value1)
+        ballot2 = SCPBallot(counter=3, value=Value(transactions={Transaction(0)}))
+
+        self.node.balloting_state['voted'] = {ballot1.value.hash: ballot1}
+        self.node.balloting_state['accepted'] = {ballot2.value.hash: ballot2}
+
+        received_ballot = SCPBallot(counter=3, value=Value1) # Make a ballot with a higher counter
+        self.node.abort_ballots(received_ballot)
+
+        self.assertIn(ballot1.value.hash, self.node.balloting_state['voted'])
+        self.assertNotIn(ballot1.value.hash, self.node.balloting_state['aborted'])
+        self.assertIn(ballot2.value.hash, self.node.balloting_state['accepted'])
+        self.assertNotIn(ballot2.value.hash, self.node.balloting_state['aborted'])
+
+    def test_abort_ballots_doesnt_abort_higher_counters(self):
+        self.node = Node(name="1")
+        self.node.balloting_state = {'voted': {}, 'accepted': {}, 'aborted': {}}
+
+        Value1 = Value(transactions={Transaction(0), Transaction(0)})
+
+        ballot1 = SCPBallot(counter=4, value=Value1)  # Higher counter
+        ballot2 = SCPBallot(counter=4, value=Value(transactions={Transaction(1)}))
+
+        self.node.balloting_state['voted'] = {ballot1.value.hash: ballot1}
+        self.node.balloting_state['accepted'] = {ballot2.value.hash: ballot2}
+
+        received_ballot = SCPBallot(counter=3, value=Value1)  # Lower counter
+        self.node.abort_ballots(received_ballot)
+
+        # Ballots should not be removed in the case of higher counter ballots
+        self.assertIn(ballot1.value.hash, self.node.balloting_state['voted'])
+        self.assertNotIn(ballot1.value.hash, self.node.balloting_state['aborted'])
+        self.assertIn(ballot2.value.hash, self.node.balloting_state['accepted'])
+        self.assertNotIn(ballot2.value.hash, self.node.balloting_state['aborted'])
