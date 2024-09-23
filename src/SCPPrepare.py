@@ -4,7 +4,7 @@ SCPPrepare
 =========================
 
 Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
-Last update: August 2024
+Last update: September 2024
 
 SCPPrepare class.
 """
@@ -26,3 +26,15 @@ class SCPPrepare:
     def __repr__(self):
         return (f"SCPPrepare(ballot={self.ballot}, prepared={self.prepared}, "
                 f"aCounter={self.aCounter}, hCounter={self.hCounter}, cCounter={self.cCounter})")
+
+    def __eq__(self, other):
+        if isinstance(other, SCPPrepare):
+            return (self.ballot == other.ballot and
+                    self.prepared == other.prepared and
+                    self.aCounter == other.aCounter and
+                    self.hCounter == other.hCounter and
+                    self.cCounter == other.cCounter)
+        return False
+
+    def __hash__(self):
+        return hash((self.ballot, self.prepared, self.aCounter, self.hCounter, self.cCounter))

@@ -1,3 +1,14 @@
+"""
+=========================
+Node
+=========================
+
+Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
+Last update: September 2024
+
+Node_Test class.
+"""
+
 from Network import Network
 from Mempool import Mempool
 from Log import log
@@ -822,6 +833,24 @@ class NodeTest(unittest.TestCase):
         node.update_balloting_state(ballot)
         self.assertIn(ballot.value.hash, node.balloting_state['aborted'])
 
+    def test_broadcast_prepare_message_does_not_pop(self):
+        node1 = Node("test_node1")
+        node2 = Node("test_node2")
+        node3 = Node("test_node3")
+
+        node1.get_neighbors = MagicMock(return_value=[node2, node3])
+
+        value = Value(transactions={Transaction(time=1.0)})
+        ballot = SCPBallot(counter=1, value=value)
+
+        node1.ballot_prepare_broadcast_flags.add(SCPPrepare(ballot=ballot))
+        node2.receive_prepare_message = MagicMock()
+        node3.receive_prepare_message = MagicMock()
+        node1.broadcast_prepare_message()
+        self.assertIn(SCPPrepare(ballot=ballot), node1.ballot_prepare_broadcast_flags)
+
+        node2.receive_prepare_message.assert_called_once_with(SCPPrepare(ballot=ballot))
+        node3.receive_prepare_message.assert_called_once_with(SCPPrepare(ballot=ballot))
 
     ### ballot tests
     def test_broadcast_prepare_message(self):
@@ -853,17 +882,16 @@ class NodeTest(unittest.TestCase):
         self.assertIn(ballot.value.hash, node1.balloting_state['voted'])
 
     def test_quorum_threshold_met_voted(self):
-        self.node = Node("test_node")
-        self.ballot = SCPBallot(counter=1, value=Transaction(time=1.0))
-        quorum_set = QuorumSet(self.node, validators=[Node("node1"), Node("node2")], inner_quorum_sets=[])
-        self.node.quorum_set = quorum_set
-
-        self.node.statement_counter[self.ballot.value.hash] = {
+        node = Node("test_node")
+        ballot = SCPBallot(counter=1, value=Transaction(time=1.0))
+        quorum_set = QuorumSet(node, validators=[Node("node1"), Node("node2")], inner_quorum_sets=[])
+        node.quorum_set = quorum_set
+        node.statement_counter[ballot.value.hash] = {
             "voted": {"node1": 1, "node2": 1},
             "accepted": {},
             "aborted": {}
         }
-        result = self.node.check_quorum_threshold_for_field(self.ballot, "voted")
+        result = node.check_quorum_threshold_for_field(ballot, "voted")
         self.assertTrue(result)
 
     def test_quorum_threshold_met_accepted(self):
@@ -894,7 +922,43 @@ class NodeTest(unittest.TestCase):
         result = self.node.check_quorum_threshold_for_field(self.ballot, "aborted")
         self.assertTrue(result)
 
+    def test_update_balloting_state_replaces_lower_counter(self):
+        node = Node(name="test_node")
 
+        # Create initial ballot with a lower counter
+        ballot_low = SCPBallot(counter=1, value=Transaction(time=1.0))
+
+        # Update the state with the low-counter ballot
+        node.update_balloting_state(ballot_low)
+        self.assertIn(ballot_low.value.hash, node.balloting_state['voted'])
+
+        # Create a new ballot with the same value but a higher counter
+        ballot_high = SCPBallot(counter=2, value=Transaction(time=1.0))
+
+        # Update the state with the high-counter ballot
+        node.update_balloting_state(ballot_high)
+
+        # Ensure the high-counter ballot has replaced the low-counter ballot
+        self.assertEqual(node.balloting_state['voted'][ballot_high.value.hash].counter, 2)
+
+    def test_update_balloting_state_ignores_lower_counter(self):
+        node = Node(name="test_node")
+
+        # Create a ballot with a higher counter
+        ballot_high = SCPBallot(counter=2, value=Transaction(time=1.0))
+
+        # Update the state with the high-counter ballot
+        node.update_balloting_state(ballot_high)
+        self.assertIn(ballot_high.value.hash, node.balloting_state['voted'])
+
+        # Create a ballot with a lower counter for the same value
+        ballot_low = SCPBallot(counter=1, value=Transaction(time=1.0))
+
+        # Attempt to update the state with the low-counter ballot
+        node.update_balloting_state(ballot_low)
+
+        # Ensure the high-counter ballot remains
+        self.assertEqual(node.balloting_state['voted'][ballot_high.value.hash].counter, 2)
 
     def test_prepare_ballot_msg(self):
         self.node = Node(name="1")
