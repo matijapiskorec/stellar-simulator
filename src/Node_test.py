@@ -1,16 +1,31 @@
+"""
+=========================
+Node
+=========================
+
+Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
+Last update: September 2024
+
+Node_Test class.
+"""
+
 from Network import Network
 from Mempool import Mempool
 from Log import log
 import unittest
 from Value import Value
 from SCPNominate import SCPNominate
+from SCPBallot import SCPBallot
+from SCPPrepare import SCPPrepare
 from Storage import Storage
 from Node import Node
 from Transaction import Transaction
 from unittest.mock import MagicMock, patch
+from QuorumSet import QuorumSet
 
 class NodeTest(unittest.TestCase):
     def setup(self):
+        # Create transactions and values
         pass
 
     # Commented out this test as it fails - fail is unrelated to our changes as it failed since we recieved code from Matija
@@ -646,3 +661,325 @@ class NodeTest(unittest.TestCase):
         self.assertTrue(self.node.nomination_state['voted'] == [])
         self.assertTrue(self.node.nomination_state['accepted'] == [value3])
         self.assertTrue(len(self.node.nomination_state['accepted']) == 1)
+
+    def test_retrieved_confirmed_values(self):
+        self.node = Node(name="1")
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        self.node.nomination_state['confirmed'] = [value1, value2, value3]
+        self.node.prepared_ballots = {
+            value1: {'aCounter': 1, 'cCounter': 1, 'hCounter': 1,
+                                                         'highestCounter': 1},
+            value2: {'aCounter': 2, 'cCounter': 2, 'hCounter': 2,
+                                                         'highestCounter': 2},
+        }
+
+        retrieved_value = self.node.retrieve_confirmed_value()
+        self.assertIsNotNone(retrieved_value)
+        self.assertIn(retrieved_value, self.node.nomination_state['confirmed'])
+
+    def test_retrieved_confirmed_values_returns_None_for_empty(self):
+        self.node = Node(name="1")
+        self.node.nomination_state['confirmed'] = []
+
+        retrieved_value = self.node.retrieve_confirmed_value()
+        self.assertIsNone(retrieved_value)
+
+    def test_get_prepared_ballot_counters(self):
+        self.node = Node(name="1")
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+
+        self.node.prepared_ballots = {
+            value1: {'aCounter': 1, 'cCounter': 1, 'hCounter': 1, 'highestCounter': 1},
+            value2: {'aCounter': 2, 'cCounter': 2, 'hCounter': 2, 'highestCounter': 2},
+        }
+
+        state_val1 = self.node.get_prepared_ballot_counters(value1)
+        self.assertIsNotNone(state_val1)
+        self.assertEqual(state_val1['aCounter'], 1)
+        self.assertEqual(state_val1['cCounter'], 1)
+        self.assertEqual(state_val1['hCounter'], 1)
+
+        state_val2 = self.node.get_prepared_ballot_counters(value2)
+        self.assertIsNotNone(state_val2)
+        self.assertEqual(state_val2['aCounter'], 2)
+        self.assertEqual(state_val2['cCounter'], 2)
+        self.assertEqual(state_val2['hCounter'], 2)
+
+        self.assertNotEqual(state_val1, state_val2)
+
+    def test_get_prepared_ballot_counters_returns_None_for_empty(self):
+        self.node = Node(name="1")
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+
+        self.node.prepared_ballots = {
+            value1: {'aCounter': 1, 'cCounter': 1, 'hCounter': 1, 'highestCounter': 1},
+        }
+
+        state_val2 = self.node.get_prepared_ballot_counters(value2)
+        self.assertIsNone(state_val2)
+
+    def test_prepare_ballot_msg(self):
+        self.node = Node(name="1")
+        confirmed_value = Value(transactions={Transaction(0), Transaction(0)})
+        self.node.nomination_state['confirmed'] = [confirmed_value]
+
+        self.node.prepare_ballot_msg()
+        # Ensure the message was prepared
+        self.assertEqual(len(self.node.ballot_prepare_broadcast_flags), 1)
+        prepared_msg = self.node.ballot_prepare_broadcast_flags.pop()
+        self.assertIsInstance(prepared_msg, SCPPrepare)
+
+    def test_prepare_ballot_msg_for_no_confirmed_values(self):
+        self.node = Node(name="1")
+        self.node.nomination_state['confirmed'] = []
+        self.node.retrieve_confirmed_value = MagicMock(return_value=None)
+
+        self.node.prepare_ballot_msg()
+        self.node.retrieve_confirmed_value.assert_not_called()
+        self.assertEqual(len(self.node.ballot_prepare_broadcast_flags), 0)
+
+    def test_prepare_ballot_msg_for_existing_voted_value(self):
+        self.node = Node(name="1")
+        confirmed_value = Value(transactions={Transaction(0)})
+        self.node.nomination_state['confirmed'] = [confirmed_value]
+
+        # Mock Functions
+        self.node.retrieve_confirmed_value = MagicMock(return_value=confirmed_value)
+        self.node.get_prepared_ballot_counters = MagicMock(return_value={'aCounter': 1, 'cCounter': 1, 'hCounter': 1})
+
+        self.node.balloting_state['aborted'] = {}
+        self.node.balloting_state['voted'][confirmed_value.hash] = SCPBallot(counter=1, value=confirmed_value)
+
+        self.node.prepare_ballot_msg()
+        # Ensure the message was prepared
+        self.assertEqual(len(self.node.ballot_prepare_broadcast_flags), 1)
+
+        prepared_msg = self.node.ballot_prepare_broadcast_flags.pop()
+        self.assertIsInstance(prepared_msg, SCPPrepare)
+        self.assertEqual(prepared_msg.ballot.counter, 2)  # Incremented counter for existing voted value
+
+    def test_prepare_ballot_msg_for_no_aborted_value(self):
+        self.node = Node(name="1")
+        confirmed_value = Value(transactions={Transaction(0)})
+        self.node.nomination_state['confirmed'] = [confirmed_value]
+        self.node.balloting_state['aborted'][confirmed_value.hash] = SCPBallot(counter=1, value=confirmed_value)
+
+        self.node.get_prepared_ballot_counters = MagicMock(return_value=None)
+
+        self.node.prepare_ballot_msg()
+        # get_prepared_ballot_counters is the first function to be called if the value is not in the aborted field so we check if it gets called, it should NOT
+        self.node.get_prepared_ballot_counters.assert_not_called()
+        self.assertEqual(len(self.node.ballot_prepare_broadcast_flags), 0)
+
+
+    # Tests for Quorum Threshold
+
+    def test_quorum_threshold_met_voted(self):
+        self.node = Node("test_node")
+        self.ballot = SCPBallot(counter=1, value=Transaction(time=1.0))
+        quorum_set = QuorumSet(self.node, validators=[Node("node1"), Node("node2")], inner_quorum_sets=[])
+        self.node.quorum_set = quorum_set
+
+        self.node.statement_counter[self.ballot.value.hash] = {
+            "voted": {"node1": 1, "node2": 1},
+            "accepted": {},
+            "aborted": {}
+        }
+        result = self.node.check_quorum_threshold_for_field(self.ballot, "voted")
+        self.assertTrue(result)
+
+    def test_voted_quorum_threshold(self):
+        node = Node("test_node")
+        ballot = SCPBallot(counter=1, value=Transaction(time=1.0))
+        quorum_set = QuorumSet(node, validators=[Node("node1"), Node("node2")])
+        node.quorum_set = quorum_set
+
+        node.statement_counter[ballot.value.hash] = {
+            "voted": {"node1": 1, "node2": 1},
+            "accepted": {},
+            "aborted": {}
+        }
+
+        node.update_balloting_state(ballot)
+        self.assertIn(ballot.value.hash, node.balloting_state['voted'])
+
+    def test_accepted_quorum_threshold(self):
+        node = Node("test_node")
+        ballot = SCPBallot(counter=1, value=Transaction(time=1.0))
+        quorum_set = QuorumSet(node, validators=[Node("node1"), Node("node2")])
+        node.quorum_set = quorum_set
+
+        node.statement_counter[ballot.value.hash] = {
+            "voted": {},
+            "accepted": {"node1": 1, "node2": 1},
+            "aborted": {}
+        }
+        node.update_balloting_state(ballot)
+        self.assertIn(ballot.value.hash, node.balloting_state['accepted'])
+    def test_aborted_quorum_threshold(self):
+        node = Node("test_node")
+        ballot = SCPBallot(counter=1,value=Transaction(time=1.0))
+        quorum_set = QuorumSet(node,validators=[Node("node1"),Node("node2")])
+        node.quorum_set = quorum_set
+        node.statement_counter[ballot.value.hash] = {
+            "voted": {},
+            "accepted": {},
+            "aborted": {"node1": 1, "node2": 1}
+        }
+        node.update_balloting_state(ballot)
+        self.assertIn(ballot.value.hash, node.balloting_state['aborted'])
+
+    def test_broadcast_prepare_message_does_not_pop(self):
+        node1 = Node("test_node1")
+        node2 = Node("test_node2")
+        node3 = Node("test_node3")
+
+        node1.get_neighbors = MagicMock(return_value=[node2, node3])
+
+        value = Value(transactions={Transaction(time=1.0)})
+        ballot = SCPBallot(counter=1, value=value)
+
+        node1.ballot_prepare_broadcast_flags.add(SCPPrepare(ballot=ballot))
+        node2.receive_prepare_message = MagicMock()
+        node3.receive_prepare_message = MagicMock()
+        node1.broadcast_prepare_message()
+        self.assertIn(SCPPrepare(ballot=ballot), node1.ballot_prepare_broadcast_flags)
+
+        node2.receive_prepare_message.assert_called_once_with(SCPPrepare(ballot=ballot))
+        node3.receive_prepare_message.assert_called_once_with(SCPPrepare(ballot=ballot))
+
+    ### ballot tests
+    def test_broadcast_prepare_message(self):
+        node1 = Node("test_node1")
+        node2 = Node("test_node2")
+        node3 = Node("test_node3")
+
+        node1.get_neighbors = MagicMock(return_value=[node2, node3])
+
+        value = Value(transactions={Transaction(time=1.0)})
+        ballot = SCPBallot(counter=1, value=value)
+
+        (node1.ballot_prepare_broadcast_flags
+         .add(SCPPrepare(ballot=ballot)))
+        node2.receive_prepare_message = MagicMock()
+        node3.receive_prepare_message = MagicMock()
+        node1.broadcast_prepare_message()
+
+    def test_process_prepare_message(self):
+        node1 = Node("test_node1")
+        value = Value(transactions={Transaction(time=1.0)})
+        ballot = SCPBallot(counter=1, value=value)
+        scp_prepare_message = SCPPrepare(ballot=ballot)
+
+        # Call the method to process the message
+        node1.process_prepare_ballot_message(scp_prepare_message)
+
+        # Check if the ballot is added to the voted state
+        self.assertIn(ballot.value.hash, node1.balloting_state['voted'])
+
+    def test_quorum_threshold_met_voted(self):
+        node = Node("test_node")
+        ballot = SCPBallot(counter=1, value=Transaction(time=1.0))
+        quorum_set = QuorumSet(node, validators=[Node("node1"), Node("node2")], inner_quorum_sets=[])
+        node.quorum_set = quorum_set
+        node.statement_counter[ballot.value.hash] = {
+            "voted": {"node1": 1, "node2": 1},
+            "accepted": {},
+            "aborted": {}
+        }
+        result = node.check_quorum_threshold_for_field(ballot, "voted")
+        self.assertTrue(result)
+
+    def test_quorum_threshold_met_accepted(self):
+        self.node = Node("test_node")
+        self.ballot = SCPBallot(counter=1, value=Transaction(time=1.0))
+        quorum_set = QuorumSet(self.node, validators=[Node("node1"), Node("node2")], inner_quorum_sets=[])
+        self.node.quorum_set = quorum_set
+
+        self.node.statement_counter[self.ballot.value.hash] = {
+            "voted": {},
+            "accepted": {"node1": 1, "node2": 1},
+            "aborted": {}
+        }
+        result = self.node.check_quorum_threshold_for_field(self.ballot, "accepted")
+        self.assertTrue(result)
+
+    def test_quorum_threshold_met_aborted(self):
+        self.node = Node("test_node")
+        self.ballot = SCPBallot(counter=1, value=Transaction(time=1.0))
+        quorum_set = QuorumSet(self.node, validators=[Node("node1"), Node("node2")], inner_quorum_sets=[])
+        self.node.quorum_set = quorum_set
+
+        self.node.statement_counter[self.ballot.value.hash] = {
+            "voted": {},
+            "accepted": {},
+            "aborted": {"node1": 1, "node2": 1}
+        }
+        result = self.node.check_quorum_threshold_for_field(self.ballot, "aborted")
+        self.assertTrue(result)
+
+    def test_update_balloting_state_replaces_lower_counter(self):
+        node = Node(name="test_node")
+
+        # Create initial ballot with a lower counter
+        ballot_low = SCPBallot(counter=1, value=Transaction(time=1.0))
+
+        # Update the state with the low-counter ballot
+        node.update_balloting_state(ballot_low)
+        self.assertIn(ballot_low.value.hash, node.balloting_state['voted'])
+
+        # Create a new ballot with the same value but a higher counter
+        ballot_high = SCPBallot(counter=2, value=Transaction(time=1.0))
+
+        # Update the state with the high-counter ballot
+        node.update_balloting_state(ballot_high)
+
+        # Ensure the high-counter ballot has replaced the low-counter ballot
+        self.assertEqual(node.balloting_state['voted'][ballot_high.value.hash].counter, 2)
+
+    def test_update_balloting_state_ignores_lower_counter(self):
+        node = Node(name="test_node")
+
+        # Create a ballot with a higher counter
+        ballot_high = SCPBallot(counter=2, value=Transaction(time=1.0))
+
+        # Update the state with the high-counter ballot
+        node.update_balloting_state(ballot_high)
+        self.assertIn(ballot_high.value.hash, node.balloting_state['voted'])
+
+        # Create a ballot with a lower counter for the same value
+        ballot_low = SCPBallot(counter=1, value=Transaction(time=1.0))
+
+        # Attempt to update the state with the low-counter ballot
+        node.update_balloting_state(ballot_low)
+
+        # Ensure the high-counter ballot remains
+        self.assertEqual(node.balloting_state['voted'][ballot_high.value.hash].counter, 2)
+
+    def test_prepare_ballot_msg(self):
+        self.node = Node(name="1")
+        confirmed_value = Value(transactions={Transaction(0), Transaction(0)})
+        self.node.nomination_state['confirmed'] = [confirmed_value]
+
+        self.node.prepare_ballot_msg()
+
+        # Ensure the message was prepared and added to the broadcast flags
+        self.assertEqual(len(self.node.ballot_prepare_broadcast_flags), 1)
+        prepared_msg = self.node.ballot_prepare_broadcast_flags.pop()
+        self.assertIsInstance(prepared_msg, SCPPrepare)
+
+    def test_prepare_ballot_msg_no_confirmed(self):
+        """
+        Test that a node does not prepare an SCPPrepare message when no confirmed value exists.
+        """
+        self.node = Node(name="1")
+        self.node.nomination_state['confirmed'] = []
+
+        self.node.prepare_ballot_msg()
+
+        # Ensure no message was prepared
+        self.assertEqual(len(self.node.ballot_prepare_broadcast_flags), 0)
