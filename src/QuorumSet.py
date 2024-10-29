@@ -4,7 +4,7 @@ Quorum Set
 =========================
 
 Author: Matija Piskorec, Jaime de Vivero Woods
-Last update: July 2024
+Last update: September 2024
 
 QuorumSet class.
 """
@@ -103,3 +103,13 @@ class QuorumSet():
                 count += 1
 
         return count
+
+    def get_nodes_with_broadcast_prepare_msgs(self, calling_node, quorum):
+        broadcast_nodes = []
+        for node in quorum:
+            if (node != calling_node) and len(node.ballot_prepare_broadcast_flags) >= 1:
+                broadcast_nodes.append(node)
+
+        return broadcast_nodes
+
+

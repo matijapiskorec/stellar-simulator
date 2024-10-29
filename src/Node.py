@@ -4,7 +4,8 @@ Node
 =========================
 
 Author: Matija Piskorec, Jaime de Vivero Woods
-Last update: July 2024
+
+Last update: September 2024
 
 Node class.
 
@@ -15,7 +16,6 @@ Documentation:
 import numpy as np
 from Log import log
 from Event import Event
-from FBAConsensus import FBAConsensus
 from Ledger import Ledger
 from QuorumSet import QuorumSet
 from SCPNominate import SCPNominate
@@ -24,11 +24,9 @@ from Storage import Storage
 from Globals import Globals
 import copy
 
-import random
 import xdrlib3
 import hashlib
 
-# class Node(FBAConsensus):
 class Node():
     name = None
     quorum_set = None
@@ -60,7 +58,17 @@ class Node():
         self.received_broadcast_msgs = {} # This hashmap (or dictionary) keeps track of all Messages retrieved by each node
         # This dictionary looks like this {{node.name: SCPNominate,...},...}
 
+
         self.nomination_round = 1
+
+        ###################################
+        # PREPARE BALLOT PHASE STRUCTURES #
+        ###################################
+        self.balloting_state = {'voted': {}, 'accepted': {}, 'confirmed': {}, 'aborted': {}} # This will look like: self.balloting_state = {'voted': {'value_hash_1': SCPBallot(counter=1, value=ValueObject1),},'accepted': { 'value_hash_2': SCPBallot(counter=3, value=ValueObject2)},'confirmed': { ... },'aborted': { ... }}
+        self.ballot_statement_counter = {} # This will use sets for node names as opposed to counts, so will look like: {SCPBallot1.value: {'voted': set(Node1), ‘accepted’: set(Node2, Node3), ‘confirmed’: set(), ‘aborted’: set(), SCPBallot2.value: {'voted': set(), ‘accepted’: set(), ‘confirmed’: set(), ‘aborted’: set(node1, node2, node3)}
+        self.ballot_prepare_broadcast_flags = set() # Add every SCPPrepare message here - this will look like
+        self.prepared_ballots = {} # This looks like: self.prepared_ballots[ballot.value] = {'aCounter': aCounter,'cCounter': cCounter,'hCounter': hCounter,'highestCounter': ballot.counter}
+
 
         # TODO: Implement the logic for advancing the nomination rounds each n+1 seconds!
 
@@ -167,15 +175,18 @@ class Node():
 
                 voted_val = message[0] # message[0] is voted field
                 if type(voted_val) is Value and self.check_Quorum_threshold(voted_val):
-                    log.node.info('Quorum threshold met for value %s at Node %s', voted_val, self.name)
-                    self.update_nomination_state(voted_val)
+
+                    log.node.info('Quorum threshold met for voted value %s at Node %s', voted_val, self.name)
+                    self.update_nomination_state(voted_val, "voted")
 
                 if type(voted_val) is Value and self.check_Blocking_threshold(voted_val):
                     log.node.info('Blocking threshold met for value %s at Node %s', voted_val, self.name)
 
-                accepted_val = message[1] # message[1] is voted field
+                accepted_val = message[1] # message[1] is accepted field
                 if type(accepted_val) is Value and self.check_Quorum_threshold(accepted_val):
-                    log.node.info('Quorum threshold met for value %s at Node %s', accepted_val, self.name)
+
+                    log.node.info('Quorum threshold met for accepted value %s at Node %s', accepted_val, self.name)
+                    self.update_nomination_state(accepted_val, "accepted")
 
                 if type(accepted_val) is Value and self.check_Blocking_threshold(accepted_val):
                     log.node.info('Blocking threshold met for value %s at Node %s', accepted_val, self.name)
@@ -226,19 +237,25 @@ class Node():
         Prepare Message for Nomination
         """
         voted_vals = []
+        accepted_vals = []
 
         self.retrieve_transaction_from_mempool() # Retrieve transactions from mempool and adds it to the Node's Ledger
         if len(self.ledger.transactions) > 0:
             voted_vals.append(Value(transactions=self.ledger.transactions.copy()))
-            message = SCPNominate(voted=voted_vals,accepted=[],broadcasted=True) # No accepted as node is initalised
-
             self.nomination_state['voted'].extend(voted_vals)
-            self.storage.add_messages(message)
-            self.broadcast_flags.append(message)
 
-            log.node.info('Node %s appended SCPNominate message to its storage and state, message = %s', self.name, message)
-        else:
-            log.node.info('Node %s has no transactions in its ledger so it cannot nominate!', self.name)
+        if len(self.nomination_state['accepted']) > 0:
+            accepted_vals.extend(self.nomination_state['accepted']) # Add all accepted values
+
+        if len(voted_vals) == 0 and len(accepted_vals) == 0:
+            log.node.info('Node %s has no transactions or accepted values to nominate!', self.name)
+            return
+
+        message = SCPNominate(voted=voted_vals,accepted=accepted_vals,broadcasted=True) # No accepted as node is initalised
+
+        self.storage.add_messages(message)
+        self.broadcast_flags.append(message)
+        log.node.info('Node %s appended SCPNominate message to its storage and state, message = %s', self.name, message)
 
     def get_messages(self):
         if len(self.storage.messages) == 0:
@@ -426,16 +443,137 @@ class Node():
 
         return False
 
-    def update_nomination_state(self, val):
-        if len(self.nomination_state["voted"]) > 0 :
-            if val in self.nomination_state['accepted']:
-                log.node.info('Value %s is already accepted in Node %s', val, self.name)
+    def update_nomination_state(self, val, field):
+        if field == "voted":
+            if len(self.nomination_state["voted"]) > 0 :
+                if val in self.nomination_state['accepted']:
+                    log.node.info('Value %s is already accepted in Node %s', val, self.name)
+                    return
+
+                if val in self.nomination_state['voted']:
+                    self.nomination_state['voted'].remove(val)
+
+
+                self.nomination_state['accepted'].append(val)
+                log.node.info('Value %s has been moved to accepted in Node %s', val, self.name)
+            else:
+                log.node.info('No values in voted state, cannot move Value %s to accepted in Node %s', val, self.name)
+
+        elif field == "accepted":
+            if len(self.nomination_state["accepted"]) > 0:
+                if val in self.nomination_state['confirmed']:
+                    log.node.info('Value %s is already confirmed in Node %s', val, self.name)
+                    return
+
+                if val in self.nomination_state['accepted']:
+                    self.nomination_state['accepted'].remove(val)
+
+                self.nomination_state['confirmed'].append(val)
+                log.node.info('Value %s has been moved to confirmed in Node %s', val, self.name)
+            else:
+                log.node.info('No values in accepted state, cannot move Value %s to confirmed in Node %s', val, self.name)
+
+    # retrieve a confirmed Value from nomination_state
+    def retrieve_confirmed_value(self):
+        if len(self.nomination_state['confirmed']) > 0:
+            confirmed_value = np.random.choice(self.nomination_state['confirmed'])  # Take a random Value from the confirmed state
+            log.node.info('Node %s retrieved confirmed value %s for SCPPrepare', self.name, confirmed_value)
+            return confirmed_value
+        else:
+            log.node.info('Node %s has no confirmed values to use for SCPPrepare!', self.name)
+            return None
+
+    # Get the counters for balloting state given a value
+    def get_prepared_ballot_counters(self, value):
+        return self.prepared_ballots.get(value)
+
+    def prepare_ballot_msg(self):
+        """
+        Prepare Ballot for Prepare Balloting phase
+        """
+        if len(self.nomination_state['confirmed']) == 0: # Check if there are any values to prepare
+            log.node.info('Node %s has no confirmed values in nomination state to prepare for balloting.', self.name)
+            return
+
+        # Retrieve a Value from the Nomination 'confirmed' state
+        confirmed_val = self.retrieve_confirmed_value()
+        # If the value has been aborted in the past then it should not be prepared
+        if confirmed_val.hash in self.balloting_state['aborted']:
+            log.node.info('Node %s has aborted value %s previously, so it cannot be prepared.', self.name,
+                          confirmed_val.hash)
+            return
+
+        if len(self.balloting_state['voted']) > 0 and confirmed_val.hash in self.balloting_state['voted']:
+            # Retrieve the counter from the state and increase it by one for the new ballot to be created
+            new_counter = self.balloting_state['voted'][confirmed_val.hash].counter + 1
+            ballot = SCPBallot(counter=new_counter, value=confirmed_val)
+        else:
+            # Make ballot with default counter of 1
+            ballot = SCPBallot(counter=1, value=confirmed_val)
+
+        # Get counters for new SCPPrepare message
+        prepare_msg_counters = self.get_prepared_ballot_counters(confirmed_val)
+        if prepare_msg_counters is not None:
+            prepare_msg = SCPPrepare(ballot=ballot, aCounter=prepare_msg_counters['aCounter'], cCounter=prepare_msg_counters['cCounter'], hCounter=prepare_msg_counters['hCounter'])
+            log.node.info('Node %s has prepared SCPPrepare message with ballot %s, h_counter=%d, a_counter=%d, c_counter=%d.',self.name, confirmed_val, prepare_msg_counters['aCounter'], prepare_msg_counters['cCounter'],prepare_msg_counters['hCounter'])
+            self.ballot_prepare_broadcast_flags.add(prepare_msg)
+        else:
+            # If prepare_msg_counters is none then there are no counters for this value and we have to set the defaults
+            prepare_msg = SCPPrepare(ballot=ballot)
+            self.ballot_prepare_broadcast_flags.add(prepare_msg)
+            log.node.info('Node %s has prepared SCPPrepare message with ballot %s, h_counter=%d, a_counter=%d, c_counter=%d.', self.name, confirmed_val, 0, 0,0)
+
+        log.node.info('Node %s appended SCPPrepare message to its storage and state, message = %s', self.name, prepare_msg)
+
+    def process_prepare_ballot_message(self, message):
+        received_ballot = message.ballot
+
+        # Case 1: New ballot received has the same value but a higher counter
+        if received_ballot.value.hash in self.balloting_state['voted']:
+            if received_ballot.value == self.balloting_state['voted'][received_ballot.value.hash].value and received_ballot.counter > self.balloting_state['voted'][received_ballot.value.hash].counter:
+                log.node.info("Node %s received a ballot with the same value but a higher counter. Updating to the new counter.", self.name)
+                self.balloting_state['voted'][received_ballot.value.hash] = received_ballot
                 return
 
-            if val in self.nomination_state['voted']:
-                self.nomination_state['voted'].remove(val)
+            # Case 3: New ballot received has the same value but a lower counter
+            if received_ballot.counter < self.balloting_state['voted'][received_ballot.value.hash].counter:
+                log.node.info("Node %s that has been received has the same value but a lower counter than a previously voted ballot.", self.name)
+                return
 
-            self.nomination_state['accepted'].append(val)
-            log.node.info('Value %s has been moved to accepted in Node %s', val, self.name)
-        else:
-            log.node.info('No values in voted state, cannot move Value %s to accepted in Node %s', val, self.name)
+        elif received_ballot.value.hash not in self.balloting_state['voted']:
+            for voted_ballot in self.balloting_state['voted'].values():
+                # Case 2: New ballot received has different value and a higher counter
+                if received_ballot.counter > voted_ballot.counter:
+                    log.node.info("Node %s received a ballot with a different value and a higher counter. Aborting previous ballots.",self.name)
+                    # Abort any previous ballots with a smaller counter and different value
+                    self.abort_ballots(received_ballot)
+                    self.balloting_state['voted'][received_ballot.value.hash] = received_ballot
+                    return
+
+            # Case 4: New ballot received has different value and a lower counter - JUST abort this received ballot
+            self.balloting_state['aborted'][received_ballot.value.hash] = received_ballot
+            log.node.info("Node %s has a different value and lower counter than a previously voted value. Aborting this ballot.")
+
+    def abort_ballots(self, received_ballot):
+        voted_ballots_to_del = []
+        accepted_ballots_to_del = []
+
+        # Abort all ballots from 'voted' field that have a lower counter
+        for ballot in self.balloting_state['voted'].values():
+            if ballot.counter < received_ballot.counter:
+                if ballot.value.hash != received_ballot.value.hash: # every ballot less than "b" containing a value other than "b.value"
+                    self.balloting_state['aborted'][ballot.value.hash] = ballot
+                    voted_ballots_to_del.append(ballot.value.hash)
+
+        for ballot in voted_ballots_to_del:
+            self.balloting_state['voted'].pop(ballot)
+
+        # Abort all Values from 'accepted' field that have a lower counter
+        for ballot in self.balloting_state['accepted'].values():
+            if ballot.counter < received_ballot.counter:
+                if ballot.value.hash != received_ballot.value.hash:
+                    self.balloting_state['aborted'][ballot.value.hash] = ballot
+                    accepted_ballots_to_del.append(ballot.value.hash)
+
+        for ballot in accepted_ballots_to_del:
+            self.balloting_state['accepted'].pop(ballot)
