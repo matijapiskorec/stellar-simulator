@@ -4,8 +4,6 @@ from Log import log
 import unittest
 from Value import Value
 from SCPNominate import SCPNominate
-from SCPBallot import SCPBallot
-from SCPPrepare import SCPPrepare
 from Storage import Storage
 from Node import Node
 from Transaction import Transaction

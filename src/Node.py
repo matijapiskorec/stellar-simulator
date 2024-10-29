@@ -4,6 +4,7 @@ Node
 =========================
 
 Author: Matija Piskorec, Jaime de Vivero Woods
+
 Last update: September 2024
 
 Node class.
@@ -19,8 +20,6 @@ from Ledger import Ledger
 from QuorumSet import QuorumSet
 from SCPNominate import SCPNominate
 from Value import Value
-from SCPBallot import SCPBallot
-from SCPPrepare import SCPPrepare
 from Storage import Storage
 from Globals import Globals
 import copy
@@ -51,16 +50,15 @@ class Node():
 
         self.storage = storage if storage is not None else Storage(self)
         default_state = {'voted': [], 'accepted': [], 'confirmed': []}
-
-        ###############################
-        # NOMINATION PHASE STRUCTURES #
-        ###############################
         self.nomination_state = copy.deepcopy(default_state)
+        self.balloting_state = copy.deepcopy(default_state)
         self.statement_counter = {} # This hashmap (or dictionary) keeps track of all Values added and how many times unique nodes have made statements on it
         # This dictionary looks like this {Value_hash: {'voted': {node_id: count,...}}, {'accepted': {node_id:count}}}
+        self.broadcast_flags = []  # Add every message here for other
         self.received_broadcast_msgs = {} # This hashmap (or dictionary) keeps track of all Messages retrieved by each node
         # This dictionary looks like this {{node.name: SCPNominate,...},...}
-        self.broadcast_flags = [] # Add every SCPNominate message here
+
+
         self.nomination_round = 1
 
         ###################################
@@ -70,6 +68,7 @@ class Node():
         self.ballot_statement_counter = {} # This will use sets for node names as opposed to counts, so will look like: {SCPBallot1.value: {'voted': set(Node1), ‘accepted’: set(Node2, Node3), ‘confirmed’: set(), ‘aborted’: set(), SCPBallot2.value: {'voted': set(), ‘accepted’: set(), ‘confirmed’: set(), ‘aborted’: set(node1, node2, node3)}
         self.ballot_prepare_broadcast_flags = set() # Add every SCPPrepare message here - this will look like
         self.prepared_ballots = {} # This looks like: self.prepared_ballots[ballot.value] = {'aCounter': aCounter,'cCounter': cCounter,'hCounter': hCounter,'highestCounter': ballot.counter}
+
 
         # TODO: Implement the logic for advancing the nomination rounds each n+1 seconds!
 
@@ -176,19 +175,21 @@ class Node():
 
                 voted_val = message[0] # message[0] is voted field
                 if type(voted_val) is Value and self.check_Quorum_threshold(voted_val):
+
                     log.node.info('Quorum threshold met for voted value %s at Node %s', voted_val, self.name)
                     self.update_nomination_state(voted_val, "voted")
 
                 if type(voted_val) is Value and self.check_Blocking_threshold(voted_val):
-                    log.node.info('Blocking threshold met for voted value %s at Node %s', voted_val, self.name)
+                    log.node.info('Blocking threshold met for value %s at Node %s', voted_val, self.name)
 
                 accepted_val = message[1] # message[1] is accepted field
                 if type(accepted_val) is Value and self.check_Quorum_threshold(accepted_val):
+
                     log.node.info('Quorum threshold met for accepted value %s at Node %s', accepted_val, self.name)
                     self.update_nomination_state(accepted_val, "accepted")
 
                 if type(accepted_val) is Value and self.check_Blocking_threshold(accepted_val):
-                    log.node.info('Blocking threshold met for accepted value %s at Node %s', accepted_val, self.name)
+                    log.node.info('Blocking threshold met for value %s at Node %s', accepted_val, self.name)
 
             else:
                 log.node.info('Node %s has no messages to retrieve from his highest priority neighbor Node %s!', self.name, priority_node.name)
@@ -451,6 +452,7 @@ class Node():
 
                 if val in self.nomination_state['voted']:
                     self.nomination_state['voted'].remove(val)
+
 
                 self.nomination_state['accepted'].append(val)
                 log.node.info('Value %s has been moved to accepted in Node %s', val, self.name)

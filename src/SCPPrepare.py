@@ -1,6 +1,5 @@
 from typing import Optional
 from SCPBallot import SCPBallot
-from Log import log
 
 class SCPPrepare:
     def __init__(self, ballot: SCPBallot, prepared: Optional[SCPBallot] = None,
@@ -10,7 +9,6 @@ class SCPPrepare:
         self.aCounter = aCounter
         self.hCounter = hCounter
         self.cCounter = cCounter
-        log.message.info('Created SCPPrepare message, data = %s', self)
 
     def __repr__(self):
         return (f"SCPPrepare(ballot={self.ballot}, prepared={self.prepared}, "
