@@ -3,7 +3,7 @@
 SCPNominate
 =========================
 
-Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
+Author: Matija Piskorec, Jaime de Vivero Woods
 Last update: July 2024
 
 SCPNominate message class.

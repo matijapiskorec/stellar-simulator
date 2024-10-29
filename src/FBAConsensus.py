@@ -3,8 +3,8 @@
 FBAConsensus
 =========================
 
-Author: Matija Piskorec, Jaime de Vivero Woods
-Last update: August 2024
+Author: Matija Piskorec
+Last update: August 2023
 
 Federated Byzantine Agreement (FBA) consensus class.
 """
@@ -24,8 +24,7 @@ class FBAConsensus:
         events = [Event('mine'),
                   Event('retrieve_transaction_from_mempool'),
                   Event('nominate'),
-                  Event('retrieve_message_from_peer'),
-                  Event('prepare_ballot_msg')]
+                  Event('retrieve_message_from_peer')]
 
         # # TODO: Remove gossip event from the consensus!
         # Event('gossip'),
