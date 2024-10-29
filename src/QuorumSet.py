@@ -3,7 +3,7 @@
 Quorum Set
 =========================
 
-Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
+Author: Matija Piskorec, Jaime de Vivero Woods
 Last update: July 2024
 
 QuorumSet class.
@@ -18,7 +18,7 @@ THRESHOLD_DEFAULT = 10 # 10% threshold by default
 
 class QuorumSet():
 
-    def __init__(self, node, validators=None, inner_quorum_sets=None, **kvargs):
+    def __init__(self, node, **kvargs):
 
         if 'threshold' in kvargs:
             assert type(kvargs['threshold']) in (float, int)
@@ -33,9 +33,6 @@ class QuorumSet():
 
         log.quorum.info('Initialized quorum set for Node %s, threshold=%s, nodes=%s, inner sets=%s.',
                         self.node, self.threshold, self.nodes, self.inner_sets)
-
-        self.validators = validators if validators is not None else []
-        self.inner_quorum_sets = inner_quorum_sets if inner_quorum_sets is not None else []
 
     def __repr__(self):
         return '[Quorum Set: threshold=%(threshold)s, nodes=%(nodes)s.' % self.__dict__
@@ -106,10 +103,3 @@ class QuorumSet():
                 count += 1
 
         return count
-
-    def get_all_validators(self):
-        all_validators = set(self.validators)
-
-        for inner_qs in self.inner_quorum_sets:
-            all_validators.update(inner_qs.get_all_validators())
-        return all_validators
