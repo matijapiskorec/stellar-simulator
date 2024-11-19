@@ -579,3 +579,4 @@ class Node():
 
         for ballot in accepted_ballots_to_del:
             self.balloting_state['accepted'].pop(ballot)
+
