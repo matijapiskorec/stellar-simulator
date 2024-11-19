@@ -23,6 +23,8 @@ from Value import Value
 from Storage import Storage
 from Globals import Globals
 import copy
+from SCPBallot import SCPBallot
+from SCPPrepare import SCPPrepare
 
 import xdrlib3
 import hashlib

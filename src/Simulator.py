@@ -111,6 +111,8 @@ class Simulator:
                              'nominate':{'tau':3.0,
                                        'tau_domain':self._nodes},
                              'retrieve_message_from_peer':{'tau':3.0,
+                                       'tau_domain':self._nodes},
+                             'SCPPrepare':{'tau':3.0,
                                        'tau_domain':self._nodes}}
 
         # ALL SIMULATION EVENTS COULD OCCUR AT ANY POINT, WHEN WE IMPLEMENT BALLOTING WE'LL HAVE TO
@@ -183,6 +185,14 @@ class Simulator:
 
                 random_node = np.random.choice(self._nodes)
                 random_node.receive_message()
+
+            case 'SCPPrepare':
+
+                # Choose a random node which retrieves the transaction from mempool.
+                node_random = np.random.choice(self._nodes)
+
+                # Send the event to the respective node and the mempool
+                node_random.prepare_ballot_msg()
 
 
 if __name__=='__main__':
