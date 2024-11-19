@@ -205,53 +205,36 @@ class Node():
                 voted_val = message[0] # message[0] is voted field
                 if type(voted_val) is Value and self.check_Quorum_threshold(voted_val):
                     log.node.info('Quorum threshold met for voted value %s at Node %s', voted_val, self.name)
-                    self.update_nomination_state(voted_val)
+                    self.update_nomination_state(voted_val, "voted")
 
                 if type(voted_val) is Value and self.check_Blocking_threshold(voted_val):
-                    log.node.info('Blocking threshold met for voted value %s at Node %s', voted_val, self.name)
+                    log.node.info('Blocking threshold met for value %s at Node %s', voted_val, self.name)
 
-                accepted_val = message[1] # message[1] is voted field
+                accepted_val = message[1] # message[1] is accepted field
                 if type(accepted_val) is Value and self.check_Quorum_threshold(accepted_val):
+
                     log.node.info('Quorum threshold met for accepted value %s at Node %s', accepted_val, self.name)
+                    self.update_nomination_state(accepted_val, "accepted")
 
                 if type(accepted_val) is Value and self.check_Blocking_threshold(accepted_val):
-                    log.node.info('Blocking threshold met for accepted value %s at Node %s', accepted_val, self.name)
+                    log.node.info('Blocking threshold met for value %s at Node %s', accepted_val, self.name)
 
             else:
                 log.node.info('Node %s has no messages to retrieve from his highest priority neighbor Node %s!', self.name, priority_node.name)
 
     def process_received_message(self, message):
-        # incoming_voted = message[0]
-        # incoming_accepted = message[1]
-        #
-        # if type(incoming_voted) == Value and self.is_duplicate_value(incoming_voted, self.nomination_state['voted']) == False:
-        #         self.nomination_state['voted'].append(incoming_voted)
-        #         log.node.info('Node %s has updated its voted field in nomination state')
-        #
-        # if type(incoming_accepted) == Value: # If it's a Value it means that there are transactions to be combined
-        #         self.nomination_state['accepted'].append(incoming_accepted)
-        #         log.node.info('Node %s has updated its accepted field in nomination state')
-
-        #### CHECK LOGICAL FLOW> THE TESTS ARE STILL PASSING!
         incoming_voted = message[0]
         incoming_accepted = message[1]
+        print("incoming voted & accepted", incoming_voted, incoming_accepted)
+        print("type of votred & accepted", type(incoming_voted), type(incoming_accepted))
 
-        for accepted_value in self.nomination_state['accepted']:
-            if self.check_quorum_threshold_for_field(SCPBallot(counter=1, value=accepted_value), 'accepted'):
-                log.node.info(
-                    f"Quorum threshold met for accepted value {accepted_value}. Stopping additions to 'voted'.")
-                self.nomination_state['voted_closed'] = True
-                break
-
-        if not self.nomination_state.get('voted_closed', False):
-            if isinstance(incoming_voted, Value) and not self.is_duplicate_value(incoming_voted,
-                                                                                 self.nomination_state['voted']):
+        if type(incoming_voted) == Value and self.is_duplicate_value(incoming_voted, self.nomination_state['voted']) == False:
                 self.nomination_state['voted'].append(incoming_voted)
-                log.node.info('Node %s has updated its voted field in nomination state', self.name)
+                log.node.info('Node %s has updated its voted field in nomination state')
 
-        if isinstance(incoming_accepted, Value): # if `accepted` => always add
-            self.nomination_state['accepted'].append(incoming_accepted)
-            log.node.info('Node %s has updated its accepted field in nomination state', self.name)
+        if type(incoming_accepted) == Value: # If it's a Value it means that there are transactions to be combined
+                self.nomination_state['accepted'].append(incoming_accepted)
+                log.node.info('Node %s has updated its accepted field in nomination state')
 
     def retrieve_message_from_peer(self):
         """
@@ -284,19 +267,25 @@ class Node():
         Prepare Message for Nomination
         """
         voted_vals = []
+        accepted_vals = []
 
         self.retrieve_transaction_from_mempool() # Retrieve transactions from mempool and adds it to the Node's Ledger
         if len(self.ledger.transactions) > 0:
             voted_vals.append(Value(transactions=self.ledger.transactions.copy()))
-            message = SCPNominate(voted=voted_vals,accepted=[],broadcasted=True) # No accepted as node is initalised
-
             self.nomination_state['voted'].extend(voted_vals)
-            self.storage.add_messages(message)
-            self.broadcast_flags.append(message)
 
-            log.node.info('Node %s appended SCPNominate message to its storage and state, message = %s', self.name, message)
-        else:
-            log.node.info('Node %s has no transactions in its ledger so it cannot nominate!', self.name)
+        if len(self.nomination_state['accepted']) > 0:
+            accepted_vals.extend(self.nomination_state['accepted']) # Add all accepted values
+
+        if len(voted_vals) == 0 and len(accepted_vals) == 0:
+            log.node.info('Node %s has no transactions or accepted values to nominate!', self.name)
+            return
+
+        message = SCPNominate(voted=voted_vals,accepted=accepted_vals,broadcasted=True) # No accepted as node is initalised
+
+        self.storage.add_messages(message)
+        self.broadcast_flags.append(message)
+        log.node.info('Node %s appended SCPNominate message to its storage and state, message = %s', self.name, message)
 
     def get_messages(self):
         if len(self.storage.messages) == 0:
@@ -520,19 +509,35 @@ class Node():
 
         return False
 
-    def update_nomination_state(self, val):
-        if len(self.nomination_state["voted"]) > 0 :
-            if val in self.nomination_state['accepted']:
-                log.node.info('Value %s is already accepted in Node %s', val, self.name)
-                return
+    def update_nomination_state(self, val, field):
+        if field == "voted":
+            if len(self.nomination_state["voted"]) > 0 :
+                if val in self.nomination_state['accepted']:
+                    log.node.info('Value %s is already accepted in Node %s', val, self.name)
+                    return
 
-            if val in self.nomination_state['voted']:
-                self.nomination_state['voted'].remove(val)
+                if val in self.nomination_state['voted']:
+                    self.nomination_state['voted'].remove(val)
 
-            self.nomination_state['accepted'].append(val)
-            log.node.info('Value %s has been moved to accepted in Node %s', val, self.name)
-        else:
-            log.node.info('No values in voted state, cannot move Value %s to accepted in Node %s', val, self.name)
+
+                self.nomination_state['accepted'].append(val)
+                log.node.info('Value %s has been moved to accepted in Node %s', val, self.name)
+            else:
+                log.node.info('No values in voted state, cannot move Value %s to accepted in Node %s', val, self.name)
+
+        elif field == "accepted":
+            if len(self.nomination_state["accepted"]) > 0:
+                if val in self.nomination_state['confirmed']:
+                    log.node.info('Value %s is already confirmed in Node %s', val, self.name)
+                    return
+
+                if val in self.nomination_state['accepted']:
+                    self.nomination_state['accepted'].remove(val)
+
+                self.nomination_state['confirmed'].append(val)
+                log.node.info('Value %s has been moved to confirmed in Node %s', val, self.name)
+            else:
+                log.node.info('No values in accepted state, cannot move Value %s to confirmed in Node %s', val, self.name)
 
     # retrieve a confirmed Value from nomination_state
     def retrieve_confirmed_value(self):

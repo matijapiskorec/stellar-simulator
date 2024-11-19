@@ -594,7 +594,7 @@ class NodeTest(unittest.TestCase):
             "accepted": [value3],
             "confirmed": []
         }
-        self.node.update_nomination_state(value)
+        self.node.update_nomination_state(value, "voted")
 
         assert all([isinstance(vote, Value) for vote in self.node.nomination_state['voted']])
         assert all([isinstance(vote, Value) for vote in self.node.nomination_state['accepted']])
@@ -615,13 +615,33 @@ class NodeTest(unittest.TestCase):
             "accepted": [value, value3],
             "confirmed": []
         }
-        self.node.update_nomination_state(value)
+        self.node.update_nomination_state(value, "voted")
 
         assert all([isinstance(vote, Value) for vote in self.node.nomination_state['voted']])
         assert all([isinstance(vote, Value) for vote in self.node.nomination_state['accepted']])
         self.assertTrue(self.node.nomination_state['voted'] == [value2])
         self.assertTrue(self.node.nomination_state['accepted'] == [value, value3])
         self.assertTrue(len(self.node.nomination_state['accepted']) == 2)
+
+    def test_update_nomination_state_updates_accepted_to_confirmed(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+
+        self.node.nomination_state = {
+            "voted": [],
+            "accepted": [value, value2],
+            "confirmed": [value3]
+        }
+        self.node.update_nomination_state(value, "accepted")
+
+        assert all([isinstance(vote, Value) for vote in self.node.nomination_state['voted']])
+        assert all([isinstance(vote, Value) for vote in self.node.nomination_state['accepted']])
+        self.assertTrue(self.node.nomination_state['accepted'] == [value2])
+        self.assertTrue(self.node.nomination_state['confirmed'] == [value3, value])
+        self.assertTrue(len(self.node.nomination_state['confirmed']) == 2)
 
     def test_update_nomination_state_does_not_update_accepted(self):
         self.node = Node(name="1")
@@ -635,7 +655,7 @@ class NodeTest(unittest.TestCase):
             "accepted": [value, value3],
             "confirmed": []
         }
-        self.node.update_nomination_state(value)
+        self.node.update_nomination_state(value, "voted")
 
         assert all([isinstance(vote, Value) for vote in self.node.nomination_state['voted']])
         assert all([isinstance(vote, Value) for vote in self.node.nomination_state['accepted']])
@@ -654,7 +674,7 @@ class NodeTest(unittest.TestCase):
             "accepted": [value3],
             "confirmed": []
         }
-        self.node.update_nomination_state(value)
+        self.node.update_nomination_state(value, "voted")
 
         assert all([isinstance(vote, Value) for vote in self.node.nomination_state['voted']])
         assert all([isinstance(vote, Value) for vote in self.node.nomination_state['accepted']])
