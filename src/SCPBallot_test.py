@@ -22,6 +22,7 @@ class SCPBallot_test(unittest.TestCase):
         self.assertTrue(self.ballot1 < self.ballot2)
         self.assertFalse(self.ballot2 < self.ballot1)
         self.assertTrue(self.ballot1 < SCPBallot(counter=2, value=self.value1))
+        self.assertFalse(self.ballot1 < SCPBallot(counter=1, value=self.value2))
 
     def test_ballot_repr(self):
         self.assertEqual(repr(self.ballot1), f"SCPBallot(counter=1, value={self.value1})")

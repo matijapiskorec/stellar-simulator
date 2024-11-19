@@ -3,7 +3,7 @@
 Mempool
 =========================
 
-Author: Matija Piskorec, Azizbek Asadov
+Author: Matija Piskorec
 Last update: August 2023
 
 Mempool class.
