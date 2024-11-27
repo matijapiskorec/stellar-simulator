@@ -19,11 +19,12 @@ from Event import Event
 from Ledger import Ledger
 from QuorumSet import QuorumSet
 from SCPNominate import SCPNominate
+from SCPBallot import SCPBallot
+from SCPPrepare import SCPPrepare
 from Value import Value
 from Storage import Storage
 from Globals import Globals
 import copy
-
 import xdrlib3
 import hashlib
 
@@ -57,7 +58,6 @@ class Node():
         self.broadcast_flags = []  # Add every message here for other
         self.received_broadcast_msgs = {} # This hashmap (or dictionary) keeps track of all Messages retrieved by each node
         # This dictionary looks like this {{node.name: SCPNominate,...},...}
-
 
         self.nomination_round = 1
 
@@ -580,3 +580,34 @@ class Node():
         for ballot in accepted_ballots_to_del:
             self.balloting_state['accepted'].pop(ballot)
 
+
+    def check_Prepare_Quorum_threshold(self, ballot):
+        # Check for Quorum threshold:
+        # 1. the node itself has signed the message
+        # 2. Number of nodes in the current QuorumSet who have signed + the number of innerSets that meet threshold is at least k
+        # 3. These conditions apply recursively to the inner sets to fulfill condition 2.
+        if ballot.value in (self.balloting_state["voted"]) or ballot.value in (self.balloting_state["accepted"]): # Condition 1. - node itself has signed message
+            signed_count = 1 # Node itself has voted for it so already has a count of 1
+            inner_sets_meeting_threshold_count = 0
+            nodes, inner_sets = self.quorum_set.get_quorum()
+            print("nodes : ", nodes, " inner_sets : ", inner_sets)
+            threshold = self.quorum_set.minimum_quorum
+
+            for node in nodes:
+                # check if the node name from the quorum is in the value's voted or accepted dict - meaning it has voted for the message
+                if node.name in self.ballot_statement_counter[ballot.value]['voted'] or node.name in self.ballot_statement_counter[ballot.value]['accepted']:
+                    signed_count += 1
+
+            for element in inner_sets: # Keep to just 1 layer of depth for now - so only 1 inner set per quorum, [ [], [] ], not [ [], [[]] ]
+                if isinstance(element, list):
+                        # 2. Check if the innerSets meet threshold
+                        threshold_met = self.quorum_set.check_prepare_threshold(ballot=ballot, quorum=element, threshold=threshold, prepare_statement_counter=self.ballot_statement_counter.copy())
+                        if threshold_met:
+                            inner_sets_meeting_threshold_count += 1
+
+            if signed_count + inner_sets_meeting_threshold_count >= threshold: # 3. conditions apply recursively to the inner sets to fulfill condition 2
+                return True
+            else:
+                return False
+        else:
+            return False
