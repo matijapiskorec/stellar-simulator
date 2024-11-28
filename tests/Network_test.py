@@ -1,6 +1,18 @@
-from Log import log
+"""
+=========================
+NetworkTest
+=========================
+
+Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
+Last update: Nov 2024
+
+NetworkTest message class.
+"""
+
 import unittest
-from Network import Network
+
+from src.Log import log
+from src.Network import Network
 
 class NetworkTest(unittest.TestCase):
     def setup(self):

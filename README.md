@@ -9,12 +9,6 @@ source env/stellar/bin/activate
 pip install -r requirements.txt
 ```
 
-Or you can run it with Docker file:
-```
-docker-compose up -d --build
-docker-compose exec stellar bash
-```
-
 There is also a Makefile which makes it easier to manage Docker, with few targets `build`, `start`, `bash`, `ls`, `kill`, `simulator` and `test`.
 
 All output is through Python's logging to standard error, so if you want to pipe the output (for example, to a file) you need:

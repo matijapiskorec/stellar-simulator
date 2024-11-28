@@ -13,7 +13,6 @@ from Log import log
 from Event import Event
 
 class FBAConsensus:
-
     @classmethod
     def get_events(cls):
 

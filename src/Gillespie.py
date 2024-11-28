@@ -16,7 +16,6 @@ from Event import Event
 import numpy as np
 
 class Gillespie:
-
     def __init__(self, events, max_time):
 
         self.events = events

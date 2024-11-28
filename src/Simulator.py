@@ -23,7 +23,6 @@ Logging levels and verbosity levels (higher includes lower):
 
 import argparse
 import time
-import sys
 import numpy as np
 
 from Log import log
@@ -32,7 +31,6 @@ from Gillespie import Gillespie
 from FBAConsensus import FBAConsensus
 from Network import Network
 from Mempool import Mempool
-# import Globals
 from Globals import Globals
 
 VERBOSITY_DEFAULT = 5
