@@ -13,10 +13,7 @@ from Log import log
 from Transaction import Transaction
 from State import State
 
-import random
-
-class Value():
-
+class Value:
     # For our purposes a value is just a set of transactions.
     # def __init__(self,transactions,**kwargs):
     def __init__(self,**kwargs):
@@ -42,10 +39,8 @@ class Value():
     def __eq__(self, other):
         return (self.hash == other.hash and self.state == other.state and set(self.transactions) == set(other.transactions))
 
-
     def __hash__(self):
         return hash(self._hash)
-
 
     @property
     def transactions(self):

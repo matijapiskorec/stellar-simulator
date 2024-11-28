@@ -13,7 +13,6 @@ Documentation:
 
 [2] Nicolas Barry and Giuliano Losa and David Mazieres and Jed McCaleb and Stanislas Polu, The Stellar Consensus Protocol (SCP) - technical implementation draft, https://datatracker.ietf.org/doc/draft-mazieres-dinrg-scp/05/
 """
-import numpy as np
 from Log import log
 from Event import Event
 from Ledger import Ledger
@@ -22,8 +21,11 @@ from SCPNominate import SCPNominate
 from Value import Value
 from Storage import Storage
 from Globals import Globals
-import copy
+from SCPPrepare import SCPPrepare
+from SCPBallot import SCPBallot
 
+import copy
+import numpy as np
 import xdrlib3
 import hashlib
 

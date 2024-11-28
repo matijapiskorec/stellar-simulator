@@ -1,3 +1,14 @@
+"""
+=========================
+Ballot Set
+=========================
+
+Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
+Last update: September 2024
+
+SCPBallot class.
+"""
+
 from Value import Value
 
 class SCPBallot:

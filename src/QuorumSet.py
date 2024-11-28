@@ -8,11 +8,11 @@ Last update: September 2024
 
 QuorumSet class.
 """
+
 import math
+import numpy as np
 
 from Log import log
-
-import numpy as np
 
 THRESHOLD_DEFAULT = 10 # 10% threshold by default
 

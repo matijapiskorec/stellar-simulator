@@ -1,3 +1,14 @@
+"""
+=========================
+Quorum Set
+=========================
+
+Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
+Last update: September 2024
+
+QuorumSet class.
+"""
+
 from typing import Optional
 from SCPBallot import SCPBallot
 

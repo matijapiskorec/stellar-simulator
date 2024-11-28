@@ -9,9 +9,6 @@ Last update: August 2023
 Message superclass.
 """
 
-from Log import log
-
-import time
 import uuid
 
 # CLOCK_SEQ = int(time.time() * 1000000)

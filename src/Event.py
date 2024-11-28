@@ -12,7 +12,6 @@ Event class.
 from Log import log
 
 class Event:
-
     def __init__(self, name, **kvargs):
 
         self.name = name

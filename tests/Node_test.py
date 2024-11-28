@@ -1,13 +1,27 @@
-from Network import Network
-from Mempool import Mempool
-from Log import log
-import unittest
-from Value import Value
-from SCPNominate import SCPNominate
-from Storage import Storage
-from Node import Node
-from Transaction import Transaction
+"""
+=========================
+NodeTest
+=========================
+
+Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
+Last update: Nov 2024
+
+NodeTest message class.
+"""
+
+from src.Network import Network
+from src.Mempool import Mempool
+from src.Log import log
+from src.Value import Value
+from src.SCPNominate import SCPNominate
+from src.Storage import Storage
+from src.Node import Node
+from src.Transaction import Transaction
 from unittest.mock import MagicMock, patch
+from src.SCPPrepare import SCPPrepare
+from src.SCPBallot import SCPBallot
+
+import unittest
 
 class NodeTest(unittest.TestCase):
     def setup(self):

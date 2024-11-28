@@ -1,10 +1,21 @@
+"""
+=========================
+QuorumSetTest
+=========================
+
+Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
+Last update: Nov 2024
+
+QuorumSetTest message class.
+"""
+
 import unittest
-from Value import Value
-from Node import Node
-from Transaction import Transaction
+
+from src.Value import Value
+from src.Node import Node
+from src.Transaction import Transaction
 from src.SCPBallot import SCPBallot
 from src.SCPPrepare import SCPPrepare
-
 
 class QuorumSetTest(unittest.TestCase):
     def setUp(self):
