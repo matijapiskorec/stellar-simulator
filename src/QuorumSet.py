@@ -4,12 +4,11 @@ Quorum Set
 =========================
 
 Author: Matija Piskorec, Jaime de Vivero Woods
-Last update: September 2024
-
+Last update: December 2024
 QuorumSet class.
 """
 import math
-
+import random
 from Log import log
 
 import numpy as np
@@ -130,4 +129,11 @@ class QuorumSet():
 
         return broadcast_nodes
 
+    def retrieve_random_peer(self, calling_node):
+        flat_list = [node for node in self.nodes if node != calling_node]
+
+        for inner_set in self.inner_sets:
+            flat_list.extend([node for node in inner_set if node != calling_node])
+
+        return random.choice(flat_list) if flat_list else None
 

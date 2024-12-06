@@ -173,6 +173,15 @@ class QuorumSetTest(unittest.TestCase):
         result = self.node.quorum_set.check_prepare_threshold(ballot, quorum, threshold, prepare_statement_counter)
         self.assertFalse(result)  # It should return True because 3 out of 4 nodes have voted/accepted
 
+    def test_retrieve_all_peers_returns_correctly(self):
+        test_node1 = Node("test_node1")
+        test_node2 = Node("test_node2")
+        test_node3 = Node("test_node3")
+        test_node4 = Node("test_node4")
+
+        self.node.quorum_set.nodes = [test_node1, test_node2]
+        self.node.quorum_set.inner_sets = [[self.node, test_node3], [self.node, test_node4]]
+
 
 
 if __name__ == '__main__':
