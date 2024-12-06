@@ -5,7 +5,7 @@ Node
 
 Author: Matija Piskorec, Jaime de Vivero Woods
 
-Last update: September 2024
+Last update: December 2024
 
 Node class.
 
@@ -197,8 +197,6 @@ class Node():
     def process_received_message(self, message):
         incoming_voted = message[0]
         incoming_accepted = message[1]
-        print("incoming voted & accepted", incoming_voted, incoming_accepted)
-        print("type of votred & accepted", type(incoming_voted), type(incoming_accepted))
 
         if type(incoming_voted) == Value and self.is_duplicate_value(incoming_voted, self.nomination_state['voted']) == False:
                 self.nomination_state['voted'].append(incoming_voted)
@@ -590,7 +588,6 @@ class Node():
             signed_count = 1 # Node itself has voted for it so already has a count of 1
             inner_sets_meeting_threshold_count = 0
             nodes, inner_sets = self.quorum_set.get_quorum()
-            print("nodes : ", nodes, " inner_sets : ", inner_sets)
             threshold = self.quorum_set.minimum_quorum
 
             for node in nodes:
@@ -611,3 +608,32 @@ class Node():
                 return False
         else:
             return False
+
+
+    def update_prepare_balloting_state(self, ballot, field):
+        if field == "voted":
+            if len(self.balloting_state["voted"]) > 0 :
+                if ballot.value.hash in self.balloting_state['accepted']:
+                    log.node.info('Value %s is already accepted in Node %s', ballot.value, self.name)
+                    return
+
+                if ballot.value.hash in self.balloting_state['voted']:
+                    self.balloting_state["accepted"][ballot.value.hash] = (self.balloting_state["voted"][ballot.value.hash])
+                    self.balloting_state["voted"].pop(ballot.value.hash)
+                    log.node.info('Ballot %s has been moved to accepted in Node %s', ballot, self.name)
+            else:
+                log.node.info('No ballots in voted state, cannot move Ballot %s to accepted in Node %s', ballot, self.name)
+
+        elif field == "accepted":
+            if len(self.balloting_state["accepted"]) > 0:
+                if ballot.value.hash in self.balloting_state['confirmed']:
+                    log.node.info('Ballot %s is already confirmed in Node %s', ballot, self.name)
+                    return
+
+                if ballot.value.hash in self.balloting_state['accepted']:
+                    self.balloting_state["confirmed"][ballot.value.hash] = (self.balloting_state["accepted"][ballot.value.hash])
+                    self.balloting_state["accepted"].pop(ballot.value.hash)
+
+                log.node.info('Ballot %s has been moved to confirmed in Node %s', ballot.value.hash, self.name)
+            else:
+                log.node.info('No ballots in accepted state, cannot move Ballots %s to confirmed in Node %s', ballot, self.name)
