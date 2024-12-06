@@ -67,6 +67,7 @@ class Node():
         self.balloting_state = {'voted': {}, 'accepted': {}, 'confirmed': {}, 'aborted': {}} # This will look like: self.balloting_state = {'voted': {'value_hash_1': SCPBallot(counter=1, value=ValueObject1),},'accepted': { 'value_hash_2': SCPBallot(counter=3, value=ValueObject2)},'confirmed': { ... },'aborted': { ... }}
         self.ballot_statement_counter = {} # This will use sets for node names as opposed to counts, so will look like: {SCPBallot1.value: {'voted': set(Node1), ‘accepted’: set(Node2, Node3), ‘confirmed’: set(), ‘aborted’: set(), SCPBallot2.value: {'voted': set(), ‘accepted’: set(), ‘confirmed’: set(), ‘aborted’: set(node1, node2, node3)}
         self.ballot_prepare_broadcast_flags = set() # Add every SCPPrepare message here - this will look like
+        self.received_prepare_broadcast_msgs = {}
         self.prepared_ballots = {} # This looks like: self.prepared_ballots[ballot.value] = {'aCounter': aCounter,'cCounter': cCounter,'hCounter': hCounter,'highestCounter': ballot.counter}
 
 
@@ -637,3 +638,23 @@ class Node():
                 log.node.info('Ballot %s has been moved to confirmed in Node %s', ballot.value.hash, self.name)
             else:
                 log.node.info('No ballots in accepted state, cannot move Ballots %s to confirmed in Node %s', ballot, self.name)
+
+
+    def retrieve_ballot_prepare_message(self, requesting_node):
+        # Select a random ballot and check if its already been sent to the requesting_node
+        if len(self.ballot_prepare_broadcast_flags) > 0:
+            if requesting_node.name not in self.received_prepare_broadcast_msgs:
+                retrieved_message = np.random.choice(list(self.ballot_prepare_broadcast_flags))
+                self.received_prepare_broadcast_msgs[requesting_node.name] = [retrieved_message]
+                return retrieved_message
+
+            elif len(self.received_prepare_broadcast_msgs[requesting_node.name]) != len(list(self.ballot_prepare_broadcast_flags)):
+                statement = True
+                while statement:
+                    retrieved_message = np.random.choice(list(self.ballot_prepare_broadcast_flags))
+                    if retrieved_message not in self.received_prepare_broadcast_msgs[requesting_node.name]:
+                        self.received_prepare_broadcast_msgs[requesting_node.name].append(retrieved_message)
+                        return retrieved_message
+        return None
+
+

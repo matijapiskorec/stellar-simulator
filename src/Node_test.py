@@ -1160,3 +1160,90 @@ class NodeTest(unittest.TestCase):
         self.assertTrue(self.node.balloting_state['voted'] == {})
         self.assertTrue(self.node.balloting_state['accepted'] == {value3.hash: ballot3})
         self.assertTrue(len(self.node.balloting_state['accepted']) == 1)
+
+
+    def test_retrieve_prepare_broadcast_message_retrieves_correctly(self):
+        self.node = Node("test_node")
+        self.retrieving_node = Node("test_node2")
+        mempool = Mempool()
+        self.storage = Storage(self.node)
+        self.node.attach_mempool(mempool)
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(counter=1, value=value1)
+        ballot2 = SCPBallot(counter=1, value=value2)
+
+        message = SCPPrepare(ballot=ballot1)
+
+        self.node.ballot_prepare_broadcast_flags = [message]
+        retrieved = self.node.retrieve_ballot_prepare_message(self.retrieving_node)
+
+        self.assertEqual(retrieved, message)
+        self.assertIn(retrieved, self.node.ballot_prepare_broadcast_flags)
+        self.assertIn(self.retrieving_node.name, self.node.received_prepare_broadcast_msgs)
+
+    def test_retrieve_prepare_broadcast_message_retrieves_correctly_for_multiple_messages(self):
+        self.node = Node("test_node")
+        self.retrieving_node = Node("test_node2")
+        mempool = Mempool()
+        self.storage = Storage(self.node)
+        self.node.attach_mempool(mempool)
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(counter=1, value=value1)
+        ballot2 = SCPBallot(counter=1, value=value2)
+
+        message = SCPPrepare(ballot=ballot1)
+        message2 = SCPPrepare(ballot=ballot2)
+
+        self.node.broadcast_flags = [message, message2]
+        self.node.ballot_prepare_broadcast_flags = set()
+        self.node.ballot_prepare_broadcast_flags.add(message)
+        self.node.ballot_prepare_broadcast_flags.add(message2)
+
+        retrieved = self.node.retrieve_ballot_prepare_message(self.retrieving_node)
+        retrieved2 = self.node.retrieve_ballot_prepare_message(self.retrieving_node)
+
+        self.assertIn(retrieved, self.node.ballot_prepare_broadcast_flags)
+        self.assertIn(retrieved2, self.node.ballot_prepare_broadcast_flags)
+        self.assertIn(self.retrieving_node.name, self.node.received_prepare_broadcast_msgs)
+        self.assertEqual(len(self.node.received_prepare_broadcast_msgs[self.retrieving_node.name]), 2)
+
+    def test_retrieve_prepare_broadcast_message_returns_none_for_empty(self):
+            self.node = Node("test_node")
+            self.retrieving_node = Node("test_node2")
+            mempool = Mempool()
+            self.storage = Storage(self.node)
+            self.node.attach_mempool(mempool)
+
+            retrieved = self.node.retrieve_ballot_prepare_message(self.retrieving_node)
+
+            self.assertEqual(retrieved, None)
+            self.assertEqual(set(), self.node.ballot_prepare_broadcast_flags)
+            self.assertEqual({}, self.node.received_prepare_broadcast_msgs)
+
+    def test_retrieve_prepare_broadcast_message_returns_none_for_node_with_all_messages(self):
+        self.node = Node("test_node")
+        self.retrieving_node = Node("test_node2")
+        mempool = Mempool()
+        self.storage = Storage(self.node)
+        self.node.attach_mempool(mempool)
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(counter=1, value=value1)
+        ballot2 = SCPBallot(counter=1, value=value2)
+
+        message = SCPPrepare(ballot=ballot1)
+        message2 = SCPPrepare(ballot=ballot2)
+
+        self.node.ballot_prepare_broadcast_flags = set()
+        self.node.ballot_prepare_broadcast_flags.add(message)
+        self.node.ballot_prepare_broadcast_flags.add(message2)
+        self.node.received_prepare_broadcast_msgs[self.retrieving_node.name] = [message, message2]
+
+        retrieved = self.node.retrieve_ballot_prepare_message(self.retrieving_node)
+
+        self.assertEqual(retrieved, None)
