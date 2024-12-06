@@ -1053,3 +1053,110 @@ class NodeTest(unittest.TestCase):
 
         result = self.node.check_Prepare_Quorum_threshold(ballot)
         self.assertTrue(result)
+
+
+    def test_update_prepare_balloting_state_correctly_updates(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+        ballot2 = SCPBallot(counter=1, value=value2)
+        ballot3 = SCPBallot(counter=1, value=value3)
+
+        self.node.balloting_state = {
+            "voted": {value.hash: ballot, value2.hash : ballot2},
+            "accepted": {value3.hash: ballot3},
+            "confirmed": {}
+        }
+        self.node.update_prepare_balloting_state(ballot, "voted")
+
+        self.assertTrue(self.node.balloting_state['voted'] == {value2.hash: ballot2})
+        self.assertTrue(self.node.balloting_state['accepted'] == {value3.hash: ballot3, value.hash: ballot})
+        print(self.node.balloting_state['accepted'])
+        self.assertTrue(len(self.node.balloting_state['accepted']) == 2)
+
+    def test_update_prepare_balloting_state_updates_voted_to_accepted(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+        ballot2 = SCPBallot(counter=1, value=value2)
+        ballot3 = SCPBallot(counter=1, value=value3)
+
+        self.node.balloting_state = {
+            "voted": {value2.hash : ballot2},
+            "accepted": {value.hash: ballot, value3.hash: ballot3},
+            "confirmed": {}
+        }
+        self.node.update_prepare_balloting_state(ballot, "voted")
+
+        self.assertTrue(self.node.balloting_state['voted'] == {value2.hash: ballot2})
+        self.assertTrue(self.node.balloting_state['accepted'] == {value3.hash: ballot3, value.hash: ballot})
+        self.assertTrue(len(self.node.balloting_state['accepted']) == 2)
+
+    def test_update_prepare_balloting_state_updates_accepted_to_confirmed(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+        ballot2 = SCPBallot(counter=1, value=value2)
+        ballot3 = SCPBallot(counter=1, value=value3)
+
+        self.node.balloting_state = {
+            "voted": {},
+            "accepted": {value.hash: ballot, value2.hash : ballot2},
+            "confirmed": {value3.hash: ballot3}
+        }
+        self.node.update_prepare_balloting_state(ballot, "accepted")
+
+        self.assertTrue(self.node.balloting_state['accepted'] == {value2.hash: ballot2})
+        self.assertTrue(self.node.balloting_state['confirmed'] == {value3.hash: ballot3, value.hash: ballot})
+        self.assertTrue(len(self.node.balloting_state['accepted']) == 1)
+        self.assertTrue(len(self.node.balloting_state['confirmed']) == 2)
+
+    def test_update_balloting_state_does_not_update_accepted(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+        ballot2 = SCPBallot(counter=1, value=value2)
+        ballot3 = SCPBallot(counter=1, value=value3)
+
+        self.node.balloting_state = {
+            "voted": {value2.hash : ballot2},
+            "accepted": {value.hash: ballot, value3.hash: ballot3},
+            "confirmed": {}
+        }
+
+        self.node.update_prepare_balloting_state(ballot, "voted")
+
+        self.assertTrue(self.node.balloting_state['voted'] == {value2.hash : ballot2})
+        self.assertTrue(self.node.balloting_state['accepted'] == {value.hash: ballot, value3.hash: ballot3})
+        self.assertTrue(len(self.node.balloting_state['accepted']) == 2)
+
+    def test_update_balloting_state_does_not_fail_when_empty(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+        ballot3 = SCPBallot(counter=1, value=value3)
+
+        self.node.balloting_state = {
+            "voted": {},
+            "accepted": {value3.hash: ballot3},
+            "confirmed": {}
+        }
+        self.node.update_prepare_balloting_state(ballot, "voted")
+
+        self.assertTrue(self.node.balloting_state['voted'] == {})
+        self.assertTrue(self.node.balloting_state['accepted'] == {value3.hash: ballot3})
+        self.assertTrue(len(self.node.balloting_state['accepted']) == 1)
