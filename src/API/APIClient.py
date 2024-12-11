@@ -15,7 +15,7 @@ import json
 from typing import Optional, Dict, Any
 
 # GLOBAL URL FOR API FETCHING
-STELLARBEAT_API_URL = "https://api.stellarbeat.io/v1/network-node-snapshots"
+STELLARBEAT_API_URL = "https://api.stellarbeat.io/v1/"
 
 class APIClient:
     def __init__(self, base_url: str):
