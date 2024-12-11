@@ -5,7 +5,7 @@ Node
 
 Author: Matija Piskorec, Jaime de Vivero Woods
 
-Last update: September 2024
+Last update: December 2024
 
 Node class.
 
@@ -13,19 +13,18 @@ Documentation:
 
 [2] Nicolas Barry and Giuliano Losa and David Mazieres and Jed McCaleb and Stanislas Polu, The Stellar Consensus Protocol (SCP) - technical implementation draft, https://datatracker.ietf.org/doc/draft-mazieres-dinrg-scp/05/
 """
+import numpy as np
 from Log import log
 from Event import Event
 from Ledger import Ledger
 from QuorumSet import QuorumSet
 from SCPNominate import SCPNominate
+from SCPBallot import SCPBallot
+from SCPPrepare import SCPPrepare
 from Value import Value
 from Storage import Storage
 from Globals import Globals
-from SCPPrepare import SCPPrepare
-from SCPBallot import SCPBallot
-
 import copy
-import numpy as np
 import xdrlib3
 import hashlib
 
@@ -60,7 +59,6 @@ class Node():
         self.received_broadcast_msgs = {} # This hashmap (or dictionary) keeps track of all Messages retrieved by each node
         # This dictionary looks like this {{node.name: SCPNominate,...},...}
 
-
         self.nomination_round = 1
 
         ###################################
@@ -69,6 +67,7 @@ class Node():
         self.balloting_state = {'voted': {}, 'accepted': {}, 'confirmed': {}, 'aborted': {}} # This will look like: self.balloting_state = {'voted': {'value_hash_1': SCPBallot(counter=1, value=ValueObject1),},'accepted': { 'value_hash_2': SCPBallot(counter=3, value=ValueObject2)},'confirmed': { ... },'aborted': { ... }}
         self.ballot_statement_counter = {} # This will use sets for node names as opposed to counts, so will look like: {SCPBallot1.value: {'voted': set(Node1), ‘accepted’: set(Node2, Node3), ‘confirmed’: set(), ‘aborted’: set(), SCPBallot2.value: {'voted': set(), ‘accepted’: set(), ‘confirmed’: set(), ‘aborted’: set(node1, node2, node3)}
         self.ballot_prepare_broadcast_flags = set() # Add every SCPPrepare message here - this will look like
+        self.received_prepare_broadcast_msgs = {}
         self.prepared_ballots = {} # This looks like: self.prepared_ballots[ballot.value] = {'aCounter': aCounter,'cCounter': cCounter,'hCounter': hCounter,'highestCounter': ballot.counter}
 
 
@@ -199,8 +198,6 @@ class Node():
     def process_received_message(self, message):
         incoming_voted = message[0]
         incoming_accepted = message[1]
-        print("incoming voted & accepted", incoming_voted, incoming_accepted)
-        print("type of votred & accepted", type(incoming_voted), type(incoming_accepted))
 
         if type(incoming_voted) == Value and self.is_duplicate_value(incoming_voted, self.nomination_state['voted']) == False:
                 self.nomination_state['voted'].append(incoming_voted)
@@ -581,3 +578,83 @@ class Node():
 
         for ballot in accepted_ballots_to_del:
             self.balloting_state['accepted'].pop(ballot)
+
+
+    def check_Prepare_Quorum_threshold(self, ballot):
+        # Check for Quorum threshold:
+        # 1. the node itself has signed the message
+        # 2. Number of nodes in the current QuorumSet who have signed + the number of innerSets that meet threshold is at least k
+        # 3. These conditions apply recursively to the inner sets to fulfill condition 2.
+        if ballot.value in (self.balloting_state["voted"]) or ballot.value in (self.balloting_state["accepted"]): # Condition 1. - node itself has signed message
+            signed_count = 1 # Node itself has voted for it so already has a count of 1
+            inner_sets_meeting_threshold_count = 0
+            nodes, inner_sets = self.quorum_set.get_quorum()
+            threshold = self.quorum_set.minimum_quorum
+
+            for node in nodes:
+                # check if the node name from the quorum is in the value's voted or accepted dict - meaning it has voted for the message
+                if node.name in self.ballot_statement_counter[ballot.value]['voted'] or node.name in self.ballot_statement_counter[ballot.value]['accepted']:
+                    signed_count += 1
+
+            for element in inner_sets: # Keep to just 1 layer of depth for now - so only 1 inner set per quorum, [ [], [] ], not [ [], [[]] ]
+                if isinstance(element, list):
+                        # 2. Check if the innerSets meet threshold
+                        threshold_met = self.quorum_set.check_prepare_threshold(ballot=ballot, quorum=element, threshold=threshold, prepare_statement_counter=self.ballot_statement_counter.copy())
+                        if threshold_met:
+                            inner_sets_meeting_threshold_count += 1
+
+            if signed_count + inner_sets_meeting_threshold_count >= threshold: # 3. conditions apply recursively to the inner sets to fulfill condition 2
+                return True
+            else:
+                return False
+        else:
+            return False
+
+
+    def update_prepare_balloting_state(self, ballot, field):
+        if field == "voted":
+            if len(self.balloting_state["voted"]) > 0 :
+                if ballot.value.hash in self.balloting_state['accepted']:
+                    log.node.info('Value %s is already accepted in Node %s', ballot.value, self.name)
+                    return
+
+                if ballot.value.hash in self.balloting_state['voted']:
+                    self.balloting_state["accepted"][ballot.value.hash] = (self.balloting_state["voted"][ballot.value.hash])
+                    self.balloting_state["voted"].pop(ballot.value.hash)
+                    log.node.info('Ballot %s has been moved to accepted in Node %s', ballot, self.name)
+            else:
+                log.node.info('No ballots in voted state, cannot move Ballot %s to accepted in Node %s', ballot, self.name)
+
+        elif field == "accepted":
+            if len(self.balloting_state["accepted"]) > 0:
+                if ballot.value.hash in self.balloting_state['confirmed']:
+                    log.node.info('Ballot %s is already confirmed in Node %s', ballot, self.name)
+                    return
+
+                if ballot.value.hash in self.balloting_state['accepted']:
+                    self.balloting_state["confirmed"][ballot.value.hash] = (self.balloting_state["accepted"][ballot.value.hash])
+                    self.balloting_state["accepted"].pop(ballot.value.hash)
+
+                log.node.info('Ballot %s has been moved to confirmed in Node %s', ballot.value.hash, self.name)
+            else:
+                log.node.info('No ballots in accepted state, cannot move Ballots %s to confirmed in Node %s', ballot, self.name)
+
+
+    def retrieve_ballot_prepare_message(self, requesting_node):
+        # Select a random ballot and check if its already been sent to the requesting_node
+        if len(self.ballot_prepare_broadcast_flags) > 0:
+            if requesting_node.name not in self.received_prepare_broadcast_msgs:
+                retrieved_message = np.random.choice(list(self.ballot_prepare_broadcast_flags))
+                self.received_prepare_broadcast_msgs[requesting_node.name] = [retrieved_message]
+                return retrieved_message
+
+            elif len(self.received_prepare_broadcast_msgs[requesting_node.name]) != len(list(self.ballot_prepare_broadcast_flags)):
+                statement = True
+                while statement:
+                    retrieved_message = np.random.choice(list(self.ballot_prepare_broadcast_flags))
+                    if retrieved_message not in self.received_prepare_broadcast_msgs[requesting_node.name]:
+                        self.received_prepare_broadcast_msgs[requesting_node.name].append(retrieved_message)
+                        return retrieved_message
+        return None
+
+

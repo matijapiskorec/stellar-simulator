@@ -1,27 +1,15 @@
-"""
-=========================
-NodeTest
-=========================
-
-Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
-Last update: Nov 2024
-
-NodeTest message class.
-"""
-
-from src.Network import Network
-from src.Mempool import Mempool
-from src.Log import log
-from src.Value import Value
-from src.SCPNominate import SCPNominate
-from src.Storage import Storage
-from src.Node import Node
-from src.Transaction import Transaction
-from unittest.mock import MagicMock, patch
-from src.SCPPrepare import SCPPrepare
-from src.SCPBallot import SCPBallot
-
+from Network import Network
+from Mempool import Mempool
+from Log import log
 import unittest
+from Value import Value
+from SCPNominate import SCPNominate
+from SCPPrepare import SCPPrepare
+from SCPBallot import SCPBallot
+from Storage import Storage
+from Node import Node
+from Transaction import Transaction
+from unittest.mock import MagicMock, patch
 
 class NodeTest(unittest.TestCase):
     def setup(self):
@@ -975,3 +963,287 @@ class NodeTest(unittest.TestCase):
         self.assertNotIn(ballot1.value.hash, self.node.balloting_state['aborted'])
         self.assertIn(ballot2.value.hash, self.node.balloting_state['accepted'])
         self.assertNotIn(ballot2.value.hash, self.node.balloting_state['aborted'])
+
+    def test_prepare_quorum_threshold_node_itself_signed_message(self):
+        node2 = Node("test_node2")
+        self.node = Node(name="Node1")
+        self.node.quorum_set.set(nodes=node2, inner_sets=[])
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value.hash)
+
+        # Mock nomination_state and statement_counter
+        self.node.balloting_state = {
+            "voted": {value.hash: ballot},
+            "accepted": {},
+            "confirmed": {},
+            "aborted": {}
+        }
+
+        self.node.ballot_statement_counter = {
+            value.hash: {
+                "voted": {value.hash : set()},  # Node1 itself has voted for the value
+                "accepted": set(),
+                "confirmed": set(),
+                "aborted": set()
+            }
+        }
+        self.node.ballot_statement_counter[value.hash]["voted"][value.hash].add(node2)
+
+        result = self.node.check_Prepare_Quorum_threshold(ballot)
+        self.assertTrue(result)
+
+    def test_prepare_quorum_threshold_not_met(self):
+        self.node = Node(name="Node1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value.hash)
+
+
+        # Mock balloting_state and ballot statement_counter
+        self.node.balloting_state = {
+            "voted": {},
+            "accepted": {},
+            "confirmed": {}
+        }
+
+        self.node.ballot_statement_counter = {
+            value.hash: {
+                "voted": {},
+                "accepted": {}
+            }
+        }
+
+        result = self.node.check_Quorum_threshold(value)
+        self.assertFalse(result)
+
+    def test_prepare_quorum_threshold_met_for_inner_sets(self):
+        node2 = Node("test_node2")
+        node3 = Node("test_node3")
+        node4 = Node("test_node4")
+        node5 = Node("test_node5")
+        self.node = Node(name="Node1")
+
+        self.node.quorum_set.set(nodes=[node2, node3], inner_sets=[[node3, node4], [node4, node5]])
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value.hash)
+        ballot2 = SCPBallot(counter=1, value=value2.hash)
+
+        # Mock nomination_state and statement_counter
+        self.node.balloting_state = {
+            "voted": {value.hash: {ballot}},
+            "accepted": {value2.hash : {ballot2}},
+            "confirmed": {}
+        }
+        # This will look like: self.balloting_state = {'voted': {'value_hash_1': SCPBallot(counter=1, value=ValueObject1),},'accepted': { 'value_hash_2': SCPBallot(counter=3, value=ValueObject2)},'confirmed': { ... },'aborted': { ... }}
+        # This will use sets for node names as opposed to counts, so will look like: {SCPBallot1.value: {'voted': set(Node1), ‘accepted’: set(Node2, Node3), ‘confirmed’: set(), ‘aborted’: set(), SCPBallot2.value: {'voted': set(), ‘accepted’: set(), ‘confirmed’: set(), ‘aborted’: set(node1, node2, node3)}
+        self.node.ballot_statement_counter = {
+            value.hash: {
+                "voted": {ballot.value: set()},
+                "accepted": {ballot2.value: set()}
+            }
+        }
+        self.node.ballot_statement_counter[value.hash]["voted"][ballot.value].add(node2)
+        self.node.ballot_statement_counter[value.hash]["voted"][ballot.value].add(node3)
+        self.node.ballot_statement_counter[value.hash]["voted"][ballot.value].add(node4)
+        self.node.ballot_statement_counter[value.hash]["accepted"][ballot2.value].add(node4)
+        self.node.ballot_statement_counter[value.hash]["accepted"][ballot2.value].add(node5)
+
+        result = self.node.check_Prepare_Quorum_threshold(ballot)
+        self.assertTrue(result)
+
+
+    def test_update_prepare_balloting_state_correctly_updates(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+        ballot2 = SCPBallot(counter=1, value=value2)
+        ballot3 = SCPBallot(counter=1, value=value3)
+
+        self.node.balloting_state = {
+            "voted": {value.hash: ballot, value2.hash : ballot2},
+            "accepted": {value3.hash: ballot3},
+            "confirmed": {}
+        }
+        self.node.update_prepare_balloting_state(ballot, "voted")
+
+        self.assertTrue(self.node.balloting_state['voted'] == {value2.hash: ballot2})
+        self.assertTrue(self.node.balloting_state['accepted'] == {value3.hash: ballot3, value.hash: ballot})
+        print(self.node.balloting_state['accepted'])
+        self.assertTrue(len(self.node.balloting_state['accepted']) == 2)
+
+    def test_update_prepare_balloting_state_updates_voted_to_accepted(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+        ballot2 = SCPBallot(counter=1, value=value2)
+        ballot3 = SCPBallot(counter=1, value=value3)
+
+        self.node.balloting_state = {
+            "voted": {value2.hash : ballot2},
+            "accepted": {value.hash: ballot, value3.hash: ballot3},
+            "confirmed": {}
+        }
+        self.node.update_prepare_balloting_state(ballot, "voted")
+
+        self.assertTrue(self.node.balloting_state['voted'] == {value2.hash: ballot2})
+        self.assertTrue(self.node.balloting_state['accepted'] == {value3.hash: ballot3, value.hash: ballot})
+        self.assertTrue(len(self.node.balloting_state['accepted']) == 2)
+
+    def test_update_prepare_balloting_state_updates_accepted_to_confirmed(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+        ballot2 = SCPBallot(counter=1, value=value2)
+        ballot3 = SCPBallot(counter=1, value=value3)
+
+        self.node.balloting_state = {
+            "voted": {},
+            "accepted": {value.hash: ballot, value2.hash : ballot2},
+            "confirmed": {value3.hash: ballot3}
+        }
+        self.node.update_prepare_balloting_state(ballot, "accepted")
+
+        self.assertTrue(self.node.balloting_state['accepted'] == {value2.hash: ballot2})
+        self.assertTrue(self.node.balloting_state['confirmed'] == {value3.hash: ballot3, value.hash: ballot})
+        self.assertTrue(len(self.node.balloting_state['accepted']) == 1)
+        self.assertTrue(len(self.node.balloting_state['confirmed']) == 2)
+
+    def test_update_balloting_state_does_not_update_accepted(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+        ballot2 = SCPBallot(counter=1, value=value2)
+        ballot3 = SCPBallot(counter=1, value=value3)
+
+        self.node.balloting_state = {
+            "voted": {value2.hash : ballot2},
+            "accepted": {value.hash: ballot, value3.hash: ballot3},
+            "confirmed": {}
+        }
+
+        self.node.update_prepare_balloting_state(ballot, "voted")
+
+        self.assertTrue(self.node.balloting_state['voted'] == {value2.hash : ballot2})
+        self.assertTrue(self.node.balloting_state['accepted'] == {value.hash: ballot, value3.hash: ballot3})
+        self.assertTrue(len(self.node.balloting_state['accepted']) == 2)
+
+    def test_update_balloting_state_does_not_fail_when_empty(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+        ballot3 = SCPBallot(counter=1, value=value3)
+
+        self.node.balloting_state = {
+            "voted": {},
+            "accepted": {value3.hash: ballot3},
+            "confirmed": {}
+        }
+        self.node.update_prepare_balloting_state(ballot, "voted")
+
+        self.assertTrue(self.node.balloting_state['voted'] == {})
+        self.assertTrue(self.node.balloting_state['accepted'] == {value3.hash: ballot3})
+        self.assertTrue(len(self.node.balloting_state['accepted']) == 1)
+
+
+    def test_retrieve_prepare_broadcast_message_retrieves_correctly(self):
+        self.node = Node("test_node")
+        self.retrieving_node = Node("test_node2")
+        mempool = Mempool()
+        self.storage = Storage(self.node)
+        self.node.attach_mempool(mempool)
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(counter=1, value=value1)
+        ballot2 = SCPBallot(counter=1, value=value2)
+
+        message = SCPPrepare(ballot=ballot1)
+
+        self.node.ballot_prepare_broadcast_flags = [message]
+        retrieved = self.node.retrieve_ballot_prepare_message(self.retrieving_node)
+
+        self.assertEqual(retrieved, message)
+        self.assertIn(retrieved, self.node.ballot_prepare_broadcast_flags)
+        self.assertIn(self.retrieving_node.name, self.node.received_prepare_broadcast_msgs)
+
+    def test_retrieve_prepare_broadcast_message_retrieves_correctly_for_multiple_messages(self):
+        self.node = Node("test_node")
+        self.retrieving_node = Node("test_node2")
+        mempool = Mempool()
+        self.storage = Storage(self.node)
+        self.node.attach_mempool(mempool)
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(counter=1, value=value1)
+        ballot2 = SCPBallot(counter=1, value=value2)
+
+        message = SCPPrepare(ballot=ballot1)
+        message2 = SCPPrepare(ballot=ballot2)
+
+        self.node.broadcast_flags = [message, message2]
+        self.node.ballot_prepare_broadcast_flags = set()
+        self.node.ballot_prepare_broadcast_flags.add(message)
+        self.node.ballot_prepare_broadcast_flags.add(message2)
+
+        retrieved = self.node.retrieve_ballot_prepare_message(self.retrieving_node)
+        retrieved2 = self.node.retrieve_ballot_prepare_message(self.retrieving_node)
+
+        self.assertIn(retrieved, self.node.ballot_prepare_broadcast_flags)
+        self.assertIn(retrieved2, self.node.ballot_prepare_broadcast_flags)
+        self.assertIn(self.retrieving_node.name, self.node.received_prepare_broadcast_msgs)
+        self.assertEqual(len(self.node.received_prepare_broadcast_msgs[self.retrieving_node.name]), 2)
+
+    def test_retrieve_prepare_broadcast_message_returns_none_for_empty(self):
+            self.node = Node("test_node")
+            self.retrieving_node = Node("test_node2")
+            mempool = Mempool()
+            self.storage = Storage(self.node)
+            self.node.attach_mempool(mempool)
+
+            retrieved = self.node.retrieve_ballot_prepare_message(self.retrieving_node)
+
+            self.assertEqual(retrieved, None)
+            self.assertEqual(set(), self.node.ballot_prepare_broadcast_flags)
+            self.assertEqual({}, self.node.received_prepare_broadcast_msgs)
+
+    def test_retrieve_prepare_broadcast_message_returns_none_for_node_with_all_messages(self):
+        self.node = Node("test_node")
+        self.retrieving_node = Node("test_node2")
+        mempool = Mempool()
+        self.storage = Storage(self.node)
+        self.node.attach_mempool(mempool)
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(counter=1, value=value1)
+        ballot2 = SCPBallot(counter=1, value=value2)
+
+        message = SCPPrepare(ballot=ballot1)
+        message2 = SCPPrepare(ballot=ballot2)
+
+        self.node.ballot_prepare_broadcast_flags = set()
+        self.node.ballot_prepare_broadcast_flags.add(message)
+        self.node.ballot_prepare_broadcast_flags.add(message2)
+        self.node.received_prepare_broadcast_msgs[self.retrieving_node.name] = [message, message2]
+
+        retrieved = self.node.retrieve_ballot_prepare_message(self.retrieving_node)
+
+        self.assertEqual(retrieved, None)
