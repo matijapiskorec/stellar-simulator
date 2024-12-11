@@ -108,6 +108,82 @@ class QuorumSetTest(unittest.TestCase):
         self.assertEqual([test_node2], result)
 
 
+    def test_check_prepare_threshold2(self):
+        test_node1 = Node("test_node1")
+        test_node2 = Node("test_node2")
+        test_node3 = Node("test_node3")
+        test_node4 = Node("test_node4")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        threshold = 4
+        statement_counter = {value.hash: {'voted': {test_node1.name: 1, test_node2.name : 1, test_node3.name: 1}, 'accepted': {test_node4.name : 1}}}
+
+        quorum = [test_node1, test_node2, test_node3, test_node4]
+
+        check = self.node.quorum_set.check_threshold(value, quorum, threshold, statement_counter)
+        self.assertTrue(check)
+
+
+    def test_check_prepare_threshold(self):
+        # Setup nodes
+        test_node1 = Node("test_node1")
+        test_node2 = Node("test_node2")
+        test_node3 = Node("test_node3")
+        test_node4 = Node("test_node4")
+
+        # Setup quorum and threshold
+        quorum = [test_node1, test_node2, test_node3, test_node4]
+        threshold = 3  # We need at least 3 nodes to sign the ballot
+
+        # Simulate prepare_statement_counter for a specific ballot
+        ballot = SCPBallot(counter=0, value=Value(transactions={Transaction(0)}))
+        prepare_statement_counter = {
+            ballot.value: {
+                'voted': {test_node1, test_node2, test_node3},
+                'accepted': {test_node4}
+            }
+        }
+
+        # Check if threshold is met
+        result = self.node.quorum_set.check_prepare_threshold(ballot, quorum, threshold, prepare_statement_counter)
+        self.assertTrue(result)  # It should return True because 3 out of 4 nodes have voted/accepted
+
+
+    def test_check_prepare_threshold_returns_False(self):
+        # Setup nodes
+        test_node1 = Node("test_node1")
+        test_node2 = Node("test_node2")
+        test_node3 = Node("test_node3")
+        test_node4 = Node("test_node4")
+
+        # Setup quorum and threshold
+        quorum = [test_node1, test_node2, test_node3, test_node4]
+        threshold = 3  # We need at least 3 nodes to sign the ballot
+
+        # Simulate prepare_statement_counter for a specific ballot
+        ballot = SCPBallot(counter=0, value=Value(transactions={Transaction(0)}))
+        prepare_statement_counter = {
+            ballot.value: {
+                'voted': {test_node1},
+                'accepted': {test_node4}
+            }
+        }
+
+        # Check if threshold is met
+        result = self.node.quorum_set.check_prepare_threshold(ballot, quorum, threshold, prepare_statement_counter)
+        self.assertFalse(result)  # It should return True because 3 out of 4 nodes have voted/accepted
+
+    def test_retrieve_all_peers_returns_correctly(self):
+        test_node1 = Node("test_node1")
+        test_node2 = Node("test_node2")
+        test_node3 = Node("test_node3")
+        test_node4 = Node("test_node4")
+
+        self.node.quorum_set.nodes = [test_node1, test_node2]
+        self.node.quorum_set.inner_sets = [[self.node, test_node3], [self.node, test_node4]]
+
+
+
 if __name__ == '__main__':
     unittest.main()
 
