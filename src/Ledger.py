@@ -12,7 +12,6 @@ Ledger class.
 from Log import log
 
 import numpy as np
-import random
 
 class Ledger():
 
