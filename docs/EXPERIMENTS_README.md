@@ -43,10 +43,6 @@ This experiment involves introducing a **uniform transaction load** over time. T
 ### **Overview**  
 The details of this experiment are not finalized and require further discussion. Initial ideas include simulating **bursts** of high transaction loads or experimenting with alternative configurations.  
 
-### **Next Steps**  
-- Discuss with Dr. Piškorec during the next meeting to define the scope and parameters of this experiment.  
-- Update this file with finalized details post-discussion.  
-
 ---
 
 ## **File Output Structure**  
