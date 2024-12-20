@@ -1,0 +1,109 @@
+# `SCPBallot` Class Documentation  
+
+## Overview  
+
+The `SCPBallot` class represents a ballot in the Stellar Consensus Protocol (SCP). A ballot is a key element in the consensus process, comprising a counter and a value. The counter tracks the progress of the ballot in the protocol, while the value represents the proposed data being agreed upon.  
+
+---
+
+## Constructor  
+
+### `__init__(self, counter: int, value: Value)`  
+
+Initializes an `SCPBallot` object with a counter and a value.  
+
+#### Parameters:  
+- `counter` (`int`): A numerical counter indicating the phase or iteration of the ballot in the SCP protocol.  
+- `value` (`Value`): The value associated with the ballot, representing the proposed data for consensus.  
+
+#### Example:  
+```python
+from Value import Value
+
+value = Value(transactions=[])
+ballot = SCPBallot(counter=1, value=value)
+```
+
+---
+
+## Methods  
+
+### `__lt__(self, other)`  
+
+Compares two `SCPBallot` objects to determine their relative order.  
+
+#### Parameters:  
+- `other` (`SCPBallot`): The ballot to compare against.  
+
+#### Behavior:  
+- Compares ballots first by their counters.  
+- If counters are equal, compares the ballots by the hash of their values.  
+
+#### Returns:  
+- `True` if the current ballot is less than the other ballot, `False` otherwise.  
+
+#### Example:  
+```python
+ballot1 = SCPBallot(counter=1, value=value)
+ballot2 = SCPBallot(counter=2, value=value)
+
+print(ballot1 < ballot2)  # Output: True
+```
+
+---
+
+### `__repr__(self)`  
+
+Returns a string representation of the `SCPBallot` object.  
+
+#### Returns:  
+- A string displaying the counter and the associated value.  
+
+#### Example:  
+```python
+print(ballot)
+# Output: SCPBallot(counter=1, value=[Value, hash=123456, state=init, transactions=[]])
+```
+
+---
+
+## Attributes  
+
+### `counter`  
+- **Description**: The numerical counter associated with the ballot.  
+- **Type**: `int`  
+
+### `value`  
+- **Description**: The value associated with the ballot.  
+- **Type**: `Value`  
+
+---
+
+## Use Cases  
+
+1. **Ballot Initialization**  
+   Create a new ballot with a counter and a value to participate in the SCP protocol.  
+   ```python
+   ballot = SCPBallot(counter=1, value=value)
+   ```
+
+2. **Comparison of Ballots**  
+   Compare two ballots to determine their order in the consensus process.  
+   ```python
+   if ballot1 < ballot2:
+       print("Ballot1 has a lower counter or value.")
+   ```
+
+3. **Debugging and Logging**  
+   Use the `__repr__` method to display the state of a ballot for debugging or logging.  
+   ```python
+   print(ballot)
+   ```
+
+---
+
+## Key Features  
+
+- **Order Comparison**: Implements logic for comparing ballots based on their counter and value.  
+- **Integration with SCP**: Works seamlessly as part of the SCP protocol to represent and manage ballots.  
+- **Value Integration**: Utilizes the `Value` class for consistency and modularity.  
