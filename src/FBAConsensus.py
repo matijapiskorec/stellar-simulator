@@ -24,7 +24,9 @@ class FBAConsensus:
         events = [Event('mine'),
                   Event('retrieve_transaction_from_mempool'),
                   Event('nominate'),
-                  Event('retrieve_message_from_peer')]
+                  Event('retrieve_message_from_peer'),
+                  Event('prepare_ballot'),
+                  Event('receive_prepare_message')]
 
         # # TODO: Remove gossip event from the consensus!
         # Event('gossip'),

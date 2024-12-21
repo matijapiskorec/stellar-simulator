@@ -133,7 +133,8 @@ class QuorumSet():
         flat_list = [node for node in self.nodes if node != calling_node]
 
         for inner_set in self.inner_sets:
-            flat_list.extend([node for node in inner_set if node != calling_node])
+            if isinstance(inner_set, (list, set, tuple)):
+                flat_list.extend([node for node in inner_set if node != calling_node])
 
         return random.choice(flat_list) if flat_list else None
 

@@ -68,7 +68,7 @@ class Node():
         self.ballot_statement_counter = {} # This will use sets for node names as opposed to counts, so will look like: {SCPBallot1.value: {'voted': set(Node1), ‘accepted’: set(Node2, Node3), ‘confirmed’: set(), ‘aborted’: set(), SCPBallot2.value: {'voted': set(), ‘accepted’: set(), ‘confirmed’: set(), ‘aborted’: set(node1, node2, node3)}
         self.ballot_prepare_broadcast_flags = set() # Add every SCPPrepare message here - this will look like
         self.received_prepare_broadcast_msgs = {}
-        self.prepared_ballots = {} # This looks like: self.prepared_ballots[ballot.value] = {'aCounter': aCounter,'cCounter': cCounter,'hCounter': hCounter,'highestCounter': ballot.counter}
+        self.prepared_ballots = {} # This looks like: self.prepared_ballots[ballot.value] = SCPPrepare('aCounter': aCounter,'cCounter': cCounter,'hCounter': hCounter,'highestCounter': ballot.counter)
 
 
         # TODO: Implement the logic for advancing the nomination rounds each n+1 seconds!
@@ -500,45 +500,73 @@ class Node():
         confirmed_val = self.retrieve_confirmed_value()
         # If the value has been aborted in the past then it should not be prepared
         if confirmed_val.hash in self.balloting_state['aborted']:
-            log.node.info('Node %s has aborted value %s previously, so it cannot be prepared.', self.name,
+            log.node.info('Node %s has aborted ballot %s previously, so it cannot be prepared.', self.name,
                           confirmed_val.hash)
             return
 
         if len(self.balloting_state['voted']) > 0 and confirmed_val.hash in self.balloting_state['voted']:
             # Retrieve the counter from the state and increase it by one for the new ballot to be created
             new_counter = self.balloting_state['voted'][confirmed_val.hash].counter + 1
+            self.balloting_state['voted'][confirmed_val.hash].counter += 1
             ballot = SCPBallot(counter=new_counter, value=confirmed_val)
+            log.node.info('Node %s created SCPBallot with larger count: %s', self.name, ballot.value)
         else:
             # Make ballot with default counter of 1
             ballot = SCPBallot(counter=1, value=confirmed_val)
+            log.node.info('Node %s created SCPBallot: %s', self.name, ballot.value)
+
 
         # Get counters for new SCPPrepare message
         prepare_msg_counters = self.get_prepared_ballot_counters(confirmed_val)
         if prepare_msg_counters is not None:
-            prepare_msg = SCPPrepare(ballot=ballot, aCounter=prepare_msg_counters['aCounter'], cCounter=prepare_msg_counters['cCounter'], hCounter=prepare_msg_counters['hCounter'])
-            log.node.info('Node %s has prepared SCPPrepare message with ballot %s, h_counter=%d, a_counter=%d, c_counter=%d.',self.name, confirmed_val, prepare_msg_counters['aCounter'], prepare_msg_counters['cCounter'],prepare_msg_counters['hCounter'])
+            prepare_msg = SCPPrepare(ballot=ballot, aCounter=prepare_msg_counters.aCounter, cCounter=prepare_msg_counters.cCounter, hCounter=prepare_msg_counters.hCounter)
+            log.node.info('Node %s has increased counter on prepared SCPPrepare message with ballot %s, h_counter=%d, a_counter=%d, c_counter=%d.',self.name, confirmed_val, prepare_msg_counters.aCounter, prepare_msg_counters.cCounter,prepare_msg_counters.hCounter)
             self.ballot_prepare_broadcast_flags.add(prepare_msg)
+            self.prepared_ballots[ballot.value] = prepare_msg
+            if ballot.value not in self.ballot_statement_counter:
+                self.ballot_statement_counter[ballot.value] = {'voted': set(), 'accepted': set(), 'confirmed':set(), 'aborted':set()}
+                self.ballot_statement_counter[ballot.value]['voted'] = set()
+                self.ballot_statement_counter[ballot.value]['voted'].add(self)
         else:
             # If prepare_msg_counters is none then there are no counters for this value and we have to set the defaults
             prepare_msg = SCPPrepare(ballot=ballot)
             self.ballot_prepare_broadcast_flags.add(prepare_msg)
+            self.prepared_ballots[ballot.value] = prepare_msg
+            self.balloting_state['voted'][confirmed_val.hash] = ballot
+            if ballot.value not in self.ballot_statement_counter:
+                self.ballot_statement_counter[ballot.value] = {'voted': set(), 'accepted': set(), 'confirmed':set(), 'aborted':set()}
+                self.ballot_statement_counter[ballot.value]['voted'] = set()
+                self.ballot_statement_counter[ballot.value]['voted'].add(self)
             log.node.info('Node %s has prepared SCPPrepare message with ballot %s, h_counter=%d, a_counter=%d, c_counter=%d.', self.name, confirmed_val, 0, 0,0)
 
         log.node.info('Node %s appended SCPPrepare message to its storage and state, message = %s', self.name, prepare_msg)
 
-    def process_prepare_ballot_message(self, message):
+    def process_prepare_ballot_message(self, message, sender):
         received_ballot = message.ballot
+
+        # This will look like: self.balloting_state = {'voted': {'value_hash_1': SCPBallot(counter=1, value=ValueObject1),},'accepted': { 'value_hash_2': SCPBallot(counter=3, value=ValueObject2)},'confirmed': {
 
         # Case 1: New ballot received has the same value but a higher counter
         if received_ballot.value.hash in self.balloting_state['voted']:
             if received_ballot.value == self.balloting_state['voted'][received_ballot.value.hash].value and received_ballot.counter > self.balloting_state['voted'][received_ballot.value.hash].counter:
                 log.node.info("Node %s received a ballot with the same value but a higher counter. Updating to the new counter.", self.name)
                 self.balloting_state['voted'][received_ballot.value.hash] = received_ballot
+                if received_ballot.value not in self.ballot_statement_counter:
+                    self.ballot_statement_counter[received_ballot.value] = {'voted': set(), 'accepted': set(), 'confirmed': set(), 'aborted': set()}
+                    self.ballot_statement_counter[received_ballot.value]['voted'].add(sender)
+
+                else:
+                    self.ballot_statement_counter[received_ballot.value]['voted'].add(sender)
                 return
 
             # Case 3: New ballot received has the same value but a lower counter
             if received_ballot.counter < self.balloting_state['voted'][received_ballot.value.hash].counter:
                 log.node.info("Node %s that has been received has the same value but a lower counter than a previously voted ballot.", self.name)
+                if received_ballot.value not in self.ballot_statement_counter:
+                    self.ballot_statement_counter[received_ballot.value] = {'voted': set(),'accepted': set(),'confirmed': set(),'aborted': set()}
+                    self.ballot_statement_counter[received_ballot.value]['voted'].add(sender)
+                else:
+                    self.ballot_statement_counter[received_ballot.value]['voted'].add(sender)
                 return
 
         elif received_ballot.value.hash not in self.balloting_state['voted']:
@@ -549,10 +577,22 @@ class Node():
                     # Abort any previous ballots with a smaller counter and different value
                     self.abort_ballots(received_ballot)
                     self.balloting_state['voted'][received_ballot.value.hash] = received_ballot
+                    if received_ballot.value not in self.ballot_statement_counter:
+                        self.ballot_statement_counter[received_ballot.value] = {'voted': set(), 'accepted': set(),'confirmed': set(), 'aborted': set()}
+                        self.ballot_statement_counter[received_ballot.value]['voted'].add(sender)
+                    else:
+                        self.ballot_statement_counter[received_ballot.value]['voted'].add(sender)
                     return
 
             # Case 4: New ballot received has different value and a lower counter - JUST abort this received ballot
             self.balloting_state['aborted'][received_ballot.value.hash] = received_ballot
+            if received_ballot.value not in self.ballot_statement_counter:
+                self.ballot_statement_counter[received_ballot.value] = {'voted': set(), 'accepted': set(),'confirmed': set(), 'aborted': set()}
+                self.ballot_statement_counter[received_ballot.value]['aborted'].add(sender)
+            else:
+                if sender in self.ballot_statement_counter[received_ballot.value]['voted']:
+                    self.ballot_statement_counter[received_ballot.value]['voted'].remove(sender)
+                self.ballot_statement_counter[received_ballot.value]['aborted'].add(sender)
             log.node.info("Node %s has a different value and lower counter than a previously voted value. Aborting this ballot.")
 
     def abort_ballots(self, received_ballot):
@@ -585,7 +625,7 @@ class Node():
         # 1. the node itself has signed the message
         # 2. Number of nodes in the current QuorumSet who have signed + the number of innerSets that meet threshold is at least k
         # 3. These conditions apply recursively to the inner sets to fulfill condition 2.
-        if ballot.value in (self.balloting_state["voted"]) or ballot.value in (self.balloting_state["accepted"]): # Condition 1. - node itself has signed message
+        if ballot.value.hash in (self.balloting_state["voted"]) or ballot.value.hash in (self.balloting_state["accepted"]): # Condition 1. - node itself has signed message
             signed_count = 1 # Node itself has voted for it so already has a count of 1
             inner_sets_meeting_threshold_count = 0
             nodes, inner_sets = self.quorum_set.get_quorum()
@@ -593,7 +633,7 @@ class Node():
 
             for node in nodes:
                 # check if the node name from the quorum is in the value's voted or accepted dict - meaning it has voted for the message
-                if node.name in self.ballot_statement_counter[ballot.value]['voted'] or node.name in self.ballot_statement_counter[ballot.value]['accepted']:
+                if node in self.ballot_statement_counter[ballot.value]['voted'] or node in self.ballot_statement_counter[ballot.value]['accepted']:
                     signed_count += 1
 
             for element in inner_sets: # Keep to just 1 layer of depth for now - so only 1 inner set per quorum, [ [], [] ], not [ [], [[]] ]
@@ -657,4 +697,29 @@ class Node():
                         return retrieved_message
         return None
 
+    def receive_prepare_message(self):
+        # self.ballot_statement_counter = {}
+        # Looks like: {SCPBallot1.value: {'voted': set(Node1), ‘accepted’: set(Node2, Node3), ‘confirmed’: set(), ‘aborted’: set(), SCPBallot2.value: {'voted': set(), ‘accepted’: set(), ‘confirmed’: set(), ‘aborted’: set(node1, node2, node3)}
 
+        sending_node = self.quorum_set.retrieve_random_peer(self)
+        if sending_node is not None:
+            if sending_node != self and not None:
+                message = self.retrieve_ballot_prepare_message(sending_node)
+
+                if message is not None:
+                    self.process_prepare_ballot_message(message, sending_node)
+                    log.node.info('Node %s retrieving messages from his peer Node %s!', self.name,sending_node.name)
+                    ballot = message.ballot # message[0] is voted field
+                    if type(ballot) is SCPBallot and ballot.value.hash in self.balloting_state['voted'] and self.check_Prepare_Quorum_threshold(ballot):
+                        log.node.info('Quorum threshold met for voted ballot %s at Node %s', ballot, self.name)
+                        self.update_prepare_balloting_state(ballot, "voted")
+
+                    elif type(ballot) is SCPBallot and ballot.value.hash in self.balloting_state['accepted'] and self.check_Prepare_Quorum_threshold(ballot):
+
+                        log.node.info('Quorum threshold met for accepted ballot %s at Node %s', ballot, self.name)
+                        self.update_prepare_balloting_state(ballot, "accepted")
+
+                else:
+                    log.node.info('Node %s has no SCPPrepare messages to retrieve from neighbor Node %s!', self.name, sending_node.name)
+        else:
+            log.node.info('Node %s could not retrieve peer!', self.name)
