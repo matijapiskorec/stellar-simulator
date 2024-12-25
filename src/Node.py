@@ -21,6 +21,7 @@ from QuorumSet import QuorumSet
 from SCPNominate import SCPNominate
 from SCPBallot import SCPBallot
 from SCPPrepare import SCPPrepare
+from SCPCommit import SCPCommit
 from Value import Value
 from Storage import Storage
 from Globals import Globals
@@ -69,6 +70,15 @@ class Node():
         self.ballot_prepare_broadcast_flags = set() # Add every SCPPrepare message here - this will look like
         self.received_prepare_broadcast_msgs = {}
         self.prepared_ballots = {} # This looks like: self.prepared_ballots[ballot.value] = SCPPrepare('aCounter': aCounter,'cCounter': cCounter,'hCounter': hCounter,'highestCounter': ballot.counter)
+
+        ###################################
+        # SCPCOMMIT BALLOT PHASE STRUCTURES #
+        ###################################
+        self.commit_ballot_state = {'voted': {}, 'accepted': {}, 'confirmed': {}} # This will look like: self.balloting_state = {'voted': {'value_hash_1': SCPBallot(counter=1, value=ValueObject1),},'accepted': { 'value_hash_2': SCPBallot(counter=3, value=ValueObject2)},'confirmed': { ... },'aborted': { ... }}
+        self.commit_ballot_statement_counter = {} # This will use sets for node names as opposed to counts, so will look like: {SCPBallot1.value: {'voted': set(Node1), ‘accepted’: set(Node2, Node3), ‘confirmed’: set(), ‘aborted’: set(), SCPBallot2.value: {'voted': set(), ‘accepted’: set(), ‘confirmed’: set(), ‘aborted’: set(node1, node2, node3)}
+        self.commit_ballot_broadcast_flags = set() # Add every SCPPrepare message here - this will look like
+        self.received_commit_ballot_broadcast_msgs = {}
+        self.committed_ballots = {} # This looks like: self.prepared_ballots[ballot.value] = SCPPrepare('aCounter': aCounter,'cCounter': cCounter,'hCounter': hCounter,'highestCounter': ballot.counter)
 
 
         # TODO: Implement the logic for advancing the nomination rounds each n+1 seconds!
@@ -723,3 +733,36 @@ class Node():
                     log.node.info('Node %s has no SCPPrepare messages to retrieve from neighbor Node %s!', self.name, sending_node.name)
         else:
             log.node.info('Node %s could not retrieve peer!', self.name)
+
+    def retrieve_confirmed_prepare_ballot(self):
+        if len(self.balloting_state['confirmed']) > 0:
+            # random_ballot_hash = np.random.choice(self.balloting_state['confirmed'])
+            random_ballot_hash = np.random.choice(list(self.balloting_state['confirmed'].keys()))
+            confirmed_prepare_ballot = self.balloting_state['confirmed'][random_ballot_hash]  # Take a random Value from the confirmed state
+            log.node.info('Node %s retrieved confirmed prepared ballot %s for SCPCommit', self.name, confirmed_prepare_ballot)
+            return confirmed_prepare_ballot
+        else:
+            log.node.info('Node %s has no confirmed prepared ballots to use for SCPCommit!', self.name)
+            return None
+
+
+    def prepare_SCPCommit_msg(self):
+        """
+        Prepare SCPCommit message for Commit Ballot phase
+        """
+        if len(self.balloting_state['confirmed']) == 0: # Check if there are any values to prepare
+            log.node.info('Node %s has no confirmed values in nomination state to prepare for balloting.', self.name)
+            return
+
+        confirmed_ballot = self.retrieve_confirmed_prepare_ballot() # Retrieve a Value from the SCPPrepare 'confirmed' state
+        if confirmed_ballot is not None:
+            commit_msg = SCPCommit(ballot=confirmed_ballot, preparedCounter=confirmed_ballot.counter)
+            self.commit_ballot_broadcast_flags.add(commit_msg)
+            self.commit_ballot_state['voted'][confirmed_ballot.value.hash] = confirmed_ballot
+            if confirmed_ballot.value not in self.ballot_statement_counter:
+                    self.commit_ballot_statement_counter[confirmed_ballot.value] = {'voted': set(), 'accepted': set(), 'confirmed':set(), 'aborted':set()}
+                    self.commit_ballot_statement_counter[confirmed_ballot.value]['voted'] = set()
+                    self.commit_ballot_statement_counter[confirmed_ballot.value]['voted'].add(self)
+            log.node.info('Node %s has prepared SCPCommit message with ballot %s, preparedCounter=%d.', self.name, confirmed_ballot, confirmed_ballot.counter)
+            log.node.info('Node %s appended SCPPrepare message to its storage and state, message = %s', self.name, commit_msg)
+        log.node.info('Node %s could not retrieve a confirmed SCPPrepare messages from its peer!')
