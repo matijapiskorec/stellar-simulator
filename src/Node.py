@@ -766,3 +766,78 @@ class Node():
             log.node.info('Node %s has prepared SCPCommit message with ballot %s, preparedCounter=%d.', self.name, confirmed_ballot, confirmed_ballot.counter)
             log.node.info('Node %s appended SCPPrepare message to its storage and state, message = %s', self.name, commit_msg)
         log.node.info('Node %s could not retrieve a confirmed SCPPrepare messages from its peer!')
+
+    def process_commit_ballot_message(self, message, sender):
+        """
+        The purpose of continuing to update the counter and send this field is to assist other nodes still in the PREPARE phase in synchronizing their counters.
+        The update of the counter is done, but it doesn't help SCPPrepare as this doesnt affect prepared ballots due to commits & prepare messages being processed separately
+        Also, we do not abort, just update counters if larger
+        """
+        received_ballot = message.ballot
+        # This will look like: self.commit_ballot_state = {'voted': {'value_hash_1': SCPBallot(counter=1, value=ValueObject1),},'accepted': { 'value_hash_2': SCPBallot(counter=3, value=ValueObject2)},'confirmed': {
+
+        # Case 1: New ballot received has the same value but a higher counter
+        if received_ballot.value.hash in self.commit_ballot_state['voted']:
+            if received_ballot.value == self.commit_ballot_state['voted'][received_ballot.value.hash].value and received_ballot.counter > self.commit_ballot_state['voted'][received_ballot.value.hash].counter:
+                log.node.info("Node %s received a commit ballot with the same value but a higher counter. Updating to the new counter.", self.name)
+                self.commit_ballot_state['voted'][received_ballot.value.hash] = received_ballot
+
+                if received_ballot.value not in self.commit_ballot_statement_counter:
+                    self.commit_ballot_statement_counter[received_ballot.value] = {'voted': set(), 'accepted': set(), 'confirmed': set(), 'aborted': set()}
+                    self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
+
+                else:
+                    self.ballot_statement_counter[received_ballot.value]['voted'].add(sender)
+                return
+
+            # Case 3: New ballot received has the same value but a lower counter
+            if received_ballot.counter < self.commit_ballot_state['voted'][received_ballot.value.hash].counter:
+                log.node.info("Node %s that has been received has the same commit ballot value but a lower counter than a previously voted commit ballot.", self.name)
+                if received_ballot.value not in self.commit_ballot_statement_counter:
+                    self.commit_ballot_statement_counter[received_ballot.value] = {'voted': set(),'accepted': set(),'confirmed': set(),'aborted': set()}
+                    self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
+                else:
+                    self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
+                return
+
+        # Case 2: New ballot received has different value and a higher counter
+        elif received_ballot.value.hash not in self.commit_ballot_state['voted']:
+            self.commit_ballot_state['voted'][received_ballot.value.hash] = received_ballot
+            log.node.info("Node %s has received and added a commit ballot to its state.", self.name)
+            if received_ballot.value not in self.commit_ballot_statement_counter:
+                self.commit_ballot_statement_counter[received_ballot.value] = {'voted': set(), 'accepted': set(),'confirmed': set(), 'aborted': set()}
+                self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
+            else:
+                self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
+            return
+
+
+    def check_Commit_Quorum_threshold(self, ballot):
+        # Check for Quorum threshold:
+        # 1. the node itself has signed the message
+        # 2. Number of nodes in the current QuorumSet who have signed + the number of innerSets that meet threshold is at least k
+        # 3. These conditions apply recursively to the inner sets to fulfill condition 2.
+        if ballot.value.hash in (self.commit_ballot_state["voted"]) or ballot.value.hash in (self.commit_ballot_state["accepted"]): # Condition 1. - node itself has signed message
+            signed_count = 1 # Node itself has voted for it so already has a count of 1
+            inner_sets_meeting_threshold_count = 0
+            nodes, inner_sets = self.quorum_set.get_quorum()
+            threshold = self.quorum_set.minimum_quorum
+
+            for node in nodes:
+                # check if the node name from the quorum is in the value's voted or accepted dict - meaning it has voted for the message
+                if node in self.commit_ballot_statement_counter[ballot.value]['voted'] or node in self.commit_ballot_statement_counter[ballot.value]['accepted']:
+                    signed_count += 1
+
+            for element in inner_sets: # Keep to just 1 layer of depth for now - so only 1 inner set per quorum, [ [], [] ], not [ [], [[]] ]
+                if isinstance(element, list):
+                        # 2. Check if the innerSets meet threshold
+                        threshold_met = self.quorum_set.check_commit_threshold(ballot=ballot, quorum=element, threshold=threshold, commit_statement_counter=self.commit_ballot_statement_counter.copy())
+                        if threshold_met:
+                            inner_sets_meeting_threshold_count += 1
+
+            if signed_count + inner_sets_meeting_threshold_count >= threshold: # 3. conditions apply recursively to the inner sets to fulfill condition 2
+                return True
+            else:
+                return False
+        else:
+            return False
