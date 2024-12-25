@@ -6,6 +6,7 @@ from Value import Value
 from SCPNominate import SCPNominate
 from SCPPrepare import SCPPrepare
 from SCPBallot import SCPBallot
+from SCPCommit import SCPCommit
 from Storage import Storage
 from Node import Node
 from Transaction import Transaction
@@ -1086,7 +1087,6 @@ class NodeTest(unittest.TestCase):
 
         self.assertTrue(self.node.balloting_state['voted'] == {value2.hash: ballot2})
         self.assertTrue(self.node.balloting_state['accepted'] == {value3.hash: ballot3, value.hash: ballot})
-        print(self.node.balloting_state['accepted'])
         self.assertTrue(len(self.node.balloting_state['accepted']) == 2)
 
     def test_update_prepare_balloting_state_updates_voted_to_accepted(self):
@@ -1324,3 +1324,43 @@ class NodeTest(unittest.TestCase):
         # Assert that nomination state is updated when quorum threshold is met
         self.node.process_prepare_ballot_message.assert_called_with(message, self.sending_node)
         self.node.update_prepare_balloting_state.assert_called_with(ballot1, 'accepted')
+
+    def test_retrieved_confirmed_prepared_commit_values(self):
+        self.node = Node(name="1")
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(counter=0, value=value1)
+
+        self.node.balloting_state = {"voted": {}, "accepted": {}, "confirmed": {value1.hash: ballot1}}
+        retrieved_prepare_ballot = self.node.retrieve_confirmed_prepare_ballot()
+        self.assertIsNotNone(retrieved_prepare_ballot)
+        self.assertIn(retrieved_prepare_ballot.value.hash, self.node.balloting_state['confirmed'])
+
+    def test_retrieved_confirmed_prepared_commit_values_returns_None_for_empty(self):
+        self.node = Node(name="1")
+        self.node.balloting_state = {"voted": {}, "accepted": {}, "confirmed": {}}
+
+        retrieved_value = self.node.retrieve_confirmed_value()
+        self.assertIsNone(retrieved_value)
+
+    def test_prepare_ballot_msg(self):
+        self.node = Node(name="1")
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(counter=0, value=value1)
+        self.node.balloting_state = {"voted": {}, "accepted": {}, "confirmed": {value1.hash: ballot1}}
+
+        self.node.prepare_SCPCommit_msg()
+        # Ensure the message was prepared
+        self.assertEqual(len(self.node.commit_ballot_broadcast_flags), 1)
+        prepared_msg = self.node.commit_ballot_broadcast_flags.pop()
+        self.assertIsInstance(prepared_msg, SCPCommit)
+
+    def test_prepare_ballot_msg_for_no_confirmed_values(self):
+        self.node = Node(name="1")
+        self.node.balloting_state = {"voted": {}, "accepted": {}, "confirmed": {}}
+        self.node.retrieve_confirmed_value = MagicMock(return_value=None)
+
+        self.node.prepare_ballot_msg()
+        self.node.retrieve_confirmed_value.assert_not_called()
+        self.assertEqual(len(self.node.ballot_prepare_broadcast_flags), 0)
+
+
