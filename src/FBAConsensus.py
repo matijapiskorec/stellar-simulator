@@ -27,7 +27,8 @@ class FBAConsensus:
                   Event('retrieve_message_from_peer'),
                   Event('prepare_ballot'),
                   Event('receive_prepare_message'),
-                  Event('prepare_commit')]
+                  Event('prepare_commit'),
+                  Event('receive_commit_message')]
 
         # # TODO: Remove gossip event from the consensus!
         # Event('gossip'),

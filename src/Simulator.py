@@ -116,8 +116,10 @@ class Simulator:
                                        'tau_domain':self._nodes},
                              'receive_prepare_message': {'tau':1.0,
                                        'tau_domain':self._nodes},
-                             'prepare_commit': {'tau':3.0,
+                             'prepare_commit': {'tau':7.0,
                                        'tau_domain':self._nodes},
+                             'receive_commit_message': {'tau':1.0,
+                                       'tau_domain':self._nodes}
                              }
 
         # ALL SIMULATION EVENTS COULD OCCUR AT ANY POINT, WHEN WE IMPLEMENT BALLOTING WE'LL HAVE TO
@@ -201,6 +203,10 @@ class Simulator:
             case 'prepare_commit':
                 random_node = np.random.choice(self._nodes)
                 random_node.prepare_SCPCommit_msg()
+
+            case 'receive_commit_message':
+                random_node = np.random.choice(self._nodes)
+                random_node.receive_commit_message()
 
 
 if __name__=='__main__':
