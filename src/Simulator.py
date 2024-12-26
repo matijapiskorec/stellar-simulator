@@ -4,7 +4,7 @@ Simulator
 ================================================
 
 Author: Matija Piskorec, Jaime de Vivero Woods
-Last update: July 2023
+Last update: December 2024
 
 The following class contains command line (CLI) interface for the Stellar Consensus Protocol (SCP) simulator.
 
@@ -115,6 +115,10 @@ class Simulator:
                              'prepare_ballot': {'tau':7.0,
                                        'tau_domain':self._nodes},
                              'receive_prepare_message': {'tau':1.0,
+                                       'tau_domain':self._nodes},
+                             'prepare_commit': {'tau':7.0,
+                                       'tau_domain':self._nodes},
+                             'receive_commit_message': {'tau':1.0,
                                        'tau_domain':self._nodes}
                              }
 
@@ -195,6 +199,14 @@ class Simulator:
             case 'receive_prepare_message':
                 random_node = np.random.choice(self._nodes)
                 random_node.receive_prepare_message()
+
+            case 'prepare_commit':
+                random_node = np.random.choice(self._nodes)
+                random_node.prepare_SCPCommit_msg()
+
+            case 'receive_commit_message':
+                random_node = np.random.choice(self._nodes)
+                random_node.receive_commit_message()
 
 
 if __name__=='__main__':

@@ -6,6 +6,7 @@ from Value import Value
 from SCPNominate import SCPNominate
 from SCPPrepare import SCPPrepare
 from SCPBallot import SCPBallot
+from SCPCommit import SCPCommit
 from Storage import Storage
 from Node import Node
 from Transaction import Transaction
@@ -1086,7 +1087,6 @@ class NodeTest(unittest.TestCase):
 
         self.assertTrue(self.node.balloting_state['voted'] == {value2.hash: ballot2})
         self.assertTrue(self.node.balloting_state['accepted'] == {value3.hash: ballot3, value.hash: ballot})
-        print(self.node.balloting_state['accepted'])
         self.assertTrue(len(self.node.balloting_state['accepted']) == 2)
 
     def test_update_prepare_balloting_state_updates_voted_to_accepted(self):
@@ -1324,3 +1324,451 @@ class NodeTest(unittest.TestCase):
         # Assert that nomination state is updated when quorum threshold is met
         self.node.process_prepare_ballot_message.assert_called_with(message, self.sending_node)
         self.node.update_prepare_balloting_state.assert_called_with(ballot1, 'accepted')
+
+    def test_retrieved_confirmed_prepared_commit_values(self):
+        self.node = Node(name="1")
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(counter=0, value=value1)
+
+        self.node.balloting_state = {"voted": {}, "accepted": {}, "confirmed": {value1.hash: ballot1}}
+        retrieved_prepare_ballot = self.node.retrieve_confirmed_prepare_ballot()
+        self.assertIsNotNone(retrieved_prepare_ballot)
+        self.assertIn(retrieved_prepare_ballot.value.hash, self.node.balloting_state['confirmed'])
+
+    def test_retrieved_confirmed_prepared_commit_values_returns_None_for_empty(self):
+        self.node = Node(name="1")
+        self.node.balloting_state = {"voted": {}, "accepted": {}, "confirmed": {}}
+
+        retrieved_value = self.node.retrieve_confirmed_value()
+        self.assertIsNone(retrieved_value)
+
+    def test_prepare_ballot_msg(self):
+        self.node = Node(name="1")
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(counter=0, value=value1)
+        self.node.balloting_state = {"voted": {}, "accepted": {}, "confirmed": {value1.hash: ballot1}}
+
+        self.node.prepare_SCPCommit_msg()
+        # Ensure the message was prepared
+        self.assertEqual(len(self.node.commit_ballot_broadcast_flags), 1)
+        prepared_msg = self.node.commit_ballot_broadcast_flags.pop()
+        self.assertIsInstance(prepared_msg, SCPCommit)
+
+    def test_prepare_ballot_msg_for_no_confirmed_values(self):
+        self.node = Node(name="1")
+        self.node.balloting_state = {"voted": {}, "accepted": {}, "confirmed": {}}
+        self.node.retrieve_confirmed_value = MagicMock(return_value=None)
+
+        self.node.prepare_ballot_msg()
+        self.node.retrieve_confirmed_value.assert_not_called()
+        self.assertEqual(len(self.node.ballot_prepare_broadcast_flags), 0)
+
+
+
+
+
+    def test_process_commit_ballot_message_works_for_case1(self):
+        self.node = Node(name="1")
+        self.sender_node = Node(name='2')
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value1)
+
+        self.node.commit_ballot_state['voted'][value1.hash] = ballot
+        mock_ballot = SCPBallot(counter=2, value=value1)
+        mock_msg = SCPCommit(ballot=mock_ballot, preparedCounter=mock_ballot.counter)
+
+        self.node.process_commit_ballot_message(mock_msg, self.sender_node)
+
+        self.assertIn(ballot.value.hash, self.node.commit_ballot_state['voted'])
+        self.assertEqual(self.node.commit_ballot_state['voted'][value1.hash], mock_ballot)
+        self.assertIn(self.sender_node, self.node.commit_ballot_statement_counter[value1]['voted'])
+
+    def test_process_commit_ballot_message_works_for_case2(self):
+        self.node = Node(name="1")
+        self.sender_node = Node(name='2')
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+
+        ballot1 = SCPBallot(counter=1, value=value1)
+
+        self.node.commit_ballot_state['voted'][value1.hash] = ballot1
+
+        mock_ballot = SCPBallot(counter=2, value=value2)
+        mock_msg = SCPCommit(ballot=mock_ballot, preparedCounter=mock_ballot.counter)
+
+        self.node.process_commit_ballot_message(mock_msg, self.sender_node)
+
+        self.assertIn(ballot1.value.hash, self.node.commit_ballot_state['voted'])
+        self.assertEqual(self.node.commit_ballot_state['voted'][value2.hash], mock_ballot)
+        self.assertEqual(self.node.commit_ballot_state['voted'][value1.hash], ballot1)
+        self.assertIn(self.sender_node, self.node.commit_ballot_statement_counter[value2]['voted'])
+
+    def test_process_commit_ballot_message_works_for_case3(self):
+        self.node = Node(name="1")
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        self.sender_node = Node(name='2')
+
+        smaller_ballot1 = SCPBallot(counter=2, value=value1)
+        larger_ballot2 = SCPBallot(counter=3, value=value1)
+
+        self.node.commit_ballot_state['voted'][value1.hash] = larger_ballot2
+
+        mock_msg = SCPCommit(ballot=smaller_ballot1, preparedCounter=smaller_ballot1.counter)
+
+        self.node.process_commit_ballot_message(mock_msg, self.sender_node)
+
+        self.assertIn(larger_ballot2.value.hash, self.node.commit_ballot_state['voted'])
+        self.assertEqual(self.node.commit_ballot_state['voted'][value1.hash].counter, larger_ballot2.counter)
+        self.assertNotEqual(self.node.commit_ballot_state['voted'][value1.hash].counter, smaller_ballot1.counter)
+        self.assertIn(self.sender_node, self.node.commit_ballot_statement_counter[value1]['voted'])
+
+    def test_commit_quorum_threshold_node_itself_signed_message(self):
+        node2 = Node("test_node2")
+        self.node = Node(name="Node1")
+        self.node.quorum_set.set(nodes=node2, inner_sets=[])
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+
+        # Mock nomination_state and statement_counter
+        self.node.commit_ballot_state = {
+            "voted": {value.hash: ballot},
+            "accepted": {},
+            "confirmed": {},
+            "aborted": {}
+        }
+
+        self.node.commit_ballot_statement_counter = {
+            value: {
+                "voted": set(),  # Node1 itself has voted for the value
+                "accepted": set(),
+                "confirmed": set(),
+                "aborted": set()
+            }
+        }
+        self.node.commit_ballot_statement_counter[value]["voted"].add(node2)
+
+        result = self.node.check_Commit_Quorum_threshold(ballot)
+        self.assertTrue(result)
+
+    def test_commit_quorum_threshold_not_met(self):
+        self.node = Node(name="Node1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+
+
+        # Mock balloting_state and ballot statement_counter
+        self.node.commit_ballot_state = {
+            "voted": {},
+            "accepted": {},
+            "confirmed": {}
+        }
+
+        self.node.commit_ballot_statement_counter = {
+            value.hash: {
+                "voted": {},
+                "accepted": {}
+            }
+        }
+
+        result = self.node.check_Commit_Quorum_threshold(ballot=ballot)
+        self.assertFalse(result)
+
+
+    def test_commit_quorum_threshold_met_for_inner_sets(self):
+        node2 = Node("test_node2")
+        node3 = Node("test_node3")
+        node4 = Node("test_node4")
+        node5 = Node("test_node5")
+        self.node = Node(name="Node1")
+
+        self.node.quorum_set.set(nodes=[node2, node3], inner_sets=[[node3, node4], [node4, node5]])
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+        ballot2 = SCPBallot(counter=1, value=value2)
+
+        # Mock nomination_state and statement_counter
+        self.node.commit_ballot_state = {
+            "voted": {value.hash: {ballot}},
+            "accepted": {value2.hash : {ballot2}},
+            "confirmed": {}
+        }
+        # This will look like: self.balloting_state = {'voted': {'value_hash_1': SCPBallot(counter=1, value=ValueObject1),},'accepted': { 'value_hash_2': SCPBallot(counter=3, value=ValueObject2)},'confirmed': { ... },'aborted': { ... }}
+        # This will use sets for node names as opposed to counts, so will look like: {SCPBallot1.value: {'voted': set(Node1), ‘accepted’: set(Node2, Node3), ‘confirmed’: set(), ‘aborted’: set(), SCPBallot2.value: {'voted': set(), ‘accepted’: set(), ‘confirmed’: set(), ‘aborted’: set(node1, node2, node3)}
+
+        # [ballot.value] = {'voted': set(), 'accepted': set(), 'confirmed': set(), 'aborted': set()}
+        self.node.commit_ballot_statement_counter = {
+            value: {
+                "voted": set(),
+                "accepted": set()
+            }
+        }
+        self.node.commit_ballot_statement_counter[value]["voted"].add(node2)
+        self.node.commit_ballot_statement_counter[value]["voted"].add(node3)
+        self.node.commit_ballot_statement_counter[value]["voted"].add(node4)
+        self.node.commit_ballot_statement_counter[value]["accepted"].add(node4)
+        self.node.commit_ballot_statement_counter[value]["accepted"].add(node5)
+
+        result = self.node.check_Commit_Quorum_threshold(ballot)
+        self.assertTrue(result)
+
+    def test_update_commit_balloting_state_correctly_updates(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+        ballot2 = SCPBallot(counter=1, value=value2)
+        ballot3 = SCPBallot(counter=1, value=value3)
+
+        self.node.commit_ballot_state = {
+            "voted": {value.hash: ballot, value2.hash : ballot2},
+            "accepted": {value3.hash: ballot3},
+            "confirmed": {}
+        }
+        self.node.update_commit_balloting_state(ballot, "voted")
+
+        self.assertTrue(self.node.commit_ballot_state['voted'] == {value2.hash: ballot2})
+        self.assertTrue(self.node.commit_ballot_state['accepted'] == {value3.hash: ballot3, value.hash: ballot})
+        self.assertTrue(len(self.node.commit_ballot_state['accepted']) == 2)
+
+    def test_update_commit_balloting_state_updates_voted_to_accepted(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+        ballot2 = SCPBallot(counter=1, value=value2)
+        ballot3 = SCPBallot(counter=1, value=value3)
+
+        self.node.commit_ballot_state = {
+            "voted": {value2.hash : ballot2},
+            "accepted": {value.hash: ballot, value3.hash: ballot3},
+            "confirmed": {}
+        }
+        self.node.update_commit_balloting_state(ballot, "voted")
+
+        self.assertTrue(self.node.commit_ballot_state['voted'] == {value2.hash: ballot2})
+        self.assertTrue(self.node.commit_ballot_state['accepted'] == {value3.hash: ballot3, value.hash: ballot})
+        self.assertTrue(len(self.node.commit_ballot_state['accepted']) == 2)
+
+    def test_update_commit_balloting_state_updates_accepted_to_confirmed(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+        ballot2 = SCPBallot(counter=1, value=value2)
+        ballot3 = SCPBallot(counter=1, value=value3)
+
+        self.node.balloting_state = {
+            "voted": {},
+            "accepted": {value.hash: ballot, value2.hash : ballot2},
+            "confirmed": {value3.hash: ballot3}
+        }
+        self.node.update_prepare_balloting_state(ballot, "accepted")
+
+        self.assertTrue(self.node.balloting_state['accepted'] == {value2.hash: ballot2})
+        self.assertTrue(self.node.balloting_state['confirmed'] == {value3.hash: ballot3, value.hash: ballot})
+        self.assertTrue(len(self.node.balloting_state['accepted']) == 1)
+        self.assertTrue(len(self.node.balloting_state['confirmed']) == 2)
+
+    def test_update_commit_balloting_state_does_not_update_accepted(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+        ballot2 = SCPBallot(counter=1, value=value2)
+        ballot3 = SCPBallot(counter=1, value=value3)
+
+        self.node.commit_ballot_state = {
+            "voted": {value2.hash : ballot2},
+            "accepted": {value.hash: ballot, value3.hash: ballot3},
+            "confirmed": {}
+        }
+
+        self.node.update_commit_balloting_state(ballot, "voted")
+
+        self.assertTrue(self.node.commit_ballot_state['voted'] == {value2.hash : ballot2})
+        self.assertTrue(self.node.commit_ballot_state['accepted'] == {value.hash: ballot, value3.hash: ballot3})
+        self.assertTrue(len(self.node.commit_ballot_state['accepted']) == 2)
+
+    def test_update_commit_balloting_state_does_not_fail_when_empty(self):
+        self.node = Node(name="1")
+
+        value = Value(transactions={Transaction(0), Transaction(0)})
+        value3 = Value(transactions={Transaction(0)})
+        ballot = SCPBallot(counter=1, value=value)
+        ballot3 = SCPBallot(counter=1, value=value3)
+
+        self.node.commit_ballot_state = {
+            "voted": {},
+            "accepted": {value3.hash: ballot3},
+            "confirmed": {}
+        }
+        self.node.update_commit_balloting_state(ballot, "voted")
+
+        self.assertTrue(self.node.commit_ballot_state['voted'] == {})
+        self.assertEqual(self.node.commit_ballot_state['accepted'],{value3.hash: ballot3})
+        self.assertTrue(len(self.node.commit_ballot_state['accepted']) == 1)
+
+
+    def test_retrieve_commit_broadcast_message_retrieves_correctly(self):
+        self.node = Node("test_node")
+        self.retrieving_node = Node("test_node2")
+        mempool = Mempool()
+        self.storage = Storage(self.node)
+        self.node.attach_mempool(mempool)
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(counter=1, value=value1)
+        ballot2 = SCPBallot(counter=1, value=value2)
+
+        message = SCPCommit(ballot=ballot1, preparedCounter=ballot1.counter)
+
+        self.node.commit_ballot_broadcast_flags = [message]
+        retrieved = self.node.retrieve_ballot_commit_message(self.retrieving_node)
+
+        self.assertEqual(retrieved, message)
+        self.assertIn(retrieved, self.node.commit_ballot_broadcast_flags)
+        self.assertIn(self.retrieving_node.name, self.node.received_commit_ballot_broadcast_msgs)
+
+    def test_retrieve_commit_broadcast_message_retrieves_correctly_for_multiple_messages(self):
+        self.node = Node("test_node")
+        self.retrieving_node = Node("test_node2")
+        mempool = Mempool()
+        self.storage = Storage(self.node)
+        self.node.attach_mempool(mempool)
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(counter=1, value=value1)
+        ballot2 = SCPBallot(counter=1, value=value2)
+
+        message = SCPCommit(ballot=ballot1, preparedCounter=ballot1.counter)
+        message2 = SCPCommit(ballot=ballot2, preparedCounter=ballot2.counter)
+
+        self.node.commit_ballot_broadcast_flags = set()
+        self.node.commit_ballot_broadcast_flags.add(message)
+        self.node.commit_ballot_broadcast_flags.add(message2)
+
+        retrieved = self.node.retrieve_ballot_commit_message(self.retrieving_node)
+        retrieved2 = self.node.retrieve_ballot_commit_message(self.retrieving_node)
+
+        self.assertIn(retrieved, self.node.commit_ballot_broadcast_flags)
+        self.assertIn(retrieved2, self.node.commit_ballot_broadcast_flags)
+        self.assertIn(self.retrieving_node.name, self.node.received_commit_ballot_broadcast_msgs)
+        self.assertEqual(len(self.node.received_commit_ballot_broadcast_msgs[self.retrieving_node.name]), 2)
+
+
+    def test_retrieve_commit_broadcast_message_returns_none_for_empty(self):
+            self.node = Node("test_node")
+            self.retrieving_node = Node("test_node2")
+            mempool = Mempool()
+            self.storage = Storage(self.node)
+            self.node.attach_mempool(mempool)
+
+            retrieved = self.node.retrieve_ballot_commit_message(self.retrieving_node)
+
+            self.assertEqual(retrieved, None)
+            self.assertEqual(set(), self.node.commit_ballot_broadcast_flags)
+            self.assertEqual({}, self.node.received_commit_ballot_broadcast_msgs)
+
+    def test_retrieve_commit_broadcast_message_returns_none_for_node_with_all_messages(self):
+        self.node = Node("test_node")
+        self.retrieving_node = Node("test_node2")
+        mempool = Mempool()
+        self.storage = Storage(self.node)
+        self.node.attach_mempool(mempool)
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        value2 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(counter=1, value=value1)
+        ballot2 = SCPBallot(counter=1, value=value2)
+
+        message = SCPPrepare(ballot=ballot1)
+        message2 = SCPPrepare(ballot=ballot2)
+
+        self.node.commit_ballot_broadcast_flags = set()
+        self.node.commit_ballot_broadcast_flags.add(message)
+        self.node.commit_ballot_broadcast_flags.add(message2)
+        self.node.received_commit_ballot_broadcast_msgs[self.retrieving_node.name] = [message, message2]
+
+        retrieved = self.node.retrieve_ballot_commit_message(self.retrieving_node)
+
+        self.assertEqual(retrieved, None)
+
+
+
+    def test_receive_commit_message_processes_voted_to_accepted(self):
+        self.node = Node("test_node")
+        self.test_node = Node("test2")
+        self.sending_node = Node("test_node2")
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(value=value1, counter=0)
+        self.node.commit_ballot_state = {'voted': {value1.hash: ballot1}, 'accepted': {}, 'confirmed': {}}
+
+        message = SCPCommit(ballot=ballot1, preparedCounter=ballot1.counter)
+
+        self.sending_node.storage.add_messages(message)
+
+        self.node.quorum_set.retrieve_random_peer = MagicMock(return_value=self.sending_node) # this is quorum.retrieve_random_peer()
+        self.node.retrieve_ballot_commit_message = MagicMock(return_value=message) # this retrieves message, its retrieve_ballot_prepare_message()
+        self.node.process_commit_ballot_message = MagicMock()
+        self.node.update_commit_balloting_state = MagicMock()
+        self.node.check_Commit_Quorum_threshold = MagicMock(return_value=True)
+
+        self.node.receive_commit_message()
+
+        # Assert that functions are called
+        self.node.quorum_set.retrieve_random_peer.assert_called()
+        self.node.retrieve_ballot_commit_message.assert_called()
+        self.node.process_commit_ballot_message.assert_called_once()
+        self.node.update_commit_balloting_state.assert_called_once()
+
+        # Assert that nomination state is updated when quorum threshold is met
+        self.node.process_commit_ballot_message.assert_called_with(message, self.sending_node)
+        self.node.update_commit_balloting_state.assert_called_with(ballot1, 'voted')
+
+
+    def test_receive_commit_message_processes_accepted_to_confirmed(self):
+        self.node = Node("test_node")
+        self.test_node = Node("test2")
+        self.sending_node = Node("test_node2")
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(value=value1, counter=0)
+        self.node.commit_ballot_state = {'voted': {}, 'accepted': {value1.hash: ballot1}, 'confirmed': {}}
+
+        message = SCPCommit(ballot=ballot1, preparedCounter=ballot1.counter)
+
+        self.sending_node.storage.add_messages(message)
+
+        self.node.quorum_set.retrieve_random_peer = MagicMock(return_value=self.sending_node) # this is quorum.retrieve_random_peer()
+        self.node.retrieve_ballot_commit_message = MagicMock(return_value=message) # this retrieves message, its retrieve_ballot_prepare_message()
+        self.node.process_commit_ballot_message = MagicMock()
+        self.node.update_commit_balloting_state = MagicMock()
+        self.node.check_Commit_Quorum_threshold = MagicMock(return_value=True)
+
+        self.node.receive_commit_message()
+
+        # Assert that functions are called
+        self.node.quorum_set.retrieve_random_peer.assert_called()
+        self.node.retrieve_ballot_commit_message.assert_called()
+        self.node.process_commit_ballot_message.assert_called_once()
+        self.node.update_commit_balloting_state.assert_called_once()
+
+        # Assert that nomination state is updated when quorum threshold is met
+        self.node.process_commit_ballot_message.assert_called_with(message, self.sending_node)
+        self.node.update_commit_balloting_state.assert_called_with(ballot1, 'accepted')

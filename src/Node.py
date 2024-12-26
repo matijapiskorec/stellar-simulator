@@ -21,6 +21,7 @@ from QuorumSet import QuorumSet
 from SCPNominate import SCPNominate
 from SCPBallot import SCPBallot
 from SCPPrepare import SCPPrepare
+from SCPCommit import SCPCommit
 from Value import Value
 from Storage import Storage
 from Globals import Globals
@@ -69,6 +70,15 @@ class Node():
         self.ballot_prepare_broadcast_flags = set() # Add every SCPPrepare message here - this will look like
         self.received_prepare_broadcast_msgs = {}
         self.prepared_ballots = {} # This looks like: self.prepared_ballots[ballot.value] = SCPPrepare('aCounter': aCounter,'cCounter': cCounter,'hCounter': hCounter,'highestCounter': ballot.counter)
+
+        ###################################
+        # SCPCOMMIT BALLOT PHASE STRUCTURES #
+        ###################################
+        self.commit_ballot_state = {'voted': {}, 'accepted': {}, 'confirmed': {}} # This will look like: self.balloting_state = {'voted': {'value_hash_1': SCPBallot(counter=1, value=ValueObject1),},'accepted': { 'value_hash_2': SCPBallot(counter=3, value=ValueObject2)},'confirmed': { ... },'aborted': { ... }}
+        self.commit_ballot_statement_counter = {} # This will use sets for node names as opposed to counts, so will look like: {SCPBallot1.value: {'voted': set(Node1), ‘accepted’: set(Node2, Node3), ‘confirmed’: set(), ‘aborted’: set(), SCPBallot2.value: {'voted': set(), ‘accepted’: set(), ‘confirmed’: set(), ‘aborted’: set(node1, node2, node3)}
+        self.commit_ballot_broadcast_flags = set() # Add every SCPPrepare message here - this will look like
+        self.received_commit_ballot_broadcast_msgs = {}
+        self.committed_ballots = {} # This looks like: self.prepared_ballots[ballot.value] = SCPPrepare('aCounter': aCounter,'cCounter': cCounter,'hCounter': hCounter,'highestCounter': ballot.counter)
 
 
         # TODO: Implement the logic for advancing the nomination rounds each n+1 seconds!
@@ -721,5 +731,185 @@ class Node():
 
                 else:
                     log.node.info('Node %s has no SCPPrepare messages to retrieve from neighbor Node %s!', self.name, sending_node.name)
+        else:
+            log.node.info('Node %s could not retrieve peer!', self.name)
+
+    def retrieve_confirmed_prepare_ballot(self):
+        if len(self.balloting_state['confirmed']) > 0:
+            # random_ballot_hash = np.random.choice(self.balloting_state['confirmed'])
+            random_ballot_hash = np.random.choice(list(self.balloting_state['confirmed'].keys()))
+            confirmed_prepare_ballot = self.balloting_state['confirmed'][random_ballot_hash]  # Take a random Value from the confirmed state
+            log.node.info('Node %s retrieved confirmed prepared ballot %s for SCPCommit', self.name, confirmed_prepare_ballot)
+            return confirmed_prepare_ballot
+        else:
+            log.node.info('Node %s has no confirmed prepared ballots to use for SCPCommit!', self.name)
+            return None
+
+
+    def prepare_SCPCommit_msg(self):
+        """
+        Prepare SCPCommit message for Commit Ballot phase
+        """
+        if len(self.balloting_state['confirmed']) == 0: # Check if there are any values to prepare
+            log.node.info('Node %s has no confirmed values in nomination state to prepare for balloting.', self.name)
+            return
+
+        confirmed_ballot = self.retrieve_confirmed_prepare_ballot() # Retrieve a Value from the SCPPrepare 'confirmed' state
+        if confirmed_ballot is not None:
+            commit_msg = SCPCommit(ballot=confirmed_ballot, preparedCounter=confirmed_ballot.counter)
+            self.commit_ballot_broadcast_flags.add(commit_msg)
+            self.commit_ballot_state['voted'][confirmed_ballot.value.hash] = confirmed_ballot
+            if confirmed_ballot.value not in self.commit_ballot_statement_counter:
+                    self.commit_ballot_statement_counter[confirmed_ballot.value] = {'voted': set(), 'accepted': set(), 'confirmed':set(), 'aborted':set()}
+                    self.commit_ballot_statement_counter[confirmed_ballot.value]['voted'] = set()
+                    self.commit_ballot_statement_counter[confirmed_ballot.value]['voted'].add(self)
+            log.node.info('Node %s has prepared SCPCommit message with ballot %s, preparedCounter=%d.', self.name, confirmed_ballot, confirmed_ballot.counter)
+            log.node.info('Node %s appended SCPPrepare message to its storage and state, message = %s', self.name, commit_msg)
+        log.node.info('Node %s could not retrieve a confirmed SCPPrepare messages from its peer!')
+
+    def process_commit_ballot_message(self, message, sender):
+        """
+        The purpose of continuing to update the counter and send this field is to assist other nodes still in the PREPARE phase in synchronizing their counters.
+        The update of the counter is done, but it doesn't help SCPPrepare as this doesnt affect prepared ballots due to commits & prepare messages being processed separately
+        Also, we do not abort, just update counters if larger
+        """
+        received_ballot = message.ballot
+        # This will look like: self.commit_ballot_state = {'voted': {'value_hash_1': SCPBallot(counter=1, value=ValueObject1),},'accepted': { 'value_hash_2': SCPBallot(counter=3, value=ValueObject2)},'confirmed': {
+
+        # Case 1: New ballot received has the same value but a higher counter
+        if received_ballot.value.hash in self.commit_ballot_state['voted']:
+            if received_ballot.value == self.commit_ballot_state['voted'][received_ballot.value.hash].value and received_ballot.counter > self.commit_ballot_state['voted'][received_ballot.value.hash].counter:
+                log.node.info("Node %s received a commit ballot with the same value but a higher counter. Updating to the new counter.", self.name)
+                self.commit_ballot_state['voted'][received_ballot.value.hash] = received_ballot
+
+                if received_ballot.value not in self.commit_ballot_statement_counter:
+                    self.commit_ballot_statement_counter[received_ballot.value] = {'voted': set(), 'accepted': set(), 'confirmed': set(), 'aborted': set()}
+                    self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
+
+                else:
+                    self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
+                return
+
+            # Case 3: New ballot received has the same value but a lower counter
+            if received_ballot.counter < self.commit_ballot_state['voted'][received_ballot.value.hash].counter:
+                log.node.info("Node %s that has been received has the same commit ballot value but a lower counter than a previously voted commit ballot.", self.name)
+                if received_ballot.value not in self.commit_ballot_statement_counter:
+                    self.commit_ballot_statement_counter[received_ballot.value] = {'voted': set(),'accepted': set(),'confirmed': set()}
+                    self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
+                else:
+                    self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
+                return
+
+        # Case 2: New ballot received has different value and a higher counter
+        elif received_ballot.value.hash not in self.commit_ballot_state['voted']:
+            self.commit_ballot_state['voted'][received_ballot.value.hash] = received_ballot
+            log.node.info("Node %s has received and added a commit ballot to its state.", self.name)
+            if received_ballot.value not in self.commit_ballot_statement_counter:
+                self.commit_ballot_statement_counter[received_ballot.value] = {'voted': set(), 'accepted': set(),'confirmed': set()}
+                self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
+            else:
+                self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
+            return
+
+
+    def check_Commit_Quorum_threshold(self, ballot):
+        # Check for Quorum threshold:
+        # 1. the node itself has signed the message
+        # 2. Number of nodes in the current QuorumSet who have signed + the number of innerSets that meet threshold is at least k
+        # 3. These conditions apply recursively to the inner sets to fulfill condition 2.
+        if ballot.value.hash in (self.commit_ballot_state["voted"]) or ballot.value.hash in (self.commit_ballot_state["accepted"]): # Condition 1. - node itself has signed message
+            signed_count = 1 # Node itself has voted for it so already has a count of 1
+            inner_sets_meeting_threshold_count = 0
+            nodes, inner_sets = self.quorum_set.get_quorum()
+            threshold = self.quorum_set.minimum_quorum
+
+            for node in nodes:
+                # check if the node name from the quorum is in the value's voted or accepted dict - meaning it has voted for the message
+                if node in self.commit_ballot_statement_counter[ballot.value]['voted'] or node in self.commit_ballot_statement_counter[ballot.value]['accepted']:
+                    signed_count += 1
+
+            for element in inner_sets: # Keep to just 1 layer of depth for now - so only 1 inner set per quorum, [ [], [] ], not [ [], [[]] ]
+                if isinstance(element, list):
+                        # 2. Check if the innerSets meet threshold
+                        threshold_met = self.quorum_set.check_commit_threshold(ballot=ballot, quorum=element, threshold=threshold, commit_statement_counter=self.commit_ballot_statement_counter.copy())
+                        if threshold_met:
+                            inner_sets_meeting_threshold_count += 1
+
+            if signed_count + inner_sets_meeting_threshold_count >= threshold: # 3. conditions apply recursively to the inner sets to fulfill condition 2
+                return True
+            else:
+                return False
+        else:
+            return False
+
+    def update_commit_balloting_state(self, ballot, field):
+        if field == "voted":
+            if len(self.commit_ballot_state["voted"]) > 0 :
+                if ballot.value.hash in self.commit_ballot_state['accepted']:
+                    log.node.info('Commit ballot %s is already accepted in Node %s', ballot.value, self.name)
+                    return
+
+                if ballot.value.hash in self.commit_ballot_state['voted']:
+                    self.commit_ballot_state["accepted"][ballot.value.hash] = (self.commit_ballot_state["voted"][ballot.value.hash])
+                    self.commit_ballot_state["voted"].pop(ballot.value.hash)
+                    log.node.info('Commit ballot %s has been moved to accepted in Node %s', ballot, self.name)
+            else:
+                log.node.info('No commit ballots in voted state, cannot move Ballot %s to accepted in Node %s', ballot, self.name)
+
+        elif field == "accepted":
+            if len(self.commit_ballot_state["accepted"]) > 0:
+                if ballot.value.hash in self.commit_ballot_state['confirmed']:
+                    log.node.info('Commit ballot %s is already confirmed in Node %s', ballot, self.name)
+                    return
+
+                if ballot.value.hash in self.commit_ballot_state['accepted']:
+                    self.commit_ballot_state["confirmed"][ballot.value.hash] = (self.commit_ballot_state["accepted"][ballot.value.hash])
+                    self.commit_ballot_state["accepted"].pop(ballot.value.hash)
+
+                log.node.info('Commit ballot %s has been moved to confirmed in Node %s', ballot.value.hash, self.name)
+            else:
+                log.node.info('No commit ballots in accepted state, cannot move Ballots %s to confirmed in Node %s', ballot, self.name)\
+
+
+    def retrieve_ballot_commit_message(self, requesting_node):
+        # Check if there are any broadcast flags
+        if len(self.commit_ballot_broadcast_flags) > 0:
+            if requesting_node.name not in self.received_commit_ballot_broadcast_msgs:
+                retrieved_message = np.random.choice(list(self.commit_ballot_broadcast_flags))
+                self.received_commit_ballot_broadcast_msgs[requesting_node.name] = [retrieved_message]
+                return retrieved_message
+
+            already_sent = self.received_commit_ballot_broadcast_msgs[requesting_node.name]
+            if len(already_sent) < len(self.commit_ballot_broadcast_flags):
+                # Choose a random message not yet sent
+                remaining_messages = list(set(self.commit_ballot_broadcast_flags) - set(already_sent))
+                retrieved_message = np.random.choice(remaining_messages)
+                self.received_commit_ballot_broadcast_msgs[requesting_node.name].append(retrieved_message)
+                return retrieved_message
+
+        return None
+
+    def receive_commit_message(self):
+        # self.ballot_statement_counter = {}
+        # Looks like: {SCPBallot1.value: {'voted': set(Node1), ‘accepted’: set(Node2, Node3), ‘confirmed’: set(), ‘aborted’: set(), SCPBallot2.value: {'voted': set(), ‘accepted’: set(), ‘confirmed’: set(), ‘aborted’: set(node1, node2, node3)}
+
+        sending_node = self.quorum_set.retrieve_random_peer(self)
+        if sending_node is not None:
+            if sending_node != self and not None:
+                message = self.retrieve_ballot_commit_message(sending_node)
+
+                if message is not None:
+                    self.process_commit_ballot_message(message, sending_node)
+                    log.node.info('Node %s retrieving messages from his peer Node %s!', self.name,sending_node.name)
+                    ballot = message.ballot # message[0] is voted field
+                    if type(ballot) is SCPBallot and ballot.value.hash in self.commit_ballot_state['accepted'] and self.check_Commit_Quorum_threshold(ballot):
+                        log.node.info('Quorum threshold met for accepted commit ballot %s at Node %s', ballot, self.name)
+                        self.update_commit_balloting_state(ballot, "accepted")
+                    elif type(ballot) is SCPBallot and ballot.value.hash in self.commit_ballot_state['voted'] and self.check_Commit_Quorum_threshold(ballot):
+                        log.node.info('Quorum threshold met for voted commit ballot %s at Node %s', ballot, self.name)
+                        self.update_commit_balloting_state(ballot, "voted")
+
+                else:
+                    log.node.info('Node %s has no SCPCommit messages to retrieve from neighbor Node %s!', self.name, sending_node.name)
         else:
             log.node.info('Node %s could not retrieve peer!', self.name)

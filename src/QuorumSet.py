@@ -112,6 +112,24 @@ class QuorumSet():
         else:
             return False
 
+    def check_commit_threshold(self, ballot, quorum, threshold, commit_statement_counter):
+        signed_counter = 0
+        seen = set()
+        if ballot.value not in commit_statement_counter:
+            return False
+
+        # For the ballot provided, iterate over voted, accepted & if counts meet threshold return True
+        for state in ('voted', 'accepted'):
+            for node in commit_statement_counter[ballot.value].get(state, set()):
+                if node in quorum and node not in seen:
+                    seen.add(node)
+                    signed_counter += 1
+
+        if signed_counter >= threshold:
+            return True
+        else:
+            return False
+
     def check_inner_set_blocking_threshold(self, calling_node, val, quorum):
         # Check if any node in the Quorum has issued message "m" - not including the node itself
         count = 0
