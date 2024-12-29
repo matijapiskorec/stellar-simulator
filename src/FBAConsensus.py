@@ -29,7 +29,8 @@ class FBAConsensus:
                   Event('receive_prepare_message'),
                   Event('prepare_commit'),
                   Event('receive_commit_message'),
-                  Event('prepare_externalize_message')]
+                  Event('prepare_externalize_message'),
+                  Event('receive_externalize_msg')]
 
         # # TODO: Remove gossip event from the consensus!
         # Event('gossip'),

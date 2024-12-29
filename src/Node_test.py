@@ -1826,3 +1826,32 @@ class NodeTest(unittest.TestCase):
         self.node.prepare_Externalize_msg()
         self.node.retrieve_confirmed_commit_ballot.assert_not_called()
         self.assertEqual(len(self.node.externalize_broadcast_flags), 0)
+
+
+
+    def test_retrieve_externalize_message_retrieves_correctly(self):
+        self.node = Node("test_node")
+        self.requesting_node = Node("requesting_node")
+
+        message1 = SCPExternalize(ballot=SCPBallot(counter=1, value=Value(transactions={Transaction(0), Transaction(0)})))
+        self.requesting_node.externalize_broadcast_flags.add(message1)
+
+        retrieved = self.node.retrieve_externalize_msg(self.requesting_node)
+
+        self.assertIn(retrieved, self.requesting_node.externalize_broadcast_flags)
+        self.assertIn(self.requesting_node.name, self.node.peer_externalised_statements)
+        self.assertIn(retrieved, self.node.peer_externalised_statements[self.requesting_node.name])
+
+        self.assertEqual(retrieved, message1)
+
+
+    def test_retrieve_externalize_message_no_flags(self):
+        self.node = Node("test_node")
+        self.requesting_node = Node("requesting_node")
+
+        # Ensure the requesting node has no externalize_broadcast_flags
+        self.requesting_node.externalize_broadcast_flags = set()
+
+        retrieved = self.node.retrieve_externalize_msg(self.requesting_node)
+
+        self.assertIsNone(retrieved)

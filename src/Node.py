@@ -954,3 +954,25 @@ class Node():
             self.externalized_slot_counter.add(externalize_msg)
             log.node.info('Node %s appended SCPExternalize message to its storage and state, message = %s', self.name, externalize_msg)
         log.node.info('Node %s could not retrieve a confirmed SCPCommit message from its peer!')
+
+    def retrieve_externalize_msg(self, requesting_node):
+        # Check if there are any broadcast flags
+        if len(requesting_node.externalize_broadcast_flags) > 0:
+            retrieved_message = np.random.choice(list(requesting_node.externalize_broadcast_flags))
+            if requesting_node not in self.peer_externalised_statements:
+                self.peer_externalised_statements[requesting_node.name] = set()
+                self.peer_externalised_statements[requesting_node.name].add(retrieved_message)
+            else:
+                self.peer_externalised_statements[requesting_node.name].add(retrieved_message)
+            return retrieved_message
+        return None
+
+    def receive_Externalize_msg(self):
+        sending_node = self.quorum_set.retrieve_random_peer(self)
+        if sending_node is not None and sending_node != self:
+                message = self.retrieve_externalize_msg(sending_node)
+                if message is not None:
+                    log.node.info('Node %s has retrieved SCPExternalise message %s from peer node %s!', self.name, message, sending_node.name)
+
+                    log.node.info('Node %s could not retrieved SCPExternalise message from peer node!', self.name)
+                    self.peer_externalised_statements[sending_node].add(message)
