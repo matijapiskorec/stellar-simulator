@@ -7,6 +7,7 @@ from SCPNominate import SCPNominate
 from SCPPrepare import SCPPrepare
 from SCPBallot import SCPBallot
 from SCPCommit import SCPCommit
+from SCPExternalize import SCPExternalize
 from Storage import Storage
 from Node import Node
 from Transaction import Transaction
@@ -821,6 +822,20 @@ class NodeTest(unittest.TestCase):
         self.node.get_prepared_ballot_counters.assert_not_called()
         self.assertEqual(len(self.node.ballot_prepare_broadcast_flags), 0)
 
+    def test_prepare_ballot_msg_for_finalised_ballot(self):
+        self.node = Node(name="1")
+        confirmed_value = Value(transactions={Transaction(0)})
+        self.node.nomination_state['confirmed'] = [confirmed_value]
+        ballot = SCPBallot(value=confirmed_value, counter=0)
+        finalised_msg = SCPExternalize(ballot=ballot, hCounter=ballot.counter)
+        self.node.externalized_slot_counter.add(finalised_msg)
+
+        self.node.retrieve_confirmed_value = MagicMock(return_value=confirmed_value)
+        self.node.get_prepared_ballot_counters = MagicMock()
+
+        self.node.get_prepared_ballot_counters.assert_not_called()
+
+
     def test_process_prepare_ballot_message_works_for_case1(self):
         self.node = Node(name="1")
         self.sender_node = Node(name='2')
@@ -1325,6 +1340,28 @@ class NodeTest(unittest.TestCase):
         self.node.process_prepare_ballot_message.assert_called_with(message, self.sending_node)
         self.node.update_prepare_balloting_state.assert_called_with(ballot1, 'accepted')
 
+    def test_message_already_externalized(self):
+        # Mock the necessary attributes and methods
+        self.node = Node("test_node")
+        self.sending_node = Node("test2")
+        self.node.process_prepare_ballot_message = MagicMock()
+
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(value=value1, counter=0)
+        self.node.balloting_state = {'voted': {}, 'accepted': {value1.hash: ballot1}, 'confirmed': {}}
+
+        message = SCPPrepare(ballot=ballot1)
+        self.sending_node.storage.add_messages(message)
+
+        self.node.quorum_set.retrieve_random_peer = MagicMock(return_value=self.sending_node)
+        self.node.retrieve_ballot_prepare_message = MagicMock(return_value=message)
+
+        externalize_msg = SCPExternalize(ballot=ballot1, hCounter=ballot1.counter)
+        self.node.externalized_slot_counter.add(externalize_msg)  # MockBallot is already externalized
+
+        self.node.receive_prepare_message()
+        self.node.process_prepare_ballot_message.assert_not_called()
+
     def test_retrieved_confirmed_prepared_commit_values(self):
         self.node = Node(name="1")
         value1 = Value(transactions={Transaction(0), Transaction(0)})
@@ -1342,7 +1379,7 @@ class NodeTest(unittest.TestCase):
         retrieved_value = self.node.retrieve_confirmed_value()
         self.assertIsNone(retrieved_value)
 
-    def test_prepare_ballot_msg(self):
+    def test_prepare_commit_ballot_msg(self):
         self.node = Node(name="1")
         value1 = Value(transactions={Transaction(0), Transaction(0)})
         ballot1 = SCPBallot(counter=0, value=value1)
@@ -1354,17 +1391,14 @@ class NodeTest(unittest.TestCase):
         prepared_msg = self.node.commit_ballot_broadcast_flags.pop()
         self.assertIsInstance(prepared_msg, SCPCommit)
 
-    def test_prepare_ballot_msg_for_no_confirmed_values(self):
+    def test_prepare_commit_ballot_msg_for_no_confirmed_values(self):
         self.node = Node(name="1")
         self.node.balloting_state = {"voted": {}, "accepted": {}, "confirmed": {}}
         self.node.retrieve_confirmed_value = MagicMock(return_value=None)
 
-        self.node.prepare_ballot_msg()
+        self.node.prepare_SCPCommit_msg()
         self.node.retrieve_confirmed_value.assert_not_called()
         self.assertEqual(len(self.node.ballot_prepare_broadcast_flags), 0)
-
-
-
 
 
     def test_process_commit_ballot_message_works_for_case1(self):
@@ -1475,7 +1509,6 @@ class NodeTest(unittest.TestCase):
 
         result = self.node.check_Commit_Quorum_threshold(ballot=ballot)
         self.assertFalse(result)
-
 
     def test_commit_quorum_threshold_met_for_inner_sets(self):
         node2 = Node("test_node2")
@@ -1708,8 +1741,6 @@ class NodeTest(unittest.TestCase):
 
         self.assertEqual(retrieved, None)
 
-
-
     def test_receive_commit_message_processes_voted_to_accepted(self):
         self.node = Node("test_node")
         self.test_node = Node("test2")
@@ -1772,3 +1803,55 @@ class NodeTest(unittest.TestCase):
         # Assert that nomination state is updated when quorum threshold is met
         self.node.process_commit_ballot_message.assert_called_with(message, self.sending_node)
         self.node.update_commit_balloting_state.assert_called_with(ballot1, 'accepted')
+
+
+    def test_prepare_externalize_msg(self):
+        self.node = Node(name="1")
+        value1 = Value(transactions={Transaction(0), Transaction(0)})
+        ballot1 = SCPBallot(counter=0, value=value1)
+        self.node.commit_ballot_state = {"voted": {}, "accepted": {}, "confirmed": {value1.hash: ballot1}}
+
+        self.node.prepare_Externalize_msg()
+        # Ensure the message was prepared
+        self.assertEqual(len(self.node.externalize_broadcast_flags), 1)
+        self.assertEqual(len(self.node.externalized_slot_counter), 1)
+        prepared_msg = self.node.externalize_broadcast_flags.pop()
+        self.assertIsInstance(prepared_msg, SCPExternalize)
+
+    def test_prepare_externalize_msg_for_no_confirmed_values(self):
+        self.node = Node(name="1")
+        self.node.commit_ballot_state = {"voted": {}, "accepted": {}, "confirmed": {}}
+        self.node.retrieve_confirmed_commit_ballot = MagicMock(return_value=None)
+
+        self.node.prepare_Externalize_msg()
+        self.node.retrieve_confirmed_commit_ballot.assert_not_called()
+        self.assertEqual(len(self.node.externalize_broadcast_flags), 0)
+
+
+
+    def test_retrieve_externalize_message_retrieves_correctly(self):
+        self.node = Node("test_node")
+        self.requesting_node = Node("requesting_node")
+
+        message1 = SCPExternalize(ballot=SCPBallot(counter=1, value=Value(transactions={Transaction(0), Transaction(0)})))
+        self.requesting_node.externalize_broadcast_flags.add(message1)
+
+        retrieved = self.node.retrieve_externalize_msg(self.requesting_node)
+
+        self.assertIn(retrieved, self.requesting_node.externalize_broadcast_flags)
+        self.assertIn(self.requesting_node.name, self.node.peer_externalised_statements)
+        self.assertIn(retrieved, self.node.peer_externalised_statements[self.requesting_node.name])
+
+        self.assertEqual(retrieved, message1)
+
+
+    def test_retrieve_externalize_message_no_flags(self):
+        self.node = Node("test_node")
+        self.requesting_node = Node("requesting_node")
+
+        # Ensure the requesting node has no externalize_broadcast_flags
+        self.requesting_node.externalize_broadcast_flags = set()
+
+        retrieved = self.node.retrieve_externalize_msg(self.requesting_node)
+
+        self.assertIsNone(retrieved)

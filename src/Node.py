@@ -22,6 +22,7 @@ from SCPNominate import SCPNominate
 from SCPBallot import SCPBallot
 from SCPPrepare import SCPPrepare
 from SCPCommit import SCPCommit
+from SCPExternalize import SCPExternalize
 from Value import Value
 from Storage import Storage
 from Globals import Globals
@@ -80,6 +81,12 @@ class Node():
         self.received_commit_ballot_broadcast_msgs = {}
         self.committed_ballots = {} # This looks like: self.prepared_ballots[ballot.value] = SCPPrepare('aCounter': aCounter,'cCounter': cCounter,'hCounter': hCounter,'highestCounter': ballot.counter)
 
+        ###################################
+        # EXTERNALIZE PHASE STRUCTURES    #
+        ###################################
+        self.externalize_broadcast_flags = set()
+        self.externalized_slot_counter = set()
+        self.peer_externalised_statements = {} # This will be used to track finalised slots for nodes, so will look like: {Node1: set(SCPExternalize(ballot, 1), SCPExternalize(ballot2, 3), Node2:{})}
 
         # TODO: Implement the logic for advancing the nomination rounds each n+1 seconds!
 
@@ -525,31 +532,33 @@ class Node():
             ballot = SCPBallot(counter=1, value=confirmed_val)
             log.node.info('Node %s created SCPBallot: %s', self.name, ballot.value)
 
+        if not self.check_if_finalised(ballot):
+            # Get counters for new SCPPrepare message
+            prepare_msg_counters = self.get_prepared_ballot_counters(confirmed_val)
+            if prepare_msg_counters is not None:
+                prepare_msg = SCPPrepare(ballot=ballot, aCounter=prepare_msg_counters.aCounter, cCounter=prepare_msg_counters.cCounter, hCounter=prepare_msg_counters.hCounter)
+                log.node.info('Node %s has increased counter on prepared SCPPrepare message with ballot %s, h_counter=%d, a_counter=%d, c_counter=%d.',self.name, confirmed_val, prepare_msg_counters.aCounter, prepare_msg_counters.cCounter,prepare_msg_counters.hCounter)
+                self.ballot_prepare_broadcast_flags.add(prepare_msg)
+                self.prepared_ballots[ballot.value] = prepare_msg
+                if ballot.value not in self.ballot_statement_counter:
+                    self.ballot_statement_counter[ballot.value] = {'voted': set(), 'accepted': set(), 'confirmed':set(), 'aborted':set()}
+                    self.ballot_statement_counter[ballot.value]['voted'] = set()
+                    self.ballot_statement_counter[ballot.value]['voted'].add(self)
+            else:
+                # If prepare_msg_counters is none then there are no counters for this value and we have to set the defaults
+                prepare_msg = SCPPrepare(ballot=ballot)
+                self.ballot_prepare_broadcast_flags.add(prepare_msg)
+                self.prepared_ballots[ballot.value] = prepare_msg
+                self.balloting_state['voted'][confirmed_val.hash] = ballot
+                if ballot.value not in self.ballot_statement_counter:
+                    self.ballot_statement_counter[ballot.value] = {'voted': set(), 'accepted': set(), 'confirmed':set(), 'aborted':set()}
+                    self.ballot_statement_counter[ballot.value]['voted'] = set()
+                    self.ballot_statement_counter[ballot.value]['voted'].add(self)
+                log.node.info('Node %s has prepared SCPPrepare message with ballot %s, h_counter=%d, a_counter=%d, c_counter=%d.', self.name, confirmed_val, 0, 0,0)
 
-        # Get counters for new SCPPrepare message
-        prepare_msg_counters = self.get_prepared_ballot_counters(confirmed_val)
-        if prepare_msg_counters is not None:
-            prepare_msg = SCPPrepare(ballot=ballot, aCounter=prepare_msg_counters.aCounter, cCounter=prepare_msg_counters.cCounter, hCounter=prepare_msg_counters.hCounter)
-            log.node.info('Node %s has increased counter on prepared SCPPrepare message with ballot %s, h_counter=%d, a_counter=%d, c_counter=%d.',self.name, confirmed_val, prepare_msg_counters.aCounter, prepare_msg_counters.cCounter,prepare_msg_counters.hCounter)
-            self.ballot_prepare_broadcast_flags.add(prepare_msg)
-            self.prepared_ballots[ballot.value] = prepare_msg
-            if ballot.value not in self.ballot_statement_counter:
-                self.ballot_statement_counter[ballot.value] = {'voted': set(), 'accepted': set(), 'confirmed':set(), 'aborted':set()}
-                self.ballot_statement_counter[ballot.value]['voted'] = set()
-                self.ballot_statement_counter[ballot.value]['voted'].add(self)
+            log.node.info('Node %s appended SCPPrepare message to its storage and state, message = %s', self.name, prepare_msg)
         else:
-            # If prepare_msg_counters is none then there are no counters for this value and we have to set the defaults
-            prepare_msg = SCPPrepare(ballot=ballot)
-            self.ballot_prepare_broadcast_flags.add(prepare_msg)
-            self.prepared_ballots[ballot.value] = prepare_msg
-            self.balloting_state['voted'][confirmed_val.hash] = ballot
-            if ballot.value not in self.ballot_statement_counter:
-                self.ballot_statement_counter[ballot.value] = {'voted': set(), 'accepted': set(), 'confirmed':set(), 'aborted':set()}
-                self.ballot_statement_counter[ballot.value]['voted'] = set()
-                self.ballot_statement_counter[ballot.value]['voted'].add(self)
-            log.node.info('Node %s has prepared SCPPrepare message with ballot %s, h_counter=%d, a_counter=%d, c_counter=%d.', self.name, confirmed_val, 0, 0,0)
-
-        log.node.info('Node %s appended SCPPrepare message to its storage and state, message = %s', self.name, prepare_msg)
+            log.node.info('Node %s has not prepared SCPPrepare message as the ballot %s has already been finalised', self.name, ballot)
 
     def process_prepare_ballot_message(self, message, sender):
         received_ballot = message.ballot
@@ -716,7 +725,7 @@ class Node():
             if sending_node != self and not None:
                 message = self.retrieve_ballot_prepare_message(sending_node)
 
-                if message is not None:
+                if message is not None and not self.check_if_finalised(message.ballot):
                     self.process_prepare_ballot_message(message, sending_node)
                     log.node.info('Node %s retrieving messages from his peer Node %s!', self.name,sending_node.name)
                     ballot = message.ballot # message[0] is voted field
@@ -728,7 +737,6 @@ class Node():
 
                         log.node.info('Quorum threshold met for accepted ballot %s at Node %s', ballot, self.name)
                         self.update_prepare_balloting_state(ballot, "accepted")
-
                 else:
                     log.node.info('Node %s has no SCPPrepare messages to retrieve from neighbor Node %s!', self.name, sending_node.name)
         else:
@@ -913,3 +921,58 @@ class Node():
                     log.node.info('Node %s has no SCPCommit messages to retrieve from neighbor Node %s!', self.name, sending_node.name)
         else:
             log.node.info('Node %s could not retrieve peer!', self.name)
+
+    def retrieve_confirmed_commit_ballot(self):
+        if len(self.commit_ballot_state['confirmed']) > 0:
+            # random_ballot_hash = np.random.choice(self.balloting_state['confirmed'])
+            random_ballot_hash = np.random.choice(list(self.commit_ballot_state['confirmed'].keys()))
+            confirmed_commit_ballot = self.commit_ballot_state['confirmed'][random_ballot_hash]  # Take a random Value from the confirmed state
+            log.node.info('Node %s retrieved confirmed commit ballot %s for SCPExternalize', self.name, confirmed_commit_ballot)
+            return confirmed_commit_ballot
+        else:
+            log.node.info('Node %s has no confirmed commit ballots to use for SCPExternalize!', self.name)
+            return None
+
+    def check_if_finalised(self, ballot):
+        for externalize_msg in self.externalized_slot_counter:
+            if externalize_msg.ballot == ballot:
+                return True
+        return False
+
+    def prepare_Externalize_msg(self):
+        """
+        Prepare SCPExternalize message for Externalize phase
+        """
+        if len(self.commit_ballot_state['confirmed']) == 0: # Check if there are any values to prepare
+            log.node.info('Node %s has no committed ballots to externalize.', self.name)
+            return
+
+        finalised_ballot = self.retrieve_confirmed_commit_ballot() # Retrieve a Value from the SCPPrepare 'confirmed' state
+        if finalised_ballot is not None:
+            externalize_msg = SCPExternalize(ballot=finalised_ballot, hCounter=finalised_ballot.counter)
+            self.externalize_broadcast_flags.add(externalize_msg)
+            self.externalized_slot_counter.add(externalize_msg)
+            log.node.info('Node %s appended SCPExternalize message to its storage and state, message = %s', self.name, externalize_msg)
+        log.node.info('Node %s could not retrieve a confirmed SCPCommit message from its peer!')
+
+    def retrieve_externalize_msg(self, requesting_node):
+        # Check if there are any broadcast flags
+        if len(requesting_node.externalize_broadcast_flags) > 0:
+            retrieved_message = np.random.choice(list(requesting_node.externalize_broadcast_flags))
+            if requesting_node not in self.peer_externalised_statements:
+                self.peer_externalised_statements[requesting_node.name] = set()
+                self.peer_externalised_statements[requesting_node.name].add(retrieved_message)
+            else:
+                self.peer_externalised_statements[requesting_node.name].add(retrieved_message)
+            return retrieved_message
+        return None
+
+    def receive_Externalize_msg(self):
+        sending_node = self.quorum_set.retrieve_random_peer(self)
+        if sending_node is not None and sending_node != self:
+                message = self.retrieve_externalize_msg(sending_node)
+                if message is not None:
+                    log.node.info('Node %s has retrieved SCPExternalise message %s from peer node %s!', self.name, message, sending_node.name)
+
+                    log.node.info('Node %s could not retrieved SCPExternalise message from peer node!', self.name)
+                    self.peer_externalised_statements[sending_node].add(message)
