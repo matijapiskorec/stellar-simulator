@@ -1,0 +1,102 @@
+## WARNING: Implications of this class are mostly in the dependent QuorumSets
+
+# `Transaction` Class Documentation  
+
+## Overview  
+
+The `Transaction` class represents a single transaction in the simulation. It includes a unique identifier (hash) and a timestamp to track when the transaction was created. The class is designed to be lightweight and hashable, making it suitable for use in sets or as dictionary keys.  
+
+---
+
+## Constructor  
+
+### `__init__(self, time=None)`  
+Initializes a new `Transaction` object.  
+
+#### Parameters:  
+- `time` (optional): A custom timestamp for the transaction. If not provided, the current system time is used.  
+
+#### Behavior:  
+- Generates a unique 32-bit hash for the transaction.  
+- Records the timestamp when the transaction is created (or the provided `time`).  
+
+#### Logging:  
+Logs the creation of the transaction with its hash and timestamp.  
+
+#### Example:  
+```python
+from time import time
+
+# Create a transaction with the current time
+transaction1 = Transaction()
+
+# Create a transaction with a custom timestamp
+transaction2 = Transaction(time=time())
+```
+
+---
+
+## Properties  
+
+### `hash`  
+- **Description**: Returns the unique hash of the transaction.  
+- **Type**: `str`  
+
+#### Example:  
+```python
+print(transaction1.hash)
+# Output: 'a1b2c3d4' (example hash)
+```
+
+---
+
+## Methods  
+
+### `__repr__(self)`  
+Returns a string representation of the `Transaction` object, including its hash and timestamp.  
+
+#### Example:  
+```python
+print(transaction1)
+# Output: [Transaction a1b2c3d4 time = 1672534567.1234]
+```
+
+---
+
+### `__hash__(self)`  
+Generates a hash for the `Transaction` object, allowing it to be used in hash-based collections like sets or as dictionary keys.  
+
+#### Example:  
+```python
+transaction_set = {transaction1, transaction2}
+print(transaction_set)
+# Output: {[Transaction a1b2c3d4 time = 1672534567.1234], [Transaction e5f6g7h8 time = 1672534578.5678]}
+```
+
+---
+
+## Use Cases  
+
+1. **Creating Unique Transactions**  
+   Generate and track unique transactions with associated timestamps.  
+   ```python
+   tx = Transaction()
+   ```
+
+2. **Using Transactions in Sets or as Dictionary Keys**  
+   Store transactions in a `set` or use them as keys in a dictionary for fast lookups and comparisons.  
+   ```python
+   transaction_map = {transaction1: "Processed", transaction2: "Pending"}
+   print(transaction_map[transaction1])  # Output: Processed
+   ```
+
+3. **Simulation Logging**  
+   Leverage the logging functionality to track transaction creation and timestamp details for debugging and analysis.  
+
+---
+
+## Key Features  
+
+- **Hashing Support**: Each `Transaction` object is hashable and can be used in collections that require unique elements.  
+- **Logging**: Automatically logs details about created transactions, aiding in debugging and tracking.  
+- **Customizable Timestamp**: Allows flexibility in defining transaction creation time.  
