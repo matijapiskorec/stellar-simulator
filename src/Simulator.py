@@ -35,6 +35,7 @@ from Globals import Globals
 from Transaction import Transaction
 from QuorumSet import QuorumSet
 from API.NetworkSnapshotsAPIClient import NetworkSnapshotsAPIClient
+from ConfigurationManager import ConfigManager
 
 VERBOSITY_DEFAULT = 5
 N_NODES_DEFAULT = 60
@@ -63,6 +64,7 @@ class Simulator:
         self.average_transaction_count = None
         self.inter_ledger_time = 6  # Default to 6 seconds
         self.api_client = NetworkSnapshotsAPIClient()
+        self.config_manager = ConfigManager()
 
     ## used for fetching samples from stellarbeat
     def fetch_and_parse_snapshot(self):

@@ -1,3 +1,15 @@
+"""
+=========================
+API NetworkSnapshotsAPIClient
+=========================
+
+Author: Azizbek Asadov
+Last update: December 2024
+
+APIClient class.
+"""
+
+
 from typing import Any, Optional
 from src.API.APIClient import STELLARBEAT_API_URL
 from src.Log import Log
