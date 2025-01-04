@@ -4,7 +4,7 @@ Simulator
 ================================================
 
 Author: Matija Piskorec, Jaime de Vivero Woods
-Last update: July 2023
+Last update: December 2024
 
 The following class contains command line (CLI) interface for the Stellar Consensus Protocol (SCP) simulator.
 
@@ -37,7 +37,7 @@ from QuorumSet import QuorumSet
 from API.NetworkSnapshotsAPIClient import NetworkSnapshotsAPIClient
 
 VERBOSITY_DEFAULT = 5
-N_NODES_DEFAULT = 5
+N_NODES_DEFAULT = 60
 
 class Simulator:
     '''
@@ -52,7 +52,7 @@ class Simulator:
         self._nodes = []
 
         # TODO: _max_simulation_time should be loaded from the config!
-        self._max_simulation_time = 20
+        self._max_simulation_time = 100
         # self._simulation_time = 0
 
         self._set_logging()
@@ -153,14 +153,27 @@ class Simulator:
         # tau_domain: None - tau defines a global probability of event
         #             List(Node) - tau defines a node-specific probability of event
         # TODO: Simulation parameters should be loaded from the config!
-        simulation_params = {'mine':{'tau':1.0,
+        simulation_params = {'mine':{'tau':5.0,
                                      'tau_domain':None},
-                             'retrieve_transaction_from_mempool':{'tau':2.0,
+                             'retrieve_transaction_from_mempool':{'tau':5.0,
                                                       'tau_domain':self._nodes},
-                             'nominate':{'tau':3.0,
+                             'nominate':{'tau':5.0,
                                        'tau_domain':self._nodes},
-                             'retrieve_message_from_peer':{'tau':3.0,
-                                       'tau_domain':self._nodes}}
+                             'retrieve_message_from_peer':{'tau':2.0,
+                                       'tau_domain':self._nodes},
+                             'prepare_ballot': {'tau':7.0,
+                                       'tau_domain':self._nodes},
+                             'receive_prepare_message': {'tau':1.0,
+                                       'tau_domain':self._nodes},
+                             'prepare_commit': {'tau':7.0,
+                                       'tau_domain':self._nodes},
+                             'receive_commit_message': {'tau':1.0,
+                                       'tau_domain':self._nodes},
+                             'prepare_externalize_message': {'tau': 3.0,
+                                       'tau_domain':self._nodes},
+                             'receive_externalize_msg': {'tau': 1.0,
+                                       'tau_domain':self._nodes}
+                             }
 
         # ALL SIMULATION EVENTS COULD OCCUR AT ANY POINT, WHEN WE IMPLEMENT BALLOTING WE'LL HAVE TO
         # DISABLE NOMINATE
@@ -229,9 +242,32 @@ class Simulator:
                 random_node.nominate()
 
             case 'retrieve_message_from_peer':
-
                 random_node = np.random.choice(self._nodes)
                 random_node.receive_message()
+
+            case 'prepare_ballot':
+                random_node = np.random.choice(self._nodes)
+                random_node.prepare_ballot_msg()
+
+            case 'receive_prepare_message':
+                random_node = np.random.choice(self._nodes)
+                random_node.receive_prepare_message()
+
+            case 'prepare_commit':
+                random_node = np.random.choice(self._nodes)
+                random_node.prepare_SCPCommit_msg()
+
+            case 'receive_commit_message':
+                random_node = np.random.choice(self._nodes)
+                random_node.receive_commit_message()
+
+            case 'prepare_externalize_message':
+                random_node = np.random.choice(self._nodes)
+                random_node.prepare_Externalize_msg()
+
+            case 'receive_externalize_msg':
+                random_node = np.random.choice(self._nodes)
+                random_node.receive_Externalize_msg()
 
 
 if __name__=='__main__':
