@@ -1,9 +1,21 @@
+"""
+=========================
+SCPPrepare_test
+=========================
+
+Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
+Last update: Nov 2024
+
+SCPPrepare_test message class.
+"""
+
 import unittest
-from Transaction import Transaction
-from State import State
-from Value import Value
-from SCPBallot import SCPBallot
-from SCPPrepare import SCPPrepare
+
+from src.Transaction import Transaction
+from src.State import State
+from src.Value import Value
+from src.SCPBallot import SCPBallot
+from src.SCPPrepare import SCPPrepare
 
 class SCPPrepare_test(unittest.TestCase):
     def setUp(self):

@@ -8,6 +8,7 @@ Last update: April 2024
 
 Storage class.
 """
+
 import numpy as np
 
 from Log import log

@@ -1,9 +1,21 @@
+"""
+=========================
+StorageTest
+=========================
+
+Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
+Last update: Nov 2024
+
+StorageTest message class.
+"""
+
 import unittest
-from Storage import Storage
-from Value import Value
-from Node import Node
-from Transaction import Transaction
-from SCPNominate import SCPNominate
+
+from src.Storage import Storage
+from src.Value import Value
+from src.Node import Node
+from src.Transaction import Transaction
+from src.SCPNominate import SCPNominate
 
 class StorageTest(unittest.TestCase):
 

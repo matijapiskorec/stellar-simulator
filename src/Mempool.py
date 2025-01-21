@@ -12,14 +12,10 @@ A proxy for the incoming transactions which are taken and validated by the nodes
 """
 
 from Log import log
-from Event import Event
 from Transaction import Transaction
-from SCPNominate import SCPNominate
-# import Globals
 from Globals import Globals
 
 import numpy as np
-import random
 
 class Mempool():
 
