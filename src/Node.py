@@ -29,6 +29,7 @@ from Globals import Globals
 import copy
 import xdrlib3
 import hashlib
+import os
 
 class Node():
     name = None
@@ -101,6 +102,14 @@ class Node():
                       self.ledger,
                       self.storage)
 
+
+        self.log_path = 'simulator_events_log.txt'
+
+    #### LOGGER FUNCTION
+    def log_to_file(self, message):
+        with open(self.log_path, 'a') as log_file:
+            log_file.write(f"{Globals.simulation_time:.2f} - {message}\n")
+
     def __repr__(self):
         return '[Node: %s]' % self.name
 
@@ -119,10 +128,16 @@ class Node():
         return events
 
     def retrieve_transaction_from_mempool(self):
+        if not os.path.exists(self.log_path):
+            with open(self.log_path, 'w') as log_file:
+                log_file.write("")
+
         transaction = self.mempool.get_transaction()
         if transaction is not None:
             # TODO: Check the validity of the transaction in the retrieve_transactions_from_mempool() in Node!
             log.node.info('Node %s retrieved %s from mempool.',self.name,transaction)
+            # add to logger file
+            self.log_to_file(f"NODE - INFO - Node {self.name} retrieved {transaction} from mempool.")
             self.ledger.add(transaction)
         else:
             log.node.info('Node %s cannot retrieve transaction from mempool because it is empty!',self.name)
@@ -293,7 +308,7 @@ class Node():
                     if other_node.name not in self.statement_counter[incoming_accepted.hash]['accepted']:
                         # As value has a dictionary but this node isn't in it, simpy set the node counter to 1
                         self.statement_counter[incoming_accepted.hash]['accepted'][other_node.name] = 1
-                        log.node.info('Node %s has set an accepted statement counter for Node %s with nominated values!', self.name, other_node.name)
+                        log.node.info('Node %s has set an accepted statement counter for Node %s with nominated value!', self.name, other_node.name)
             else:
                 # Initiate dictionary for value & accepted for the value and then add the count for the node
                 self.statement_counter[incoming_accepted.hash] = {"voted": {}, "accepted": {}}
@@ -953,6 +968,8 @@ class Node():
             self.externalize_broadcast_flags.add(externalize_msg)
             self.externalized_slot_counter.add(externalize_msg)
             log.node.info('Node %s appended SCPExternalize message to its storage and state, message = %s', self.name, externalize_msg)
+            # save to log file
+            self.log_to_file(f"NODE - INFO - Node {self.name} appended SCPExternalize message to its storage and state, message = {externalize_msg}")
         log.node.info('Node %s could not retrieve a confirmed SCPCommit message from its peer!')
 
     def retrieve_externalize_msg(self, requesting_node):

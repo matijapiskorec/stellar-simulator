@@ -51,7 +51,7 @@ class Simulator:
         self._nodes = []
 
         # TODO: _max_simulation_time should be loaded from the config!
-        self._max_simulation_time = 100
+        self._max_simulation_time = 300
         # self._simulation_time = 0
 
         self._set_logging()
@@ -104,27 +104,20 @@ class Simulator:
         # tau_domain: None - tau defines a global probability of event
         #             List(Node) - tau defines a node-specific probability of event
         # TODO: Simulation parameters should be loaded from the config!
-        simulation_params = {'mine':{'tau':5.0,
-                                     'tau_domain':None},
-                             'retrieve_transaction_from_mempool':{'tau':5.0,
-                                                      'tau_domain':self._nodes},
-                             'nominate':{'tau':5.0,
-                                       'tau_domain':self._nodes},
-                             'retrieve_message_from_peer':{'tau':2.0,
-                                       'tau_domain':self._nodes},
-                             'prepare_ballot': {'tau':7.0,
-                                       'tau_domain':self._nodes},
-                             'receive_prepare_message': {'tau':1.0,
-                                       'tau_domain':self._nodes},
-                             'prepare_commit': {'tau':7.0,
-                                       'tau_domain':self._nodes},
-                             'receive_commit_message': {'tau':1.0,
-                                       'tau_domain':self._nodes},
-                             'prepare_externalize_message': {'tau': 3.0,
-                                       'tau_domain':self._nodes},
-                             'receive_externalize_msg': {'tau': 1.0,
-                                       'tau_domain':self._nodes}
-                             }
+        simulation_params = {
+            'mine': {'tau': 5.0, 'tau_domain': None},
+            # Communication group
+            'retrieve_transaction_from_mempool': {'tau': 1.0, 'tau_domain': self._nodes},  # 1 second
+            'nominate': {'tau': 1.0, 'tau_domain': self._nodes},
+            'receive_commit_message': {'tau': 1.0, 'tau_domain': self._nodes},
+            'receive_externalize_msg': {'tau': 1.0, 'tau_domain': self._nodes},
+            # Processing group
+            'receive_prepare_message': {'tau': 15.0, 'tau_domain': self._nodes},
+            'retrieve_message_from_peer': {'tau': 15.0, 'tau_domain': self._nodes},
+            'prepare_ballot': {'tau': 15.0, 'tau_domain': self._nodes},
+            'prepare_commit': {'tau': 15.0, 'tau_domain': self._nodes},
+            'prepare_externalize_message': {'tau': 75, 'tau_domain': self._nodes} # 6 seconds
+        }
 
         # ALL SIMULATION EVENTS COULD OCCUR AT ANY POINT, WHEN WE IMPLEMENT BALLOTING WE'LL HAVE TO
         # DISABLE NOMINATE
@@ -154,6 +147,7 @@ class Simulator:
             # Update time for mempool so that newly mined transactions would have correct timestamps.
             # self._mempool.update_time(self._simulation_time)
             self._handle_event(event_random)
+        log.export_logs_to_txt("ledger_logs.txt")
 
     def _handle_event(self,event):
         """
