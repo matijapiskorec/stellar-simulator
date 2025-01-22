@@ -69,7 +69,7 @@ class Simulator:
     ## used for fetching samples from stellarbeat
     def fetch_and_parse_snapshot(self):
         """Fetch and parse the latest snapshot using NetworkSnapshotsAPIClient."""
-        snapshot = self.api_client.get_latest_snapshot()
+        snapshot = self.api_client.get_node_snapshots() # configure at: [...] for time delta for the window of the timestamps to fetch from Stellarbeat
         if not snapshot:
             raise ValueError("Failed to fetch the latest snapshot.")
 
@@ -139,7 +139,7 @@ class Simulator:
             log.simulator.debug('Creating %s nodes.', self._n_nodes)
 
         # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='FULL')
-        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
+        self._nodes = self.fetch_and_parse_snapshot()# Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
 
         self._mempool = Mempool()
         # self._mempool = Mempool(simulation_time=self._simulation_time)

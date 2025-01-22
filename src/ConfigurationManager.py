@@ -44,6 +44,8 @@ class ConfigManager:
             raise KeyError(f"Key '{key}' not found in simulation parameters.")
 
     def load_from_file(self, config_file: str):
+        # TODO: add sim params to be stored in the logger (for each particular experiment run)
+
         with open(config_file, 'r') as file:
             data = json.load(file)
             for key, value in data.items():
