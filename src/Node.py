@@ -169,7 +169,7 @@ class Node():
         Broadcast SCPNominate message to the storage.
         """
         self.prepare_nomination_msg() # Prepares Values for Nomination and broadcasts message
-        priority_node = self.get_highest_priority_neighbor()
+        #priority_node = self.get_highest_priority_neighbor()
 
         # TODO: Neighbour should check global time & priority neighbour
         # TODO: nominate function should update nominations from peers until the quorum threshold is met
@@ -346,7 +346,10 @@ class Node():
         packer.pack_int(Globals.slot)
         for value in values:
             # Assumption is that all values can be cast to int (this includes node.name which is a string)
-            packer.pack_int(int(value))
+            if isinstance(value, str):
+                packer.pack_bytes(value.encode('utf-8'))
+            else:
+                packer.pack_int(int(value))
         packed_data = packer.get_buffer()
 
         # Hash it and interpret the bytes as a big-endian integer number
@@ -395,7 +398,11 @@ class Node():
 
     def get_highest_priority_neighbor(self):
         # TODO: Check globals.simulation_time
-        return max(self.get_neighbors(),key=self.priority)
+        neighbors = self.get_neighbors()
+        if not neighbors:  # Avoid empty sequence error
+            log.node.warning('Node %s has no neighbors!', self.name)
+            return self  # Return self or handle the case differently
+        return max(neighbors, key=self.priority)
 
     def is_duplicate_value(self, other_val, current_vals):
         for val in current_vals:

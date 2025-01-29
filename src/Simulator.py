@@ -88,7 +88,7 @@ class Simulator:
             log.simulator.debug('Creating %s nodes.', self._n_nodes)
 
         # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='FULL')
-        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
+        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='HARDCODE')
 
         self._mempool = Mempool()
         # self._mempool = Mempool(simulation_time=self._simulation_time)
@@ -112,11 +112,11 @@ class Simulator:
             'receive_commit_message': {'tau': 1.0, 'tau_domain': self._nodes},
             'receive_externalize_msg': {'tau': 1.0, 'tau_domain': self._nodes},
             # Processing group
-            'receive_prepare_message': {'tau': 15.0, 'tau_domain': self._nodes},
-            'retrieve_message_from_peer': {'tau': 15.0, 'tau_domain': self._nodes},
-            'prepare_ballot': {'tau': 15.0, 'tau_domain': self._nodes},
-            'prepare_commit': {'tau': 15.0, 'tau_domain': self._nodes},
-            'prepare_externalize_message': {'tau': 75, 'tau_domain': self._nodes} # 6 seconds
+            'receive_prepare_message': {'tau': 1.0, 'tau_domain': self._nodes},
+            'retrieve_message_from_peer': {'tau': 1.0, 'tau_domain': self._nodes},
+            'prepare_ballot': {'tau': 1.0, 'tau_domain': self._nodes},
+            'prepare_commit': {'tau': 1.0, 'tau_domain': self._nodes},
+            'prepare_externalize_message': {'tau': 1.0, 'tau_domain': self._nodes} # 6 seconds
         }
 
         # ALL SIMULATION EVENTS COULD OCCUR AT ANY POINT, WHEN WE IMPLEMENT BALLOTING WE'LL HAVE TO
