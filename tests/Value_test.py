@@ -1,6 +1,18 @@
+"""
+=========================
+ValueTest
+=========================
+
+Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
+Last update: Nov 2024
+
+ValueTest message class.
+"""
+
 import unittest
-from Value import Value
-from Transaction import Transaction
+
+from src.Value import Value
+from src.Transaction import Transaction
 
 class ValueTest(unittest.TestCase):
 

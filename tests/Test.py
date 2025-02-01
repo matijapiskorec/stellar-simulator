@@ -1,16 +1,20 @@
-import sys
+"""
+=========================
+SimulatorTest
+=========================
 
-from Simulator import Simulator
-from Gillespie import Gillespie
-from Event import Event
-from Network import Network
-from Mempool import Mempool
-from Log import log
+Author: Matija Piskorec, Jaime de Vivero Woods, Azizbek Asadov
+Last update: Nov 2024
+
+SimulatorTest message class.
+"""
 
 import unittest
 
-from Value import Value
-
+from src.Simulator import Simulator
+from src.Gillespie import Gillespie
+from src.Event import Event
+from src.Log import log
 
 class SimulatorTest(unittest.TestCase):
 

@@ -1,0 +1,142 @@
+# `Gillespie` Class Documentation  
+
+## Overview  
+
+The `Gillespie` class implements the Gillespie algorithm for simulating stochastic processes. This algorithm is used in the Stellar Consensus Protocol (SCP) simulation to determine the occurrence and timing of events in an asynchronous manner. The Gillespie algorithm is particularly suitable for scenarios with discrete events that occur probabilistically over time.  
+
+---
+
+## Constructor  
+
+### `__init__(self, events, max_time)`  
+
+Initializes a `Gillespie` instance with a list of events and a maximum simulation time.  
+
+#### Parameters:  
+- **`events`** (`list[Event]`): A list of `Event` objects to simulate.  
+  - Each `Event` must have defined `simulation_params`.  
+- **`max_time`** (`float`): The maximum simulation time in seconds.  
+
+#### Behavior:  
+- Validates that all elements in `events` are instances of `Event`.  
+- Computes event rates (`lambdas`) and probabilities based on the `tau` parameter in `simulation_params`.  
+- Logs the initialization of the Gillespie algorithm.  
+
+#### Example:  
+```python
+from Event import Event
+
+event1 = Event(name="TransactionProcessing", simulation_params={'tau': 5, 'tau_domain': [0, 1]})
+event2 = Event(name="LedgerFinalization", simulation_params={'tau': 10, 'tau_domain': [0, 1]})
+
+gillespie = Gillespie(events=[event1, event2], max_time=100.0)
+```
+
+---
+
+## Methods  
+
+### `next_event(self)`  
+
+Generates the next event based on the Gillespie algorithm.  
+
+#### Returns:  
+- **`list`**: A list containing:  
+  1. The randomly selected `Event`.  
+  2. The simulation time at which the event occurs (`float`).  
+
+#### Behavior:  
+- Computes the time increment to the next event based on exponential distribution.  
+- Updates the simulation time.  
+- Randomly selects an event based on its computed probability.  
+
+#### Example:  
+```python
+next_event, event_time = gillespie.next_event()
+logger.log(logging.INFO, f"Next event: {next_event}, Scheduled time: {event_time}")
+```
+
+---
+
+### `check_max_time(self)`  
+
+Checks if the simulation time has exceeded the maximum allowed time.  
+
+#### Returns:  
+- **`bool`**:  
+  - `True` if the current simulation time is less than `max_time`.  
+  - `False` otherwise.  
+
+#### Behavior:  
+- Compares the current time with `max_time` to determine if the simulation should continue.  
+
+#### Example:  
+```python
+if gillespie.check_max_time():
+    logger.log(logging.INFO, "Simulation is still within the maximum time limit.")
+else:
+    logger.log(logging.INFO, "Simulation time has exceeded the maximum limit.")
+```
+
+---
+
+## Attributes  
+
+### `time`  
+- **Description**: The current simulation time.  
+- **Type**: `float`  
+
+### `events`  
+- **Description**: A list of events in the simulation.  
+- **Type**: `list[Event]`  
+
+### `event_lambdas`  
+- **Description**: The rates (λ) of each event occurring.  
+- **Type**: `list[float]`  
+
+### `event_probabilities`  
+- **Description**: The probabilities of each event occurring.  
+- **Type**: `numpy.ndarray`  
+
+### `lambda_sum`  
+- **Description**: The sum of all event rates (used for time increment calculations).  
+- **Type**: `float`  
+
+---
+
+## Logging  
+
+- **Initialization**: Logs when the Gillespie algorithm is initialized.  
+- **Event Selection**: Can be logged externally when `next_event` is called.  
+
+#### Example Log Output:  
+```
+INFO: Initialized Gillespie algorithm.
+INFO: Next event: TransactionProcessing, Scheduled time: 15.34 seconds.
+```
+
+---
+
+## Use Cases  
+
+1. **Simulating Asynchronous Events**  
+   Use the `Gillespie` algorithm to simulate random events occurring over time.  
+   ```python
+   while gillespie.check_max_time():
+       event, time = gillespie.next_event()
+       logger.log(logging.INFO, f"Event: {event}, Time: {time}")
+   ```
+
+2. **Integrating with SCP Simulation**  
+   Integrate the Gillespie algorithm to handle events such as transaction processing, ledger finalization, or node communication.  
+
+3. **Time-Driven Simulation**  
+   Use the `check_max_time` method to determine when to stop the simulation.  
+
+---
+
+## Key Features  
+
+- **Stochastic Simulation**: Implements the Gillespie algorithm for probabilistic event handling.  
+- **Dynamic Event Selection**: Computes probabilities dynamically based on event parameters.  
+- **Integration Ready**: Designed to integrate seamlessly with SCP simulation components.  

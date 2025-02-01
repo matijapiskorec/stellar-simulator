@@ -10,7 +10,6 @@ Globals class which stores the variables that need to be accessible to different
 """
 
 class Globals:
-
     simulation_time = 0
     slot = 1
 
