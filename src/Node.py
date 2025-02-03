@@ -5,7 +5,7 @@ Node
 
 Author: Matija Piskorec, Jaime de Vivero Woods
 
-Last update: December 2024
+Last update: February 2025
 
 Node class.
 
@@ -127,21 +127,37 @@ class Node():
         log.consensus.info('Sending Node events %s.' %events)
         return events
 
+    def extract_transaction_id(self, transaction):
+        return transaction.hash
+
+    def is_transaction_in_externalized_slots(self, transaction_id):
+        # TODO: Check the validity of the transaction in the retrieve_transactions_from_mempool() in Node!
+        for externalized_message in self.externalized_slot_counter:
+            ballot = externalized_message.ballot
+            if ballot and hasattr(ballot, 'value') and hasattr(ballot.value, 'transactions'):
+                if any(tx.hash == transaction_id for tx in ballot.value.transactions):
+                    return True
+        return False
+
+
     def retrieve_transaction_from_mempool(self):
         if not os.path.exists(self.log_path):
             with open(self.log_path, 'w') as log_file:
                 log_file.write("")
 
         transaction = self.mempool.get_transaction()
-        if transaction is not None:
-            # TODO: Check the validity of the transaction in the retrieve_transactions_from_mempool() in Node!
-            log.node.info('Node %s retrieved %s from mempool.',self.name,transaction)
-            # add to logger file
-            self.log_to_file(f"NODE - INFO - Node {self.name} retrieved {transaction} from mempool.")
-            self.ledger.add(transaction)
+        if transaction:
+            transaction_id = self.extract_transaction_id(transaction)
+
+            if not self.is_transaction_in_externalized_slots(transaction_id):
+                log.node.info('Node %s retrieved %s from mempool.', self.name, transaction)
+                self.log_to_file(f"NODE - INFO - Node {self.name} retrieved {transaction} from mempool.")
+                self.ledger.add(transaction)
+            else:
+                log.node.info('Node %s ignored transaction %s as it was already externalized.', self.name, transaction_id)
+                self.log_to_file(f"NODE - INFO - Node {self.name} ignored {transaction} as it was already externalized.")
         else:
-            log.node.info('Node %s cannot retrieve transaction from mempool because it is empty!',self.name)
-        return
+            log.node.info('Node %s cannot retrieve transaction from mempool because it is empty!', self.name)
 
     # Add nodes to quorum
     # TODO: Consider removing add_to_quorum() because we are only using set_quorum()!
@@ -150,7 +166,9 @@ class Node():
         return
 
     # Set quorum to the nodes
-    def set_quorum(self, nodes, inner_sets):
+    def set_quorum(self, nodes, inner_sets, threshold=None):
+        if threshold is not None:
+            self.quorum_set.threshold = threshold
         self.quorum_set.set(nodes=nodes, inner_sets=inner_sets)
         return
 
@@ -266,25 +284,31 @@ class Node():
         return
 
     def prepare_nomination_msg(self):
-        """
-        Prepare Message for Nomination
-        """
         voted_vals = []
         accepted_vals = []
 
-        self.retrieve_transaction_from_mempool() # Retrieve transactions from mempool and adds it to the Node's Ledger
-        if len(self.ledger.transactions) > 0:
-            voted_vals.append(Value(transactions=self.ledger.transactions.copy()))
+        self.retrieve_transaction_from_mempool()
+
+        finalised_transactions = set()
+        for externalized_message in self.externalized_slot_counter: # Filter out transactions already externalized
+            ballot = externalized_message.ballot
+            if ballot and hasattr(ballot, 'value') and hasattr(ballot.value, 'transactions'):
+                finalised_transactions.update(tx.hash for tx in ballot.value.transactions)
+
+        filtered_transactions = {tx for tx in self.ledger.transactions if tx.hash not in finalised_transactions} # Filter to exclude finalised transactions
+
+        if filtered_transactions:
+            voted_vals.append(Value(transactions=filtered_transactions))
             self.nomination_state['voted'].extend(voted_vals)
 
-        if len(self.nomination_state['accepted']) > 0:
-            accepted_vals.extend(self.nomination_state['accepted']) # Add all accepted values
+        if self.nomination_state['accepted']:
+            accepted_vals.extend(self.nomination_state['accepted'])  # Add all accepted values
 
-        if len(voted_vals) == 0 and len(accepted_vals) == 0:
+        if not voted_vals and not accepted_vals:
             log.node.info('Node %s has no transactions or accepted values to nominate!', self.name)
             return
 
-        message = SCPNominate(voted=voted_vals,accepted=accepted_vals,broadcasted=True) # No accepted as node is initalised
+        message = SCPNominate(voted=voted_vals, accepted=accepted_vals, broadcasted=True)
 
         self.storage.add_messages(message)
         self.broadcast_flags.append(message)

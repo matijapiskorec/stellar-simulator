@@ -4,7 +4,7 @@ Simulator
 ================================================
 
 Author: Matija Piskorec, Jaime de Vivero Woods
-Last update: December 2024
+Last update: January 2025
 
 The following class contains command line (CLI) interface for the Stellar Consensus Protocol (SCP) simulator.
 
@@ -36,7 +36,7 @@ from Mempool import Mempool
 from Globals import Globals
 
 VERBOSITY_DEFAULT = 5
-N_NODES_DEFAULT = 60
+N_NODES_DEFAULT = 88
 
 class Simulator:
     '''
@@ -51,7 +51,7 @@ class Simulator:
         self._nodes = []
 
         # TODO: _max_simulation_time should be loaded from the config!
-        self._max_simulation_time = 300
+        self._max_simulation_time = 50
         # self._simulation_time = 0
 
         self._set_logging()
@@ -88,7 +88,8 @@ class Simulator:
             log.simulator.debug('Creating %s nodes.', self._n_nodes)
 
         # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='FULL')
-        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='HARDCODE')
+        # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='HARDCODE')
+        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
 
         self._mempool = Mempool()
         # self._mempool = Mempool(simulation_time=self._simulation_time)
@@ -104,19 +105,37 @@ class Simulator:
         # tau_domain: None - tau defines a global probability of event
         #             List(Node) - tau defines a node-specific probability of event
         # TODO: Simulation parameters should be loaded from the config!
+
+        """# These are simulation params for HARDCODE - real topology  from Stellar Beat API
         simulation_params = {
-            'mine': {'tau': 5.0, 'tau_domain': None},
+            'mine': {'tau': 10.0, 'tau_domain': None},
+            # Communication group
+            'retrieve_transaction_from_mempool': {'tau': 0.01, 'tau_domain': self._nodes},  # 1 second
+            'nominate': {'tau': 0.01, 'tau_domain': self._nodes},
+            'receive_commit_message': {'tau': 0.01, 'tau_domain': self._nodes},
+            'receive_externalize_msg': {'tau': 0.01, 'tau_domain': self._nodes},
+            # Processing group
+            'retrieve_message_from_peer': {'tau': 0.01, 'tau_domain': self._nodes},
+            'prepare_ballot': {'tau': 0.01, 'tau_domain': self._nodes},
+            'receive_prepare_message': {'tau': 0.01, 'tau_domain': self._nodes},
+            'prepare_commit': {'tau': 0.01, 'tau_domain': self._nodes},
+            'prepare_externalize_message': {'tau': 0.01, 'tau_domain': self._nodes}  # 6 seconds
+        }
+        """
+
+        simulation_params = {
+            'mine': {'tau': 0.01, 'tau_domain': None},
             # Communication group
             'retrieve_transaction_from_mempool': {'tau': 1.0, 'tau_domain': self._nodes},  # 1 second
-            'nominate': {'tau': 1.0, 'tau_domain': self._nodes},
+            'nominate': {'tau': 12.0, 'tau_domain': self._nodes},
             'receive_commit_message': {'tau': 1.0, 'tau_domain': self._nodes},
             'receive_externalize_msg': {'tau': 1.0, 'tau_domain': self._nodes},
             # Processing group
-            'receive_prepare_message': {'tau': 1.0, 'tau_domain': self._nodes},
-            'retrieve_message_from_peer': {'tau': 1.0, 'tau_domain': self._nodes},
-            'prepare_ballot': {'tau': 1.0, 'tau_domain': self._nodes},
-            'prepare_commit': {'tau': 1.0, 'tau_domain': self._nodes},
-            'prepare_externalize_message': {'tau': 1.0, 'tau_domain': self._nodes} # 6 seconds
+            'retrieve_message_from_peer': {'tau': 13.0, 'tau_domain': self._nodes},
+            'prepare_ballot': {'tau': 13.0, 'tau_domain': self._nodes},
+            'receive_prepare_message': {'tau': 13.0, 'tau_domain': self._nodes},
+            'prepare_commit': {'tau': 13.0, 'tau_domain': self._nodes},
+            'prepare_externalize_message': {'tau': 20.0, 'tau_domain': self._nodes}  # 6 seconds
         }
 
         # ALL SIMULATION EVENTS COULD OCCUR AT ANY POINT, WHEN WE IMPLEMENT BALLOTING WE'LL HAVE TO

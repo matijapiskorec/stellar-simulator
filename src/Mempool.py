@@ -20,6 +20,7 @@ from Globals import Globals
 
 import numpy as np
 import random
+import os
 
 class Mempool():
 
@@ -30,14 +31,20 @@ class Mempool():
         self.messages = []
         # self.simulation_time = simulation_time
 
+        self.log_path = 'simulator_mine_events.txt'
         # Mine some transactions to the mempool for faster initialization of simulation!
-        for i in range(5):
-            self.mine()
+        #for i in range(5):
+        #    self.mine()
 
         log.mempool.info('Initialized mempool!')
 
     def __repr__(self):
         return '[Mempool, transactions = %s, messages = %s]' % (self.transactions,self.messages)
+
+
+    def log_mine_to_file(self, message):
+        with open(self.log_path, 'a') as log_file:
+            log_file.write(f"{Globals.simulation_time:.2f} - {message}\n")
 
     def mine(self):
 
@@ -47,6 +54,11 @@ class Mempool():
         transaction_mined = Transaction(time=Globals.simulation_time)
         log.mempool.info('Transaction %s mined to the mempool!', transaction_mined)
         self.transactions.append(transaction_mined)
+        if not os.path.exists(self.log_path):
+            with open(self.log_path, 'w') as log_file:
+                log_file.write("")
+
+        self.log_mine_to_file(f"MEMPOOL - INFO - Transaction {transaction_mined} mined to the mempool!")
         return transaction_mined
 
     def get_transaction(self):

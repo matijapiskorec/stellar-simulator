@@ -43,6 +43,73 @@ class NodeTest(unittest.TestCase):
     #     # This is true if we are sending a copy of transactions rather than a reference to transactions
     #     self.assertTrue(len(nodes[1].messages[0]._voted[0]._transactions)==1)
 
+    def test_retrieves_transaction_if_not_externalized(self):
+        self.node = Node("test_node")
+        self.mempool = Mempool()
+        self.node.attach_mempool(self.mempool)
+        transaction = Transaction(100)
+        self.mempool.transactions.append(transaction)
+
+        self.node.retrieve_transaction_from_mempool()
+
+        self.assertIn(transaction, self.node.ledger.transactions, "Transaction should be added to the ledger.")
+
+    def test_does_not_retrieve_if_transaction_is_externalized(self):
+        self.node = Node("test_node")
+        self.mempool = Mempool()
+        self.node.attach_mempool(self.mempool)
+        transaction = Transaction(200)
+        self.mempool.transactions.append(transaction)
+
+        value = Value(transactions={transaction})
+        ballot = SCPBallot(counter=1, value=value)
+        externalize_msg = SCPExternalize(ballot=ballot, hCounter=1)
+        self.node.externalized_slot_counter.add(externalize_msg)
+        self.node.retrieve_transaction_from_mempool()
+
+        self.assertNotIn(transaction, self.node.ledger.transactions, "Transaction should NOT be added to the ledger.")
+
+
+    def test_transaction_is_in_externalized_slots(self):
+        self.node = Node("test_node")
+        self.transaction = Transaction(200)
+        value = Value(transactions={self.transaction})  # Store full transaction objects
+        ballot = SCPBallot(counter=1, value=value)
+        externalize_msg = SCPExternalize(ballot=ballot, hCounter=1)
+        self.node.externalized_slot_counter.add(externalize_msg)
+
+        self.assertTrue(self.node.is_transaction_in_externalized_slots(self.transaction.hash))
+
+    def test_transaction_not_in_externalized_slots(self):
+        self.node = Node("test_node")
+        self.transaction = Transaction(200)
+        self.assertFalse(self.node.is_transaction_in_externalized_slots(self.transaction.hash),)
+
+    def test_transaction_in_multiple_externalized_slots(self):
+        self.node = Node("test_node")
+        self.transaction = Transaction(200)
+        value1 = Value(transactions={self.transaction})
+        value2 = Value(transactions={Transaction(300), self.transaction})  # Another externalized transaction
+        ballot1 = SCPBallot(counter=1, value=value1)
+        ballot2 = SCPBallot(counter=2, value=value2)
+        externalize_msg1 = SCPExternalize(ballot=ballot1, hCounter=1)
+        externalize_msg2 = SCPExternalize(ballot=ballot2, hCounter=2)
+
+        self.node.externalized_slot_counter.update({externalize_msg1, externalize_msg2})  # Add both messages
+
+        self.assertTrue(self.node.is_transaction_in_externalized_slots(self.transaction.hash))
+
+    def test_unrelated_transaction_not_detected(self):
+        self.node = Node("test_node")
+        self.transaction = Transaction(200)
+        unrelated_transaction = Transaction(400)
+        value = Value(transactions={unrelated_transaction})
+        ballot = SCPBallot(counter=1, value=value)
+        externalize_msg = SCPExternalize(ballot=ballot, hCounter=1)
+        self.node.externalized_slot_counter.add(externalize_msg)
+
+        self.assertFalse(self.node.is_transaction_in_externalized_slots(self.transaction.hash),"Unrelated transaction should NOT be detected as externalized.")
+
 
     # Test whether we can calculate priority for each peer in the quorum set
     def test_priority_of_nodes(self):
