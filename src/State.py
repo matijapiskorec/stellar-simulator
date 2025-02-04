@@ -9,9 +9,11 @@ Last update: August 2023
 State class.
 """
 
+from Log import log
 import enum
 
 class State(enum.Enum):
+
     none = enum.auto()
     init = enum.auto()
     vote = enum.auto()

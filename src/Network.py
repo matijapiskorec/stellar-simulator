@@ -15,7 +15,8 @@ from QuorumSet import QuorumSet
 
 import networkx as nx
 
-class Network:
+class Network():
+
     topologies = ['FULL','ER']
 
     @classmethod

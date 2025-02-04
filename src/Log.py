@@ -19,7 +19,9 @@ Logging levels and verbosity levels (higher includes lower):
 5 - DEBUG
 """
 
+import enum
 import logging
+import sys
 
 class Log:
 

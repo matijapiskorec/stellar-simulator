@@ -38,21 +38,8 @@ class Node():
     storage = None
     nomination_round = None
 
-    def __init__(
-            self,
-            name,
-            quorum_set=None,
-            ledger=None,
-            storage=None,
-            public_key=None,
-            host=None,
-            version=None
-    ):
+    def __init__(self, name, quorum_set=None, ledger=None, storage=None):
         self.name = name
-        self.public_key = public_key
-        self.host = host
-        self.version = version
-
         self.quorum_set = quorum_set if quorum_set is not None else QuorumSet(self)
         self.ledger = ledger if ledger is not None else Ledger(self)
 

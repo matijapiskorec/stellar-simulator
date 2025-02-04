@@ -23,6 +23,7 @@ Logging levels and verbosity levels (higher includes lower):
 
 import argparse
 import time
+import sys
 import numpy as np
 
 from Log import log
@@ -31,11 +32,8 @@ from Gillespie import Gillespie
 from FBAConsensus import FBAConsensus
 from Network import Network
 from Mempool import Mempool
+# import Globals
 from Globals import Globals
-from Transaction import Transaction
-from QuorumSet import QuorumSet
-from API.NetworkSnapshotsAPIClient import NetworkSnapshotsAPIClient
-from ConfigurationManager import ConfigManager
 
 VERBOSITY_DEFAULT = 5
 N_NODES_DEFAULT = 60
@@ -60,55 +58,6 @@ class Simulator:
 
         # Total elapsed time doesn't include initialization!
         self.timeStart = time.time()
-
-        self.average_transaction_count = None
-        self.inter_ledger_time = 6  # Default to 6 seconds
-        self.api_client = NetworkSnapshotsAPIClient()
-        self.config_manager = ConfigManager()
-
-    ## used for fetching samples from stellarbeat
-    def fetch_and_parse_snapshot(self):
-        """Fetch and parse the latest snapshot using NetworkSnapshotsAPIClient."""
-        snapshot = self.api_client.get_latest_snapshot()
-        if not snapshot:
-            raise ValueError("Failed to fetch the latest snapshot.")
-
-        self.nodes = []
-        self.quorum_sets = []
-
-        for node_data in snapshot:
-            node_info = node_data.get("node")
-            if node_info:
-                # Parse Node data
-                node = Node(
-                    name=node_info.get("name"),
-                    public_key=node_info.get("publicKey"),
-                    host=node_info.get("host"),
-                    version=node_info.get("versionStr")
-                )
-                self.nodes.append(node)
-
-                # Parse QuorumSet data
-                quorum_data = node_info.get("quorumSet")
-                if quorum_data:
-                    quorum_set = QuorumSet(
-                        threshold=quorum_data.get("threshold"),
-                        validators=quorum_data.get("validators"),
-                        inner_quorum_sets=quorum_data.get("innerQuorumSets")
-                    )
-                    self.quorum_sets.append(quorum_set)
-
-        print(f"Parsed {len(self.nodes)} nodes and {len(self.quorum_sets)} quorum sets.")
-
-    def set_average_transaction_count(self, average_tx_count):
-        """Set the average transaction count for the simulator."""
-        self.average_transaction_count = Transaction(average_tx_count)
-        print(f"Average transaction count set to: {self.average_transaction_count.count}")
-
-    def adjust_inter_ledger_time(self, target_time):
-        """Adjust inter-ledger time parameter in the simulator."""
-        self.inter_ledger_time = target_time
-        print(f"Inter-ledger time adjusted to: {self.inter_ledger_time} seconds")
 
     @property
     def verbosity(self):
