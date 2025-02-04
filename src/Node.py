@@ -5,7 +5,7 @@ Node
 
 Author: Matija Piskorec, Jaime de Vivero Woods
 
-Last update: December 2024
+Last update: February 2025
 
 Node class.
 
@@ -29,6 +29,7 @@ from Globals import Globals
 import copy
 import xdrlib3
 import hashlib
+import os
 
 class Node():
     name = None
@@ -101,6 +102,14 @@ class Node():
                       self.ledger,
                       self.storage)
 
+
+        self.log_path = 'simulator_events_log.txt'
+
+    #### LOGGER FUNCTION
+    def log_to_file(self, message):
+        with open(self.log_path, 'a') as log_file:
+            log_file.write(f"{Globals.simulation_time:.2f} - {message}\n")
+
     def __repr__(self):
         return '[Node: %s]' % self.name
 
@@ -118,15 +127,37 @@ class Node():
         log.consensus.info('Sending Node events %s.' %events)
         return events
 
+    def extract_transaction_id(self, transaction):
+        return transaction.hash
+
+    def is_transaction_in_externalized_slots(self, transaction_id):
+        # TODO: Check the validity of the transaction in the retrieve_transactions_from_mempool() in Node!
+        for externalized_message in self.externalized_slot_counter:
+            ballot = externalized_message.ballot
+            if ballot and hasattr(ballot, 'value') and hasattr(ballot.value, 'transactions'):
+                if any(tx.hash == transaction_id for tx in ballot.value.transactions):
+                    return True
+        return False
+
+
     def retrieve_transaction_from_mempool(self):
+        if not os.path.exists(self.log_path):
+            with open(self.log_path, 'w') as log_file:
+                log_file.write("")
+
         transaction = self.mempool.get_transaction()
-        if transaction is not None:
-            # TODO: Check the validity of the transaction in the retrieve_transactions_from_mempool() in Node!
-            log.node.info('Node %s retrieved %s from mempool.',self.name,transaction)
-            self.ledger.add(transaction)
+        if transaction:
+            transaction_id = self.extract_transaction_id(transaction)
+
+            if not self.is_transaction_in_externalized_slots(transaction_id):
+                log.node.info('Node %s retrieved %s from mempool.', self.name, transaction)
+                self.log_to_file(f"NODE - INFO - Node {self.name} retrieved {transaction} from mempool.")
+                self.ledger.add(transaction)
+            else:
+                log.node.info('Node %s ignored transaction %s as it was already externalized.', self.name, transaction_id)
+                self.log_to_file(f"NODE - INFO - Node {self.name} ignored {transaction} as it was already externalized.")
         else:
-            log.node.info('Node %s cannot retrieve transaction from mempool because it is empty!',self.name)
-        return
+            log.node.info('Node %s cannot retrieve transaction from mempool because it is empty!', self.name)
 
     # Add nodes to quorum
     # TODO: Consider removing add_to_quorum() because we are only using set_quorum()!
@@ -135,7 +166,9 @@ class Node():
         return
 
     # Set quorum to the nodes
-    def set_quorum(self, nodes, inner_sets):
+    def set_quorum(self, nodes, inner_sets, threshold=None):
+        if threshold is not None:
+            self.quorum_set.threshold = threshold
         self.quorum_set.set(nodes=nodes, inner_sets=inner_sets)
         return
 
@@ -154,7 +187,7 @@ class Node():
         Broadcast SCPNominate message to the storage.
         """
         self.prepare_nomination_msg() # Prepares Values for Nomination and broadcasts message
-        priority_node = self.get_highest_priority_neighbor()
+        #priority_node = self.get_highest_priority_neighbor()
 
         # TODO: Neighbour should check global time & priority neighbour
         # TODO: nominate function should update nominations from peers until the quorum threshold is met
@@ -251,25 +284,31 @@ class Node():
         return
 
     def prepare_nomination_msg(self):
-        """
-        Prepare Message for Nomination
-        """
         voted_vals = []
         accepted_vals = []
 
-        self.retrieve_transaction_from_mempool() # Retrieve transactions from mempool and adds it to the Node's Ledger
-        if len(self.ledger.transactions) > 0:
-            voted_vals.append(Value(transactions=self.ledger.transactions.copy()))
+        self.retrieve_transaction_from_mempool()
+
+        finalised_transactions = set()
+        for externalized_message in self.externalized_slot_counter: # Filter out transactions already externalized
+            ballot = externalized_message.ballot
+            if ballot and hasattr(ballot, 'value') and hasattr(ballot.value, 'transactions'):
+                finalised_transactions.update(tx.hash for tx in ballot.value.transactions)
+
+        filtered_transactions = {tx for tx in self.ledger.transactions if tx.hash not in finalised_transactions} # Filter to exclude finalised transactions
+
+        if filtered_transactions:
+            voted_vals.append(Value(transactions=filtered_transactions))
             self.nomination_state['voted'].extend(voted_vals)
 
-        if len(self.nomination_state['accepted']) > 0:
-            accepted_vals.extend(self.nomination_state['accepted']) # Add all accepted values
+        if self.nomination_state['accepted']:
+            accepted_vals.extend(self.nomination_state['accepted'])  # Add all accepted values
 
-        if len(voted_vals) == 0 and len(accepted_vals) == 0:
+        if not voted_vals and not accepted_vals:
             log.node.info('Node %s has no transactions or accepted values to nominate!', self.name)
             return
 
-        message = SCPNominate(voted=voted_vals,accepted=accepted_vals,broadcasted=True) # No accepted as node is initalised
+        message = SCPNominate(voted=voted_vals, accepted=accepted_vals, broadcasted=True)
 
         self.storage.add_messages(message)
         self.broadcast_flags.append(message)
@@ -293,7 +332,7 @@ class Node():
                     if other_node.name not in self.statement_counter[incoming_accepted.hash]['accepted']:
                         # As value has a dictionary but this node isn't in it, simpy set the node counter to 1
                         self.statement_counter[incoming_accepted.hash]['accepted'][other_node.name] = 1
-                        log.node.info('Node %s has set an accepted statement counter for Node %s with nominated values!', self.name, other_node.name)
+                        log.node.info('Node %s has set an accepted statement counter for Node %s with nominated value!', self.name, other_node.name)
             else:
                 # Initiate dictionary for value & accepted for the value and then add the count for the node
                 self.statement_counter[incoming_accepted.hash] = {"voted": {}, "accepted": {}}
@@ -331,7 +370,10 @@ class Node():
         packer.pack_int(Globals.slot)
         for value in values:
             # Assumption is that all values can be cast to int (this includes node.name which is a string)
-            packer.pack_int(int(value))
+            if isinstance(value, str):
+                packer.pack_bytes(value.encode('utf-8'))
+            else:
+                packer.pack_int(int(value))
         packed_data = packer.get_buffer()
 
         # Hash it and interpret the bytes as a big-endian integer number
@@ -380,7 +422,11 @@ class Node():
 
     def get_highest_priority_neighbor(self):
         # TODO: Check globals.simulation_time
-        return max(self.get_neighbors(),key=self.priority)
+        neighbors = self.get_neighbors()
+        if not neighbors:  # Avoid empty sequence error
+            log.node.warning('Node %s has no neighbors!', self.name)
+            return self  # Return self or handle the case differently
+        return max(neighbors, key=self.priority)
 
     def is_duplicate_value(self, other_val, current_vals):
         for val in current_vals:
@@ -953,6 +999,8 @@ class Node():
             self.externalize_broadcast_flags.add(externalize_msg)
             self.externalized_slot_counter.add(externalize_msg)
             log.node.info('Node %s appended SCPExternalize message to its storage and state, message = %s', self.name, externalize_msg)
+            # save to log file
+            self.log_to_file(f"NODE - INFO - Node {self.name} appended SCPExternalize message to its storage and state, message = {externalize_msg}")
         log.node.info('Node %s could not retrieve a confirmed SCPCommit message from its peer!')
 
     def retrieve_externalize_msg(self, requesting_node):

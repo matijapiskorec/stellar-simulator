@@ -4,7 +4,7 @@ Network
 =========================
 
 Author: Matija Piskorec, Jaime de Vivero Woods
-Last update: July 2024
+Last update: February 2025
 
 Network class. Setup Stellar validator network by initializing nodes and setting their quorum sets based on a predefined topology.
 """
@@ -12,12 +12,35 @@ Network class. Setup Stellar validator network by initializing nodes and setting
 from Log import log
 from Node import Node
 from QuorumSet import QuorumSet
-
+import json
 import networkx as nx
 
 class Network():
 
-    topologies = ['FULL','ER']
+    topologies = ['FULL','ER', 'HARDCODE']
+
+    @classmethod
+    def parse_all_validators(cls, file_path):
+        with open(file_path, 'r') as file:
+            data = json.load(file)
+
+        nodes = {}
+
+        for validator in data:
+            node_id = validator["publicKey"]
+            quorum_sets = validator.get("quorumSet", [])
+
+            if node_id not in nodes:
+                nodes[node_id] = Node(node_id) # Initalise all nodes
+
+            for quorum in quorum_sets:
+                threshold = quorum.get("threshold", 1)  # Default threshold to 1 if not present
+                node_list = quorum.get("validators", [])
+                inner_sets = quorum.get("inner_sets", [])
+
+                nodes[node_id].set_quorum(threshold, node_list, inner_sets)
+
+        return nodes
 
     @classmethod
     def generate_nodes(cls,n_nodes=2,topology='FULL'):
@@ -80,5 +103,43 @@ class Network():
                         filtered_nodes.append(node)
                         log.network.debug('Adding nodes %s to the quorum set of Node %s',filtered_nodes, node)
                         node.set_quorum(filtered_nodes, [])
+
+            case 'HARDCODE':
+                file_path = "quorumset_20250131_095020.json"
+
+                with open(file_path, 'r') as file:
+                    data = json.load(file)
+
+                nodes = {}
+
+                for validator_data in data:
+                    node_id = validator_data["publicKey"]
+                    node_list = validator_data.get("validators", [])
+                    threshold = validator_data.get("threshold", 1)
+
+                    if node_id not in nodes:
+                        nodes[node_id] = Node(node_id)
+
+                    node = nodes[node_id]
+
+                    # We are only parsing the first inner set
+                    inner_quorum_sets = []
+                    for inner_set in validator_data.get("innerQuorumSets", []):
+                        inner_threshold = inner_set.get("threshold", 1)
+                        inner_validators = inner_set.get("validators", [])
+
+                        inner_nodes = []
+                        for v in inner_validators:
+                            if v not in nodes:
+                                nodes[v] = Node(v)
+                            inner_nodes.append(nodes[v])
+
+                        inner_quorum_sets.append(Node(f"InnerSet-{node_id}"))  # Represent inner quorum as Node
+
+                    node.set_quorum( nodes=[nodes[v] for v in node_list if v in nodes], inner_sets=inner_quorum_sets, threshold=threshold)
+
+                    log.network.debug( 'Node %s initialized with %d validators and %d inner quorum sets', node_id, len(node_list), len(inner_quorum_sets) )
+
+                return list(nodes.values())
 
         return nodes
