@@ -17,7 +17,7 @@ import networkx as nx
 
 class Network():
 
-    topologies = ['FULL','ER', 'HARDCODE']
+    topologies = ['FULL','ER', 'HARDCODE', 'LUNCH']
 
     @classmethod
     def parse_all_validators(cls, file_path):
@@ -139,6 +139,35 @@ class Network():
                     node.set_quorum( nodes=[nodes[v] for v in node_list if v in nodes], inner_sets=inner_quorum_sets, threshold=threshold)
 
                     log.network.debug( 'Node %s initialized with %d validators and %d inner quorum sets', node_id, len(node_list), len(inner_quorum_sets) )
+
+                return list(nodes.values())
+
+            case 'LUNCH':
+                names = ["Alice", "Bob", "Carol", "Dave", "Elsie", "Fred", "Gwen", "Hank", "Inez", "John"]
+                nodes = {name: Node(name) for name in names}  # Use a dictionary for easy access
+
+                # Define the quorum sets based 'Round of Lunch' github
+                quorum_sets = {
+                    "Alice": ["Bob", "Carol", "Dave"],
+                    "Bob": ["Alice", "Carol", "Dave"],
+                    "Carol": ["Alice", "Bob", "Dave"],
+                    "Dave": ["Alice", "Bob", "Carol"],
+                    "Elsie": ["Alice", "Bob", "Carol", "Dave"],
+                    "Fred": ["Alice", "Bob", "Carol", "Dave"],
+                    "Gwen": ["Alice", "Bob", "Carol", "Dave"],
+                    "Hank": ["Alice", "Bob", "Carol", "Dave"],
+                    "Inez": ["Elsie", "Fred", "Gwen", "Hank"],
+                    "John": ["Elsie", "Fred", "Gwen", "Hank"]
+                }
+
+                quorum_thresholds = {
+                    "Alice": 2, "Bob": 2, "Carol": 2, "Dave": 2,  # 2 out of 3 → 67%
+                    "Elsie": 2, "Fred": 2, "Gwen": 2, "Hank": 2,  # 2 out of 4 → 50%
+                    "Inez": 2, "John": 2  # 2 out of 4 → 50%
+                }
+                for node_name, quorum_members in quorum_sets.items():
+                    threshold = quorum_thresholds[node_name]
+                    nodes[node_name].set_quorum([nodes[q] for q in quorum_members], [], threshold=threshold)
 
                 return list(nodes.values())
 
