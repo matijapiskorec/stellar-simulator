@@ -13,7 +13,7 @@ from Log import log
 
 import numpy as np
 
-THRESHOLD_DEFAULT = 2 # 10% threshold by default
+THRESHOLD_DEFAULT = 10 # 10% threshold by default
 
 class QuorumSet():
 
@@ -157,3 +157,27 @@ class QuorumSet():
                     flat_list.append(inner_set)
 
         return random.choice(flat_list) if flat_list else None
+
+    def weight(self, v):
+        # Count how many times 'v' appears in slices
+        count = sum(1 for node in self.nodes if node == v)
+        print("COUNT BASED ON SELF.NODES IS ", count)
+
+        # Include inner quorum sets
+        for inner_set in self.inner_sets:
+            if v is not type(list): # only one node
+                if v == inner_set:
+                    count += 1
+                    print("V IS NOT A LIST AND COUNT INCREASED ", count)
+            else:
+                if v in inner_set.nodes:
+                    count += 1
+                    print("V IS A LIST AND COUNT INCREASED ", count)
+
+        # Compute fraction of quorum slices that contain 'v'
+        total_slices = len(self.nodes) + len(self.inner_sets)
+
+        if total_slices == 0:
+            return 0.0  # Avoid division by zero
+
+        return count / total_slices

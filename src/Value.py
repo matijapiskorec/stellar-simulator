@@ -73,3 +73,7 @@ class Value():
                 transactions.update(value.transactions)
 
         return Value(transactions=transactions)
+
+    # TODO: Combine with union, and then take
+    #  New combine function that instead of union, takes first transaction from another value
+    # based on alphanumeric order

@@ -12,6 +12,9 @@ from Storage import Storage
 from Node import Node
 from Transaction import Transaction
 from unittest.mock import MagicMock, patch
+from unittest import mock
+from Globals import Globals
+
 
 class NodeTest(unittest.TestCase):
     def setup(self):
@@ -235,7 +238,6 @@ class NodeTest(unittest.TestCase):
 
             self.assertEqual(self.node.nomination_state['voted'][0], value3)  # value3 and value1 should be present
             self.assertEqual(self.node.nomination_state['accepted'][0], value4)  # value4 and value2 should be present
-
 
     def test_process_received_messages_processes_existing_state_correctly(self):
             self.node = Node("test_node")
@@ -1873,17 +1875,30 @@ class NodeTest(unittest.TestCase):
 
 
     def test_prepare_externalize_msg(self):
+        # Initialize self.node first
         self.node = Node(name="1")
+
+        Globals.simulation_time = 123.123
+
+        # Setting up the value and ballot
         value1 = Value(transactions={Transaction(0), Transaction(0)})
         ballot1 = SCPBallot(counter=0, value=value1)
         self.node.commit_ballot_state = {"voted": {}, "accepted": {}, "confirmed": {value1.hash: ballot1}}
 
+        # Calling the method that should call process_commit_ballot_message
         self.node.prepare_Externalize_msg()
+
         # Ensure the message was prepared
         self.assertEqual(len(self.node.externalize_broadcast_flags), 1)
         self.assertEqual(len(self.node.externalized_slot_counter), 1)
+
+        # Fetch the prepared message
         prepared_msg = self.node.externalize_broadcast_flags.pop()
         self.assertIsInstance(prepared_msg, SCPExternalize)
+
+        # Verify the mocked time was used in the externalize message
+        self.assertEqual(prepared_msg._time, 123.123)
+
 
     def test_prepare_externalize_msg_for_no_confirmed_values(self):
         self.node = Node(name="1")

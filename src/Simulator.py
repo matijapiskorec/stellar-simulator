@@ -37,7 +37,7 @@ from Globals import Globals
 from SCPExternalize import SCPExternalize
 
 VERBOSITY_DEFAULT = 5
-N_NODES_DEFAULT = 88
+N_NODES_DEFAULT = 20
 
 class Simulator:
     '''
@@ -52,7 +52,7 @@ class Simulator:
         self._nodes = []
 
         # TODO: _max_simulation_time should be loaded from the config!
-        self._max_simulation_time = 100
+        self._max_simulation_time = 30
         # self._simulation_time = 0
 
         self._set_logging()

@@ -65,44 +65,51 @@ class Network():
                     log.network.debug('Adding nodes %s to the quorum set of Node %s', nodes, node)
                     node.set_quorum(nodes, [])
             case 'ER':
-                # Instead of adding all nodes frpm the graph to QuorumSet, we make a distribution so some also go into inner sets
-                graph = nx.fast_gnp_random_graph(n_nodes,0.5) # make a random graph - could include all or only a few, some nodes may have many connections and some few or none
-                lcc_set = max(nx.connected_components(graph), key=len) # LCC is the main node with the most connections
-                missing = list(set(int(node.name) for node in nodes) - lcc_set) # nodes are not included in any quorum set and are considered "missing" in the context of the simulation
+                # Generate a random graph with n_nodes and 50% chance for each edge
+                graph = nx.fast_gnp_random_graph(n_nodes, 0.5)
+                # Find the largest connected component (LCC)
+                lcc_set = max(nx.connected_components(graph), key=len)
+                # Identify missing nodes (not in LCC)
+                missing = list(set(int(node.name) for node in nodes) - lcc_set)
                 if len(missing) > 0:
-                    # Now there are nodes with no quorum set, so they cannot gossip messages!
-                    # TODO: Consider removing nodes which are not part of anyone's quorum set!
                     log.network.debug('Nodes %s are not part of the LCC so they are excluded from all quorum sets!',
                                       missing)
+                # Exclude nodes that are not in the LCC
+                nodes = [node for node in nodes if int(node.name) in lcc_set]
+
+                # For each node in the remaining (connected) set, build quorum sets
                 for node in nodes:
-                    filtered_nodes = [nodes[edge[1]] for edge in graph.edges(int(node.name))]
+                    # For each node, get its edges from the graph
+                    filtered_nodes = [nodes[edge[1]] for edge in graph.edges(node.name)]
 
                     if len(filtered_nodes) > 1:
-                        filter_distribution = len(filtered_nodes)//2 # Filter nodes for Quorums as half to Quorum and half to inner sets
-
+                        filter_distribution = len(filtered_nodes) // 2  # Half to quorum, half to inner sets
                         quorum_distribution = filtered_nodes[:filter_distribution]
                         inner_quorum_distribution = filtered_nodes[filter_distribution:]
                         quorum_distribution.append(node)
                         log.network.debug('Adding nodes %s to the quorum set of Node %s', quorum_distribution, node)
 
-                        if len(inner_quorum_distribution) > 1: # If more than 2 nodes filtered, then define 2 inner sets for the QuorumSet
-                            inner_set_distribution = len(inner_quorum_distribution) // 2 # Stick to only 2 inner sets per node for now
+                        if len(inner_quorum_distribution) > 1:  # If more than 2 nodes, define 2 inner sets
+                            inner_set_distribution = len(inner_quorum_distribution) // 2
                             inner_set1 = inner_quorum_distribution[inner_set_distribution:]
                             inner_set2 = inner_quorum_distribution[:inner_set_distribution]
                             inner_set1.append(node)
                             inner_set2.append(node)
-                            log.network.debug('Adding nodes %s to inner set 1, and nodes %s to inner set 2 of Node %s', inner_set1, inner_set2, node)
+                            log.network.debug('Adding nodes %s to inner set 1, and nodes %s to inner set 2 of Node %s',
+                                              inner_set1, inner_set2, node)
                             node.set_quorum(nodes=quorum_distribution, inner_sets=[inner_set1, inner_set2])
-
-                        else: # In the case where only 2 nodes are added to Quorum only one inner set defined
+                        else:  # Only one inner set defined
                             inner_quorum_distribution.append(node)
-                            log.network.debug('Adding nodes %s to the inner set of Node %s', inner_quorum_distribution, node)
+                            log.network.debug('Adding nodes %s to the inner set of Node %s', inner_quorum_distribution,
+                                              node)
                             node.set_quorum(nodes=quorum_distribution, inner_sets=inner_quorum_distribution)
 
-                    else: # If only one node filtered then make no inner sets
+                    else:  # If no neighbor is found, include the node itself
                         filtered_nodes.append(node)
-                        log.network.debug('Adding nodes %s to the quorum set of Node %s',filtered_nodes, node)
+                        log.network.debug('Adding nodes %s to the quorum set of Node %s', filtered_nodes, node)
                         node.set_quorum(filtered_nodes, [])
+
+                return nodes
 
             case 'HARDCODE':
                 file_path = "quorumset_20250131_095020.json"

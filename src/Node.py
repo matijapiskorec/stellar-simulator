@@ -43,7 +43,7 @@ class Node():
         self.name = name
         self.quorum_set = quorum_set if quorum_set is not None else QuorumSet(self)
         self.ledger = ledger if ledger is not None else Ledger(self)
-
+        self.slot = 1
         self.mempool = None
 
         # self.nomination_rounds = value.hash : [round_number: timestamp, ]
@@ -61,6 +61,11 @@ class Node():
         self.broadcast_flags = []  # Add every message here for other
         self.received_broadcast_msgs = {} # This hashmap (or dictionary) keeps track of all Messages retrieved by each node
         # This dictionary looks like this {{node.name: SCPNominate,...},...}
+
+        #  TODO: function get/retrieve nomination round which gets nomination round based on current global sim time - not class variable, but running function
+        #   this needs time of externalise - to compare with sim time (what is time 1?)
+        #   Rounds are node-specific: Use timestamp of most recent tx in Value as finalise time
+        #   This allows for synchroncity as all nodes will agree on this timestamp
 
         self.nomination_round = 1
 
@@ -186,6 +191,9 @@ class Node():
         """
         Broadcast SCPNominate message to the storage.
         """
+        # TODO: A node can nominate a value itself if it has the highest priority in the current round.
+        #  If it does not have the highest priority, it waits for higher-priority nodes to propose values before deciding what to nominate
+
         self.prepare_nomination_msg() # Prepares Values for Nomination and broadcasts message
         #priority_node = self.get_highest_priority_neighbor()
 
@@ -396,7 +404,7 @@ class Node():
     # Because Gi(1 || n || v) is a random function with a maximum value of 2^{256}, this formula effectivelly
     # selects a peer as a neighbor with a probability equal to its weight!
 
-    def get_neighbors(self):
+    def get_neighbors(self): # TODO: RENAME TO GET_HIGHPRIORITY_NODES/LIST
         unique_nodes = set()  # Use set to avoid duplication - used to check for duplicates in loops
 
         for node in self.quorum_set.get_nodes():
@@ -995,7 +1003,11 @@ class Node():
 
         finalised_ballot = self.retrieve_confirmed_commit_ballot() # Retrieve a Value from the SCPPrepare 'confirmed' state
         if finalised_ballot is not None:
-            externalize_msg = SCPExternalize(ballot=finalised_ballot, hCounter=finalised_ballot.counter)
+            externalize_msg = SCPExternalize(ballot=finalised_ballot, hCounter=finalised_ballot.counter, timestamp=Globals.simulation_time)
+
+            # Store the externalized value in the ledger
+            self.ledger.add_slot(self.slot, externalize_msg)
+            self.slot += 1 # initalise next slot
             self.externalize_broadcast_flags.add(externalize_msg)
             self.externalized_slot_counter.add(externalize_msg)
             log.node.info('Node %s appended SCPExternalize message to its storage and state, message = %s', self.name, externalize_msg)
