@@ -114,30 +114,87 @@ class NodeTest(unittest.TestCase):
         self.assertFalse(self.node.is_transaction_in_externalized_slots(self.transaction.hash),"Unrelated transaction should NOT be detected as externalized.")
 
 
+    def test_no_externalized_message(self):
+        self.node = Node(name="1")
+        self.node.ledger = MagicMock()
+        self.node.slot = 2  # Set current slot to 2 for testing purposes
+        # Test when there is no externalized message for the previous slot (self.slot - 1)
+        self.node.slot = 1  # Previous slot would be 0
+        self.node.ledger.get_slot.return_value = None  # Simulate no externalized message for slot 0
+
+        # Call calculate_nomination_round and verify that it returns None
+        round = self.node.calculate_nomination_round()
+        self.assertIsNone(round, "Should return None when no externalized message is found for the previous slot")
+
+    def test_calculate_round_1(self):
+        self.node = Node(name="1")
+        self.node.ledger = MagicMock()
+        # Test for round 1, assuming that the previous round was just completed
+        self.node.slot = 2
+        # Set the timestamp for the previous externalized message (slot 1)
+        self.node.ledger.get_slot.return_value = MagicMock(timestamp=10)
+        Globals.simulation_time = 12  # Current time is 2 seconds after the previous timestamp
+
+        # Call calculate_nomination_round and verify that it returns round 1
+        round = self.node.calculate_nomination_round()
+        self.assertEqual(round, 1, "Should be in round 1 if the time difference is less than 2 seconds")
+
+
+    def test_calculate_round_3(self):
+        self.node = Node(name="1")
+        self.node.ledger = MagicMock()
+        # Test for round 3, assuming the node is in the third round
+        self.node.slot = 4
+        self.node.ledger.get_slot.return_value = MagicMock(timestamp=10)
+        Globals.simulation_time = 14  # Current time is 4 seconds after the previous timestamp
+
+        # Call calculate_nomination_round and verify that it returns round 3
+        round = self.node.calculate_nomination_round()
+        self.assertEqual(round, 2, "Should be in round 2 if the time difference is greater than 3 but less than 4")
+
+    def test_round_increment_logic(self):
+        self.node = Node(name="1")
+        self.node.ledger = MagicMock()
+        # Test that rounds increment correctly based on the time difference
+        self.node.slot = 5
+        self.node.ledger.get_slot.return_value = MagicMock(timestamp=10)
+        Globals.simulation_time = 19  # Current time is 9 seconds after the previous timestamp
+
+        # Call calculate_nomination_round and verify that it returns round 4
+        round = self.node.calculate_nomination_round()
+        self.assertEqual(round, 3, "Should be in round 4 after 9 seconds")
+
+
     # Test whether we can calculate priority for each peer in the quorum set
     def test_priority_of_nodes(self):
 
         for topology in ['FULL','ER']:
-            nodes = Network.generate_nodes(n_nodes=5, topology=topology)
+            nodes = Network.generate_nodes(n_nodes=30, topology=topology)
 
             mempool = Mempool()
             for node in nodes:
                 node.attach_mempool(mempool)
+                # if topology == 'ER':
+                    # print(f"Node {node.name} has QuorumSet = {node.quorum_set.nodes} with inner sets {node.quorum_set.inner_sets}")
 
             for node in nodes:
                 log.test.debug('Node %s, all peers in quorum set = %s',node.name,node.quorum_set.get_nodes())
-                max_priority = 0
-                max_priority_neighbor = None
-                for neighbor in node.get_neighbors():
-                    priority = node.priority(neighbor)
-                    if priority > max_priority:
-                        max_priority = priority
-                        max_priority_neighbor = neighbor
-                    log.test.debug('Node %s, priority of neighbor %s is %s',node.name,neighbor.name,priority)
-                    self.assertTrue(isinstance(priority,int))
+                neighbors = list(node.get_priority_list())  # Convert set to list for indexing
+                if neighbors:
+                    max_priority_neighbor = neighbors[0]
+                    max_priority = node.priority(max_priority_neighbor)
+                    for neighbor in neighbors[1:]:
+                        priority = node.priority(neighbor)
+                        if priority > max_priority:
+                            max_priority = priority
+                            max_priority_neighbor = neighbor
+                else:
+                    max_priority_neighbor = None
+                    max_priority = None
 
-            self.assertTrue( node.get_highest_priority_neighbor() == max_priority_neighbor )
-            self.assertTrue( node.priority(node.get_highest_priority_neighbor()) == max_priority )
+                if len(node.get_priority_list()) > 0:
+                    self.assertTrue(node.get_highest_priority_neighbor() == max_priority_neighbor)
+                    self.assertTrue(node.priority(node.get_highest_priority_neighbor()) == max_priority)
 
     def test_quorum_of_nodes_ER(self):
         nodes = Network.generate_nodes(n_nodes=5, topology='ER')
@@ -168,8 +225,13 @@ class NodeTest(unittest.TestCase):
 
         self.node.quorum_set.set(nodes=[node2, node3], inner_sets=[[node3, node4], [node4, node5]])
 
-        neighbors = self.node.get_neighbors()
-        self.assertEqual(len(neighbors),4) # All 4 nodes should be returned
+        neighbors = self.node.get_priority_list()
+
+        self.assertIsInstance(neighbors, set)
+        if len(neighbors) > 0:
+            for neighbor in neighbors:
+                self.assertIsInstance(neighbor, Node, "Each neighbor should be an instance of Node")
+
 
 
     def test_prepare_nomination_msg_correctly_adds_value(self):

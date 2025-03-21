@@ -5,7 +5,7 @@ Node
 
 Author: Matija Piskorec, Jaime de Vivero Woods
 
-Last update: February 2025
+Last update: March 2025
 
 Node class.
 
@@ -61,6 +61,7 @@ class Node():
         self.broadcast_flags = []  # Add every message here for other
         self.received_broadcast_msgs = {} # This hashmap (or dictionary) keeps track of all Messages retrieved by each node
         # This dictionary looks like this {{node.name: SCPNominate,...},...}
+        self.priority_list = set()
 
         #  TODO: function get/retrieve nomination round which gets nomination round based on current global sim time - not class variable, but running function
         #   this needs time of externalise - to compare with sim time (what is time 1?)
@@ -68,6 +69,7 @@ class Node():
         #   This allows for synchroncity as all nodes will agree on this timestamp
 
         self.nomination_round = 1
+        self.last_nomination_start_time = 0.0
 
         ###################################
         # PREPARE BALLOT PHASE STRUCTURES #
@@ -145,6 +147,51 @@ class Node():
         return False
 
 
+    def calculate_nomination_round(self):
+        """
+        A node always begins nomination in round "1". Round "n" lasts for
+        "1+n" seconds, after which, if no value has been confirmed nominated,
+        the node proceeds to round "n+1". A node continues to echo votes
+        from the highest priority neighbor in prior rounds as well as the
+        current round. In particular, until any value is confirmed
+        nominated, a node continues expanding its "voted" field with values
+        nominated by highest priority neighbors from prior rounds even when
+        the values appeared after the end of those prior rounds
+        """
+        if self.slot <= 0 or not self.ledger.get_slot(self.slot - 1): # check that there is a slot which externalised
+            log.node.error("No externalized message available for previous slot.")
+            return None
+
+        previous_slot_message = self.ledger.get_slot(self.slot - 1)
+        previous_timestamp = previous_slot_message.timestamp
+
+        current_time = Globals.simulation_time
+        time_diff = current_time - previous_timestamp
+        self.last_nomination_start_time = current_time
+
+        round = 1
+        cumulative_time = 1 + round  # the finish time of round 1 is 1 + 1 = 2
+
+        while time_diff > cumulative_time:
+            round += 1
+            cumulative_time += (1 + round)  # add the duration of the next round
+
+        log.node.debug('Node %s is in round %d based on the timestamp of slot %d (time difference: %.2f seconds)',
+                       self.name, round, self.slot - 1, time_diff)
+
+        return round
+
+    def check_update_nomination_round(self):
+        """
+        1. increase nomination round count and update priority list
+        2. Each round lasts (1+round) - so check if last nomination start time + nomination_round < global.simulation_time, and update if True
+        """
+        if Globals.simulation_time > (self.last_nomination_start_time + self.nomination_round):
+            self.nomination_round += 1
+            self.get_priority_list()
+            log.node.info("Node %s updated its Nomination Round to %s", self.name, self.nomination_round)
+
+
     def retrieve_transaction_from_mempool(self):
         if not os.path.exists(self.log_path):
             with open(self.log_path, 'w') as log_file:
@@ -193,8 +240,17 @@ class Node():
         """
         # TODO: A node can nominate a value itself if it has the highest priority in the current round.
         #  If it does not have the highest priority, it waits for higher-priority nodes to propose values before deciding what to nominate
-
-        self.prepare_nomination_msg() # Prepares Values for Nomination and broadcasts message
+        if any(self.balloting_state[state] for state in ['voted', 'accepted', 'confirmed', 'aborted']):
+            log.node.info("Node %s is skipping message processing as it already has ballots in balloting_state.",
+                          self.name)
+            return
+        self.check_update_nomination_round()
+        self.get_priority_list()
+        if self.name in self.priority_list:
+            self.prepare_nomination_msg() # Prepares Values for Nomination and broadcasts message
+        else:
+            log.node.info("Node %s did not Nominate a Value since it is not in it's priority list", self.name)
+        # self.prepare_nomination_msg()  # Prepares Values for Nomination and broadcasts message
         #priority_node = self.get_highest_priority_neighbor()
 
         # TODO: Neighbour should check global time & priority neighbour
@@ -222,6 +278,13 @@ class Node():
 
 
     def receive_message(self):
+        if any(self.balloting_state[state] for state in ['voted', 'accepted', 'confirmed', 'aborted']):
+            log.node.info("Node %s is skipping message processing as it already has ballots in balloting_state.",
+                          self.name)
+            return
+
+        self.check_update_nomination_round()
+        self.get_priority_list()
         priority_node = self.get_highest_priority_neighbor()
         if priority_node != self:
             message = self.retrieve_broadcast_message(priority_node)
@@ -270,7 +333,8 @@ class Node():
         Retrieve a message from a random peer.
         """
 
-        # Choosing a neighbor with the highest priority from which we fetch messages
+        # Update nomination round and priority list if simulation time exceeds nominatoin round time and
+        # choose a neighbor with the highest priority from which we fetch messages
         other_node = self.get_highest_priority_neighbor()
 
         if other_node is None:
@@ -367,25 +431,39 @@ class Node():
     # - Let "Gi(m) = SHA-256(i || m)", where "||" denotes the
     #   concatenation of serialized XDR values.  Treat the output of "Gi"
     #   as a 256-bit binary number in big-endian format.
-    def Gi(self,values):
-        # If there is only one value as input, convert it to list so that we can iterate over it
-        if type(values) is not list:
+    def Gi(self, values):
+        """
+        Computes the Gi function: SHA-256(i || m) as per SCP specifications.
+        """
+        # Ensure values is always a list
+        if not isinstance(values, list):
             values = [values]
 
         # Concatenate XDR serialized values
         packer = xdrlib3.Packer()
+
         # Slot value "i" is implicitly passed as the first value to Gi!
-        packer.pack_int(Globals.slot)
+        packer.pack_int(self.slot)
+
         for value in values:
-            # Assumption is that all values can be cast to int (this includes node.name which is a string)
             if isinstance(value, str):
                 packer.pack_bytes(value.encode('utf-8'))
+            elif isinstance(value, int):
+                packer.pack_int(value)
+            elif isinstance(value, bytes):  # Directly handle bytes
+                packer.pack_bytes(value)
+            elif hasattr(value, "serialize_xdr"):  # Assume custom serialization for objects
+                packer.pack_bytes(value.serialize_xdr())
             else:
-                packer.pack_int(int(value))
+                raise TypeError(f"Unsupported value type in Gi: {type(value)}")
+
         packed_data = packer.get_buffer()
 
-        # Hash it and interpret the bytes as a big-endian integer number
-        return int.from_bytes(hashlib.sha256(packed_data).digest())
+        # Compute SHA-256 hash and interpret as a big-endian integer
+        hash_bytes = hashlib.sha256(packed_data).digest()
+
+        # Convert the hash bytes to a big-endian integer
+        return int.from_bytes(hash_bytes, byteorder='big')
 
     # - For each peer "v", define "weight(v)" as the fraction of quorum
     #   slices containing "v".
@@ -404,23 +482,28 @@ class Node():
     # Because Gi(1 || n || v) is a random function with a maximum value of 2^{256}, this formula effectivelly
     # selects a peer as a neighbor with a probability equal to its weight!
 
-    def get_neighbors(self): # TODO: RENAME TO GET_HIGHPRIORITY_NODES/LIST
+    def get_priority_list(self): # TODO: RENAME TO GET_HIGHPRIORITY_NODES/LIST
         unique_nodes = set()  # Use set to avoid duplication - used to check for duplicates in loops
 
         for node in self.quorum_set.get_nodes():
-            if self.Gi([1, self.nomination_round, node.name]) < (2 ** 256 * self.weight(node)):
+            # print("Weight for node ", node.name, " : ", self.quorum_set.weight(node))
+            # print("self.Gi([1, self.nomination_round, node.name]) returns ", self.Gi([1, self.nomination_round, node.name]), " for node ", node.name)
+            # print(" this is less than ", (2 ** 256 * self.quorum_set.weight(node)), self.Gi([1, self.nomination_round, node.name]) < (2 ** 256 * self.quorum_set.weight(node)))
+            if self.Gi([1, self.nomination_round, str(node.name)]) < (2 ** 256 * self.quorum_set.weight(node)):
                 unique_nodes.add(node)  # Add to set
 
         for inner_set in self.quorum_set.get_inner_sets():
             if type(inner_set) is list:
                 for node in inner_set:
-                    if self.Gi([1, self.nomination_round, node.name]) < (2 ** 256 * self.weight(node)) and node not in unique_nodes:
+                    if self.Gi([1, self.nomination_round, node.name]) < (2 ** 256 * self.quorum_set.weight(node)) and node not in unique_nodes:
                         unique_nodes.add(node)
             else:
                 if self.Gi([1, self.nomination_round, inner_set.name]) < (
-                        2 ** 256 * self.weight(inner_set)) and inner_set not in unique_nodes:
+                        2 ** 256 * self.quorum_set.weight(inner_set)) and inner_set not in unique_nodes:
                     unique_nodes.add(inner_set)
-
+        # print("For node ", node.name, " the priority nodes are ", unique_nodes)
+        self.priority_list.update(unique_nodes)
+        print("PRIORITY LIST FOR ", self.name, " IS ", self.priority_list)
         return unique_nodes
 
     # - Define "priority(n, v)" as "Gi(2 || n || v)", where "2" and "n"
@@ -429,10 +512,11 @@ class Node():
         return self.Gi([2,self.nomination_round,v.name])
 
     def get_highest_priority_neighbor(self):
-        # TODO: Check globals.simulation_time
-        neighbors = self.get_neighbors()
-        if not neighbors:  # Avoid empty sequence error
-            log.node.warning('Node %s has no neighbors!', self.name)
+        self.check_update_nomination_round()
+        neighbors = self.priority_list
+        if len(neighbors) < 1:  # Avoid empty sequence error
+            log.node.warning('Node %s has no priority list!', self.name)
+            print("nodes quorum set is ", self.quorum_set.nodes, " ", self.quorum_set.inner_sets)
             return self  # Return self or handle the case differently
         return max(neighbors, key=self.priority)
 
@@ -1011,6 +1095,12 @@ class Node():
             self.externalize_broadcast_flags.add(externalize_msg)
             self.externalized_slot_counter.add(externalize_msg)
             log.node.info('Node %s appended SCPExternalize message to its storage and state, message = %s', self.name, externalize_msg)
+
+            # Reset Nomination data structures for next slot
+            self.priority_list = set()
+            self.nomination_round = 1
+            self.last_nomination_start_time = Globals.simulation_time
+
             # save to log file
             self.log_to_file(f"NODE - INFO - Node {self.name} appended SCPExternalize message to its storage and state, message = {externalize_msg}")
         log.node.info('Node %s could not retrieve a confirmed SCPCommit message from its peer!')

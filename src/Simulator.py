@@ -52,7 +52,7 @@ class Simulator:
         self._nodes = []
 
         # TODO: _max_simulation_time should be loaded from the config!
-        self._max_simulation_time = 30
+        self._max_simulation_time = 300
         # self._simulation_time = 0
 
         self._set_logging()
@@ -92,9 +92,9 @@ class Simulator:
     def all_nodes_finalized(self):
         check = all(isinstance(node.externalized_slot_counter, SCPExternalize) for node in self._nodes)
         print("THE CHECK IS ", check)
-        for node in self._nodes:
-            if not isinstance(node.externalize_broadcast_flags, SCPExternalize):
-                log.simulator.info(f"Node {node.name} has not finalized yet. Flag: {node.externalize_broadcast_flags}")
+        # for node in self._nodes:
+            # if not isinstance(node.externalize_broadcast_flags, SCPExternalize):
+                # log.simulator.info(f"Node {node.name} has not finalized yet. Flag: {node.externalize_broadcast_flags}")
         return check
 
     def run(self):

@@ -159,20 +159,15 @@ class QuorumSet():
         return random.choice(flat_list) if flat_list else None
 
     def weight(self, v):
-        # Count how many times 'v' appears in slices
-        count = sum(1 for node in self.nodes if node == v)
-        print("COUNT BASED ON SELF.NODES IS ", count)
+        count = self.nodes.count(v) # Count how many times 'v' appears in slices
 
         # Include inner quorum sets
         for inner_set in self.inner_sets:
-            if v is not type(list): # only one node
-                if v == inner_set:
+            if isinstance(inner_set, list):
+                if v in inner_set:
                     count += 1
-                    print("V IS NOT A LIST AND COUNT INCREASED ", count)
-            else:
-                if v in inner_set.nodes:
-                    count += 1
-                    print("V IS A LIST AND COUNT INCREASED ", count)
+            elif v == inner_set:
+                count += 1
 
         # Compute fraction of quorum slices that contain 'v'
         total_slices = len(self.nodes) + len(self.inner_sets)

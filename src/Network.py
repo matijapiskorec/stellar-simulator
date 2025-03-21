@@ -50,21 +50,27 @@ class Network():
 
         nodes = []
 
-        # Create nodes
-        for i in range(n_nodes):
-            nodes.append(Node(str(i)))
-            log.network.debug('Node created: %s', nodes[-1])
-
-        log.network.debug('Calculating quorum sets based on the network topology=%s',topology)
-
         # Generate network topology by altering nodes quorum sets
         match topology:
             case 'FULL':
+                for i in range(n_nodes):
+                    nodes.append(Node(i))
+                    log.network.debug('Node created: %s', nodes[-1])
+
+                log.network.debug('Calculating quorum sets based on the network topology=%s', topology)
                 # We add all nodes to the quorum set of each node, including the node itself
                 for node in nodes:
                     log.network.debug('Adding nodes %s to the quorum set of Node %s', nodes, node)
                     node.set_quorum(nodes, [])
             case 'ER':
+                # Create nodes
+                for i in range(n_nodes):
+                    nodes.append(Node(i))
+                    log.network.debug('Node created: %s', nodes[-1])
+
+                node_map = {node.name: node for node in nodes}
+
+                log.network.debug('Calculating quorum sets based on the network topology=%s', topology)
                 # Generate a random graph with n_nodes and 50% chance for each edge
                 graph = nx.fast_gnp_random_graph(n_nodes, 0.5)
                 # Find the largest connected component (LCC)
@@ -76,11 +82,15 @@ class Network():
                                       missing)
                 # Exclude nodes that are not in the LCC
                 nodes = [node for node in nodes if int(node.name) in lcc_set]
+                nodes = [node_map[i] for i in lcc_set]
+
+
 
                 # For each node in the remaining (connected) set, build quorum sets
                 for node in nodes:
                     # For each node, get its edges from the graph
-                    filtered_nodes = [nodes[edge[1]] for edge in graph.edges(node.name)]
+                    # filtered_nodes = [nodes[edge[1]] for edge in graph.edges(node.name)]
+                    filtered_nodes = [nodes[edge[1]] for edge in graph.edges(node.name) if edge[1] < len(nodes)]
 
                     if len(filtered_nodes) > 1:
                         filter_distribution = len(filtered_nodes) // 2  # Half to quorum, half to inner sets

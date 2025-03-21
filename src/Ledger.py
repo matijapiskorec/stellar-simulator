@@ -22,7 +22,7 @@ class Ledger():
         self._transactions = []
         self.node = node
 
-        self._slots = {}  # Dictionary to store {slot_number: transaction}
+        self._slots = {}  # Dictionary to store {slot_number: value}
 
         log.ledger.info('Initialized ledger for node %(node)s!' % self.__dict__)
 
