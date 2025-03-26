@@ -14,6 +14,7 @@ from Transaction import Transaction
 from unittest.mock import MagicMock, patch
 from unittest import mock
 from Globals import Globals
+from QuorumSet import QuorumSet
 
 
 class NodeTest(unittest.TestCase):
@@ -45,6 +46,42 @@ class NodeTest(unittest.TestCase):
     #     # Newly added transactions should not be visible in the message that was already posted to the mempool!
     #     # This is true if we are sending a copy of transactions rather than a reference to transactions
     #     self.assertTrue(len(nodes[1].messages[0]._voted[0]._transactions)==1)
+
+    # Test whether we can calculate priority for each peer in the quorum set
+    def test_priority_of_nodes(self):
+
+        for topology in ['FULL', 'ER']:
+            nodes = Network.generate_nodes(n_nodes=30, topology=topology)
+
+            mempool = Mempool()
+            for node in nodes:
+                node.attach_mempool(mempool)
+                # if topology == 'ER':
+                # print(f"Node {node.name} has QuorumSet = {node.quorum_set.nodes} with inner sets {node.quorum_set.inner_sets}")
+
+            for node in nodes:
+                log.test.debug('Node %s, all peers in quorum set = %s', node.name, node.quorum_set.get_nodes())
+                neighbors = list(node.get_priority_list())  # Convert set to list for indexing
+                if neighbors:
+                    max_priority_neighbor = neighbors[0]
+                    max_priority = node.priority(max_priority_neighbor)
+                    for neighbor in neighbors[1:]:
+                        priority = node.priority(neighbor)
+                        if priority > max_priority:
+                            max_priority = priority
+                            max_priority_neighbor = neighbor
+                else:
+                    max_priority_neighbor = None
+                    max_priority = None
+
+                if len(node.get_priority_list()) > 0:
+                    print(f'Node %s, highest priority neighbor =', node.get_highest_priority_neighbor(),
+                          max_priority_neighbor)
+                    self.assertTrue(node.get_highest_priority_neighbor() == max_priority_neighbor)
+                    print(f'Node %s, priority of highest priority neighbor =',
+                          node.priority(node.get_highest_priority_neighbor()), max_priority)
+                    self.assertTrue(node.priority(node.get_highest_priority_neighbor()) == max_priority)
+
 
     def test_retrieves_transaction_if_not_externalized(self):
         self.node = Node("test_node")
@@ -164,37 +201,6 @@ class NodeTest(unittest.TestCase):
         round = self.node.calculate_nomination_round()
         self.assertEqual(round, 3, "Should be in round 4 after 9 seconds")
 
-
-    # Test whether we can calculate priority for each peer in the quorum set
-    def test_priority_of_nodes(self):
-
-        for topology in ['FULL','ER']:
-            nodes = Network.generate_nodes(n_nodes=30, topology=topology)
-
-            mempool = Mempool()
-            for node in nodes:
-                node.attach_mempool(mempool)
-                # if topology == 'ER':
-                    # print(f"Node {node.name} has QuorumSet = {node.quorum_set.nodes} with inner sets {node.quorum_set.inner_sets}")
-
-            for node in nodes:
-                log.test.debug('Node %s, all peers in quorum set = %s',node.name,node.quorum_set.get_nodes())
-                neighbors = list(node.get_priority_list())  # Convert set to list for indexing
-                if neighbors:
-                    max_priority_neighbor = neighbors[0]
-                    max_priority = node.priority(max_priority_neighbor)
-                    for neighbor in neighbors[1:]:
-                        priority = node.priority(neighbor)
-                        if priority > max_priority:
-                            max_priority = priority
-                            max_priority_neighbor = neighbor
-                else:
-                    max_priority_neighbor = None
-                    max_priority = None
-
-                if len(node.get_priority_list()) > 0:
-                    self.assertTrue(node.get_highest_priority_neighbor() == max_priority_neighbor)
-                    self.assertTrue(node.priority(node.get_highest_priority_neighbor()) == max_priority)
 
     def test_quorum_of_nodes_ER(self):
         nodes = Network.generate_nodes(n_nodes=5, topology='ER')
@@ -1946,6 +1952,7 @@ class NodeTest(unittest.TestCase):
         value1 = Value(transactions={Transaction(0), Transaction(0)})
         ballot1 = SCPBallot(counter=0, value=value1)
         self.node.commit_ballot_state = {"voted": {}, "accepted": {}, "confirmed": {value1.hash: ballot1}}
+        initial_slot = self.node.slot
 
         # Calling the method that should call process_commit_ballot_message
         self.node.prepare_Externalize_msg()
@@ -1955,10 +1962,15 @@ class NodeTest(unittest.TestCase):
         self.assertEqual(len(self.node.externalized_slot_counter), 1)
 
         # Fetch the prepared message
-        prepared_msg = self.node.externalize_broadcast_flags.pop()
+        prepared_slot, prepared_msg = self.node.externalize_broadcast_flags.pop()
+        self.assertEqual(prepared_slot, initial_slot)
+        self.assertEqual(self.node.slot, initial_slot + 1)
         self.assertIsInstance(prepared_msg, SCPExternalize)
 
         # Verify the mocked time was used in the externalize message
+        ledger_entry = self.node.ledger.get_slot(initial_slot)
+        self.assertIsNotNone(ledger_entry)
+        self.assertEqual(ledger_entry["value"], ballot1.value)
         self.assertEqual(prepared_msg._time, 123.123)
 
 
@@ -1971,23 +1983,21 @@ class NodeTest(unittest.TestCase):
         self.node.retrieve_confirmed_commit_ballot.assert_not_called()
         self.assertEqual(len(self.node.externalize_broadcast_flags), 0)
 
-
-
     def test_retrieve_externalize_message_retrieves_correctly(self):
         self.node = Node("test_node")
         self.requesting_node = Node("requesting_node")
 
-        message1 = SCPExternalize(ballot=SCPBallot(counter=1, value=Value(transactions={Transaction(0), Transaction(0)})))
-        self.requesting_node.externalize_broadcast_flags.add(message1)
+        message1 = SCPExternalize(
+            ballot=SCPBallot(counter=1, value=Value(transactions={Transaction(0), Transaction(1)})))
+        slot1 = 5  # Example slot number
+        self.requesting_node.externalize_broadcast_flags.add((slot1, message1))
 
-        retrieved = self.node.retrieve_externalize_msg(self.requesting_node)
+        retrieved_slot, retrieved_message = self.node.retrieve_externalize_msg(self.requesting_node)
 
-        self.assertIn(retrieved, self.requesting_node.externalize_broadcast_flags)
+        self.assertEqual(retrieved_slot, slot1)
+        self.assertEqual(retrieved_message, message1)
         self.assertIn(self.requesting_node.name, self.node.peer_externalised_statements)
-        self.assertIn(retrieved, self.node.peer_externalised_statements[self.requesting_node.name])
-
-        self.assertEqual(retrieved, message1)
-
+        self.assertIn((slot1, message1), self.node.peer_externalised_statements[self.requesting_node.name])
 
     def test_retrieve_externalize_message_no_flags(self):
         self.node = Node("test_node")

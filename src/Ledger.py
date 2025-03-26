@@ -22,7 +22,7 @@ class Ledger():
         self._transactions = []
         self.node = node
 
-        self._slots = {}  # Dictionary to store {slot_number: value}
+        self.slots = {}  # Dictionary to store {slot_number: value}
 
         log.ledger.info('Initialized ledger for node %(node)s!' % self.__dict__)
 
@@ -54,8 +54,8 @@ class Ledger():
 
     def add_slot(self, slot, externalize_msg: SCPExternalize):
         # Add a transaction to a specific slot with externalize timestamp
-        if slot not in self._slots:
-            self._slots[slot] = {
+        if slot not in self.slots:
+            self.slots[slot] = {
                 'value': externalize_msg.ballot.value,
                 'timestamp': externalize_msg._time
             }
@@ -65,4 +65,5 @@ class Ledger():
             log.ledger.info('Node %s: transaction for slot %d already exists!',self.node.name, slot)
 
     def get_slot(self, slot):
-        return self._slots.get(slot, None)
+        print("SLOTS LOOKS LIKE : ", self._slots)
+        return self.slots.get(slot, None)

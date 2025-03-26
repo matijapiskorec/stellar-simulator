@@ -13,6 +13,8 @@ Documentation:
 
 [2] Nicolas Barry and Giuliano Losa and David Mazieres and Jed McCaleb and Stanislas Polu, The Stellar Consensus Protocol (SCP) - technical implementation draft, https://datatracker.ietf.org/doc/draft-mazieres-dinrg-scp/05/
 """
+import random
+
 import numpy as np
 from Log import log
 from Event import Event
@@ -92,7 +94,7 @@ class Node():
         ###################################
         # EXTERNALIZE PHASE STRUCTURES    #
         ###################################
-        self.externalize_broadcast_flags = set()
+        self.externalize_broadcast_flags = set() # Change to store (slot, message) tuples
         self.externalized_slot_counter = set()
         self.peer_externalised_statements = {} # This will be used to track finalised slots for nodes, so will look like: {Node1: set(SCPExternalize(ballot, 1), SCPExternalize(ballot2, 3), Node2:{})}
 
@@ -111,6 +113,48 @@ class Node():
 
 
         self.log_path = 'simulator_events_log.txt'
+
+    def remove_finalized_transactions(self, finalized_value):
+        """
+        Remove all Values from all data structures where any transaction in the finalized value appears.
+        """
+        finalized_transactions = set(finalized_value.transactions)  # Extract finalized transactions
+
+        def filter_values(state_dict):
+            """
+            Helper function to remove values containing finalized transactions.
+            """
+            for key in state_dict.keys():
+                state_dict[key] = [
+                    value for value in state_dict[key]
+                    if hasattr(value, "transactions") and not finalized_transactions.intersection(value.transactions)
+                ]
+
+        def filter_ballots(state_dict):
+            """
+            Helper function to remove ballots where their value contains finalized transactions.
+            """
+            for key in list(state_dict.keys()):  # Iterate over keys to avoid modifying the dict while iterating
+                ballot = state_dict[key]  # Each entry is an SCPBallot
+                if hasattr(ballot.value, "transactions") and finalized_transactions.intersection(
+                        ballot.value.transactions):
+                    del state_dict[key]  # Remove the ballot if any transaction is finalized
+
+        # Filter nomination state (contains Value objects)
+        filter_values(self.nomination_state)
+
+        # Filter balloting state (contains SCPBallot objects)
+        for state in ['voted', 'accepted', 'confirmed', 'aborted']:
+            if state in self.balloting_state:
+                filter_ballots(self.balloting_state[state])
+
+        # Remove entries from statement_counter that contain finalized transactions
+        self.statement_counter = {
+            value: count for value, count in self.statement_counter.items()
+            if hasattr(value, "transactions") and not finalized_transactions.intersection(value.transactions)
+        }
+
+        log.node.info("Node %s removed all values and ballots containing finalized transactions.", self.name)
 
     #### LOGGER FUNCTION
     def log_to_file(self, message):
@@ -144,6 +188,24 @@ class Node():
             if ballot and hasattr(ballot, 'value') and hasattr(ballot.value, 'transactions'):
                 if any(tx.hash == transaction_id for tx in ballot.value.transactions):
                     return True
+        return False
+
+    def is_message_externalized(self, message):
+        """
+        Checks if the transactions in a broadcast message have been externalized (approved).
+        This is just an example, you should define it according to your externalization criteria.
+        """
+        for value in message.voted:
+            if hasattr(value, 'transactions'):
+                for tx in value.transactions:
+                    if self.is_transaction_in_externalized_slots(tx.hash):
+                        return True
+        # Check the 'accepted' values
+        for value in message.accepted:
+            if hasattr(value, 'transactions'):
+                for tx in value.transactions:
+                    if self.is_transaction_in_externalized_slots(tx.hash):
+                        return True
         return False
 
 
@@ -250,6 +312,7 @@ class Node():
             self.prepare_nomination_msg() # Prepares Values for Nomination and broadcasts message
         else:
             log.node.info("Node %s did not Nominate a Value since it is not in it's priority list", self.name)
+        #self.prepare_nomination_msg()
         # self.prepare_nomination_msg()  # Prepares Values for Nomination and broadcasts message
         #priority_node = self.get_highest_priority_neighbor()
 
@@ -259,8 +322,11 @@ class Node():
         return
 
     def retrieve_broadcast_message(self, requesting_node):
-        # Select a random message and check if its already been sent to the requesting_node
-        # To check -> check if the value hash of the
+        """
+        Retrieve a broadcast message for a requesting node.
+        If a message has approved transactions (i.e., it's been externalized),
+        remove it from the broadcast flags.
+        """
         if len(self.broadcast_flags) > 0:
             if requesting_node.name not in self.received_broadcast_msgs:
                 retrieved_message = np.random.choice(self.broadcast_flags)
@@ -270,8 +336,14 @@ class Node():
             elif len(self.received_broadcast_msgs[requesting_node.name]) != len(self.broadcast_flags):
                 statement = True
                 while statement:
+                    # Choose a random message to retrieve
                     retrieved_message = np.random.choice(self.broadcast_flags)
                     if retrieved_message not in self.received_broadcast_msgs[requesting_node.name]:
+                        if self.is_message_externalized(retrieved_message):
+                            # Remove from broadcast flags if externalized
+                            self.broadcast_flags.remove(retrieved_message)
+
+                        # Add the message to the received list for the requesting node
                         self.received_broadcast_msgs[requesting_node.name].append(retrieved_message)
                         return retrieved_message
         return None
@@ -336,6 +408,7 @@ class Node():
         # Update nomination round and priority list if simulation time exceeds nominatoin round time and
         # choose a neighbor with the highest priority from which we fetch messages
         other_node = self.get_highest_priority_neighbor()
+        print("OTHER NODE IS ", other_node)
 
         if other_node is None:
             log.node.info('Node %s has no one in quorum set!',self.name)
@@ -352,7 +425,6 @@ class Node():
                               self.name,other_node.name)
         else:
             log.node.info('Node %s is his own highest priority neighbor!',self.name)
-
         return
 
     def prepare_nomination_msg(self):
@@ -518,6 +590,7 @@ class Node():
             log.node.warning('Node %s has no priority list!', self.name)
             print("nodes quorum set is ", self.quorum_set.nodes, " ", self.quorum_set.inner_sets)
             return self  # Return self or handle the case differently
+        print("GOING TO RETURN",  max(neighbors, key=self.priority), "with type", type(max(neighbors, key=self.priority)))
         return max(neighbors, key=self.priority)
 
     def is_duplicate_value(self, other_val, current_vals):
@@ -608,7 +681,6 @@ class Node():
 
                 if val in self.nomination_state['voted']:
                     self.nomination_state['voted'].remove(val)
-
 
                 self.nomination_state['accepted'].append(val)
                 log.node.info('Value %s has been moved to accepted in Node %s', val, self.name)
@@ -838,6 +910,9 @@ class Node():
 
 
     def retrieve_ballot_prepare_message(self, requesting_node):
+        print("RUNNING RETRIEVE BALLOT MESSAGE")
+        print("LENGTH OF PREPARE BROADCAST FLAG IS", len(self.ballot_prepare_broadcast_flags) )
+        print("THE BROADCAST FLAG IS ", self.ballot_prepare_broadcast_flags)
         # Select a random ballot and check if its already been sent to the requesting_node
         if len(self.ballot_prepare_broadcast_flags) > 0:
             if requesting_node.name not in self.received_prepare_broadcast_msgs:
@@ -1091,15 +1166,22 @@ class Node():
 
             # Store the externalized value in the ledger
             self.ledger.add_slot(self.slot, externalize_msg)
-            self.slot += 1 # initalise next slot
-            self.externalize_broadcast_flags.add(externalize_msg)
+            # self.externalize_broadcast_flags.add(externalize_msg)
+            self.externalize_broadcast_flags.add((self.slot, externalize_msg))
             self.externalized_slot_counter.add(externalize_msg)
-            log.node.info('Node %s appended SCPExternalize message to its storage and state, message = %s', self.name, externalize_msg)
+            self.slot += 1  # initalise next slot
+            log.node.info('Node %s appended SCPExternalize message for slot %d to its storage and state, message = %s', self.name, self.slot, externalize_msg)
 
-            # Reset Nomination data structures for next slot
+            # Reset Nomination/Balloting data structures for next slot
+            self.remove_finalized_transactions(externalize_msg.ballot.value)
+
             self.priority_list = set()
             self.nomination_round = 1
             self.last_nomination_start_time = Globals.simulation_time
+            self.committed_ballots = {}
+            self.balloting_state = {'voted': {}, 'accepted': {}, 'confirmed': {}, 'aborted': {}}
+            self.commit_ballot_state = {'voted': {}, 'accepted': {}, 'confirmed': {}, 'aborted': {}}
+            self.commit_ballot_broadcast_flags = set()
 
             # save to log file
             self.log_to_file(f"NODE - INFO - Node {self.name} appended SCPExternalize message to its storage and state, message = {externalize_msg}")
@@ -1108,21 +1190,70 @@ class Node():
     def retrieve_externalize_msg(self, requesting_node):
         # Check if there are any broadcast flags
         if len(requesting_node.externalize_broadcast_flags) > 0:
-            retrieved_message = np.random.choice(list(requesting_node.externalize_broadcast_flags))
-            if requesting_node not in self.peer_externalised_statements:
+            retrieved_slot, retrieved_message = random.choice(list(requesting_node.externalize_broadcast_flags))
+
+            if requesting_node.name not in self.peer_externalised_statements:
                 self.peer_externalised_statements[requesting_node.name] = set()
-                self.peer_externalised_statements[requesting_node.name].add(retrieved_message)
+                self.peer_externalised_statements[requesting_node.name].add((retrieved_slot, retrieved_message))
             else:
-                self.peer_externalised_statements[requesting_node.name].add(retrieved_message)
-            return retrieved_message
+                self.peer_externalised_statements[requesting_node.name].add((retrieved_slot, retrieved_message))
+            return retrieved_slot, retrieved_message
         return None
 
     def receive_Externalize_msg(self):
+        # Retrieve a random externalize message from a random peer.
         sending_node = self.quorum_set.retrieve_random_peer(self)
         if sending_node is not None and sending_node != self:
-                message = self.retrieve_externalize_msg(sending_node)
-                if message is not None:
-                    log.node.info('Node %s has retrieved SCPExternalise message %s from peer node %s!', self.name, message, sending_node.name)
+            result = self.retrieve_externalize_msg(sending_node)  # expected to return (slot_number, message)
+            if result is not None:
+                slot_number, message = result
+                self.process_externalize_msg(slot_number, message, sending_node)
+            else:
+                log.node.info('Node %s has no SCPExternalize messages to retrieve from peer node %s!',
+                              self.name, sending_node.name)
+        else:
+            log.node.info('Node %s could not retrieve a valid peer for externalize messages!', self.name)
 
-                    log.node.info('Node %s could not retrieved SCPExternalise message from peer node!', self.name)
-                    self.peer_externalised_statements[sending_node].add(message)
+    def process_externalize_msg(self, slot_number, message, sending_node):
+        # Check if the slot has already been finalized in the ledger.
+        if slot_number in self.ledger.slots:
+            log.node.info('Node %s already externalized slot %d. Ignoring message from %s.',
+                          self.name, slot_number, sending_node.name)
+            return
+
+        # Adopt the externalized value.
+        log.node.info('Node %s adopting externalized value for slot %d: %s', self.name, slot_number, message.ballot.value)
+        self.ledger.add_slot(slot_number, message)
+
+        # Update peer externalized statements.
+        self.peer_externalised_statements.setdefault(sending_node.name, set()).add((slot_number, message))
+        # Optionally, add the (slot, message) tuple to this node's own broadcast flags (or remove it, as desired).
+        self.externalize_broadcast_flags.add((slot_number, message))
+        self.externalized_slot_counter.add(message)
+
+        # Reset nomination and ballot states for this slot.
+        self.remove_finalized_transactions(message.ballot.value)
+
+        self.slot += 1
+        self.nomination_round = 1
+        self.committed_ballots = {}
+
+        self.ballot_statement_counter = {}
+
+        self.ballot_prepare_broadcast_flags = set()
+        self.received_prepare_broadcast_msgs = {}
+        self.prepared_ballots = {}
+
+        self.balloting_state = {'voted': {}, 'accepted': {}, 'confirmed': {}, 'aborted': {}}
+        self.ballot_statement_counter = {}
+        self.ballot_prepare_broadcast_flags = set()
+        self.received_prepare_broadcast_msgs = {}
+        self.prepared_ballots = {}
+
+        self.commit_ballot_state = {'voted': {}, 'accepted': {}, 'confirmed': {}}
+        self.commit_ballot_statement_counter = {}
+        self.commit_ballot_broadcast_flags = set()
+        self.received_commit_ballot_broadcast_msgs = {}
+        self.committed_ballots = {}
+
+        log.node.info('Node %s has finalized slot %d with value %s', self.name, slot_number, message.ballot.value)

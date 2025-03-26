@@ -37,7 +37,7 @@ from Globals import Globals
 from SCPExternalize import SCPExternalize
 
 VERBOSITY_DEFAULT = 5
-N_NODES_DEFAULT = 20
+N_NODES_DEFAULT = 40
 
 class Simulator:
     '''
@@ -52,7 +52,7 @@ class Simulator:
         self._nodes = []
 
         # TODO: _max_simulation_time should be loaded from the config!
-        self._max_simulation_time = 300
+        self._max_simulation_time = 75
         # self._simulation_time = 0
 
         self._set_logging()
@@ -107,9 +107,9 @@ class Simulator:
             log.simulator.debug('Creating %s nodes.', self._n_nodes)
 
         # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='FULL')
-        # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='HARDCODE')
+        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='HARDCODE')
         # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
-        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='LUNCH')
+        # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='LUNCH')
 
         self._mempool = Mempool()
         # self._mempool = Mempool(simulation_time=self._simulation_time)
@@ -149,7 +149,7 @@ class Simulator:
             'retrieve_transaction_from_mempool': {'tau': 1.0, 'tau_domain': self._nodes},  # 1 second
             'nominate': {'tau': 1.0, 'tau_domain': self._nodes},
             'receive_commit_message': {'tau': 1.0, 'tau_domain': self._nodes},
-            'receive_externalize_msg': {'tau': 1.0, 'tau_domain': self._nodes},
+            'receive_externalize_msg': {'tau': 0.1, 'tau_domain': self._nodes},
             # Processing group
             'retrieve_message_from_peer': {'tau': 1.0, 'tau_domain': self._nodes},
             'prepare_ballot': {'tau': 1.0, 'tau_domain': self._nodes},
