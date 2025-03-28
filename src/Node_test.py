@@ -343,6 +343,7 @@ class NodeTest(unittest.TestCase):
         self.node = Node("test_node")
         self.storage = Storage(self.node)
         self.priority_node = Node("test_node2")
+        self.node.quorum_set.nodes = [self.priority_node]
 
         value1 = Value(transactions={Transaction(0), Transaction(0)})
         value2 = Value(transactions={Transaction(0), Transaction(0)})
@@ -376,6 +377,7 @@ class NodeTest(unittest.TestCase):
         self.node = Node("test_node")
         self.storage = Storage(self.node)
         self.priority_node = Node("test_node2")
+        self.node.quorum_set.nodes = [self.priority_node]
 
         value1 = Value(transactions={Transaction(0), Transaction(0)})
 
@@ -408,6 +410,7 @@ class NodeTest(unittest.TestCase):
         self.node = Node("test_node")
         self.storage = Storage(self.node)
         self.priority_node = Node("test_node2")
+        self.node.quorum_set.nodes = [self.priority_node]
         message = SCPNominate(voted=[], accepted=[])
 
         self.node.get_highest_priority_neighbor = MagicMock(return_value=self.priority_node)
@@ -1945,6 +1948,7 @@ class NodeTest(unittest.TestCase):
     def test_prepare_externalize_msg(self):
         # Initialize self.node first
         self.node = Node(name="1")
+        self.test_sender = Node(name="2")
 
         Globals.simulation_time = 123.123
 
@@ -1960,7 +1964,6 @@ class NodeTest(unittest.TestCase):
         # Ensure the message was prepared
         self.assertEqual(len(self.node.externalize_broadcast_flags), 1)
         self.assertEqual(len(self.node.externalized_slot_counter), 1)
-
         # Fetch the prepared message
         prepared_slot, prepared_msg = self.node.externalize_broadcast_flags.pop()
         self.assertEqual(prepared_slot, initial_slot)

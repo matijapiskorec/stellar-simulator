@@ -65,5 +65,5 @@ class Ledger():
             log.ledger.info('Node %s: transaction for slot %d already exists!',self.node.name, slot)
 
     def get_slot(self, slot):
-        print("SLOTS LOOKS LIKE : ", self._slots)
+        print("SLOTS LOOKS LIKE : ", self.slots)
         return self.slots.get(slot, None)

@@ -172,6 +172,10 @@ class QuorumSet():
         # Compute fraction of quorum slices that contain 'v'
         total_slices = len(self.nodes) + len(self.inner_sets)
 
+        if self == v:
+            count = total_slices
+            return count / total_slices
+
         if total_slices == 0:
             return 0.0  # Avoid division by zero
 

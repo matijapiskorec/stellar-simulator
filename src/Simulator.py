@@ -37,7 +37,7 @@ from Globals import Globals
 from SCPExternalize import SCPExternalize
 
 VERBOSITY_DEFAULT = 5
-N_NODES_DEFAULT = 40
+N_NODES_DEFAULT = 60
 
 class Simulator:
     '''
@@ -52,7 +52,7 @@ class Simulator:
         self._nodes = []
 
         # TODO: _max_simulation_time should be loaded from the config!
-        self._max_simulation_time = 75
+        self._max_simulation_time = 150
         # self._simulation_time = 0
 
         self._set_logging()
@@ -107,9 +107,9 @@ class Simulator:
             log.simulator.debug('Creating %s nodes.', self._n_nodes)
 
         # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='FULL')
-        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='HARDCODE')
+        # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='HARDCODE')
         # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
-        # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='LUNCH')
+        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='LUNCH')
 
         self._mempool = Mempool()
         # self._mempool = Mempool(simulation_time=self._simulation_time)

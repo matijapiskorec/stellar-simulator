@@ -130,23 +130,8 @@ class Node():
                     if hasattr(value, "transactions") and not finalized_transactions.intersection(value.transactions)
                 ]
 
-        def filter_ballots(state_dict):
-            """
-            Helper function to remove ballots where their value contains finalized transactions.
-            """
-            for key in list(state_dict.keys()):  # Iterate over keys to avoid modifying the dict while iterating
-                ballot = state_dict[key]  # Each entry is an SCPBallot
-                if hasattr(ballot.value, "transactions") and finalized_transactions.intersection(
-                        ballot.value.transactions):
-                    del state_dict[key]  # Remove the ballot if any transaction is finalized
-
         # Filter nomination state (contains Value objects)
         filter_values(self.nomination_state)
-
-        # Filter balloting state (contains SCPBallot objects)
-        for state in ['voted', 'accepted', 'confirmed', 'aborted']:
-            if state in self.balloting_state:
-                filter_ballots(self.balloting_state[state])
 
         # Remove entries from statement_counter that contain finalized transactions
         self.statement_counter = {
@@ -312,7 +297,7 @@ class Node():
             self.prepare_nomination_msg() # Prepares Values for Nomination and broadcasts message
         else:
             log.node.info("Node %s did not Nominate a Value since it is not in it's priority list", self.name)
-        #self.prepare_nomination_msg()
+        self.prepare_nomination_msg()
         # self.prepare_nomination_msg()  # Prepares Values for Nomination and broadcasts message
         #priority_node = self.get_highest_priority_neighbor()
 
@@ -353,6 +338,11 @@ class Node():
         if any(self.balloting_state[state] for state in ['voted', 'accepted', 'confirmed', 'aborted']):
             log.node.info("Node %s is skipping message processing as it already has ballots in balloting_state.",
                           self.name)
+            return
+
+        # This checks if the node has no quorum set, if so then it simply gets ignored
+        if not self.quorum_set or (not self.quorum_set.get_nodes() and not self.quorum_set.get_inner_sets()):
+            log.node.warning(f"Node {self.name} has no valid quorum set! Skipping priority calculation.")
             return
 
         self.check_update_nomination_round()
@@ -405,16 +395,20 @@ class Node():
         Retrieve a message from a random peer.
         """
 
-        # Update nomination round and priority list if simulation time exceeds nominatoin round time and
+        # Update nomination round and priority list if simulation time exceeds nomination round time and
         # choose a neighbor with the highest priority from which we fetch messages
+        v = 'test'
         other_node = self.get_highest_priority_neighbor()
-        print("OTHER NODE IS ", other_node)
-
+        print("OTHER NODE IS ", other_node, " which has type ", type(other_node))
+        print("checking against none")
         if other_node is None:
             log.node.info('Node %s has no one in quorum set!',self.name)
             return
 
-        if other_node is not self:
+        print("now checking against self")
+
+        if other_node is not None:
+            print("GOT HERE TO CHECK MESSAGES")
             log.node.info('Node %s retrieving messages from his highest priority neighbor Node %s!',
                           self.name,other_node.name)
             retrieved_messages = other_node.get_messages()
@@ -459,6 +453,7 @@ class Node():
         log.node.info('Node %s appended SCPNominate message to its storage and state, message = %s', self.name, message)
 
     def get_messages(self):
+        print("CHECKING GET MESSAGES")
         if len(self.storage.messages) == 0:
             messages = None
             log.node.info('Node %s: No messages to retrieve!',self.name)
@@ -554,8 +549,13 @@ class Node():
     # Because Gi(1 || n || v) is a random function with a maximum value of 2^{256}, this formula effectivelly
     # selects a peer as a neighbor with a probability equal to its weight!
 
-    def get_priority_list(self): # TODO: RENAME TO GET_HIGHPRIORITY_NODES/LIST
+    def get_priority_list(self):
+        print(f"Nodes in quorum set: {self.quorum_set.get_nodes()}")
+        print(f"Inner sets in quorum set: {self.quorum_set.get_inner_sets()}")
         unique_nodes = set()  # Use set to avoid duplication - used to check for duplicates in loops
+        if self.Gi([1, self.nomination_round, str(self.name)]) < (2 ** 256 * 1.0):
+            print("SELF WAS ADDED")
+            unique_nodes.add(self)
 
         for node in self.quorum_set.get_nodes():
             # print("Weight for node ", node.name, " : ", self.quorum_set.weight(node))
@@ -565,15 +565,17 @@ class Node():
                 unique_nodes.add(node)  # Add to set
 
         for inner_set in self.quorum_set.get_inner_sets():
-            if type(inner_set) is list:
+            if isinstance(inner_set, list):
                 for node in inner_set:
-                    if self.Gi([1, self.nomination_round, node.name]) < (2 ** 256 * self.quorum_set.weight(node)) and node not in unique_nodes:
+                    if self.Gi([1, self.nomination_round, node.name]) < (
+                            2 ** 256 * self.quorum_set.weight(node)) and node not in unique_nodes:
                         unique_nodes.add(node)
-            else:
+            elif isinstance(inner_set, Node):  # Ensure inner_set is a Node, not a duplicate list
                 if self.Gi([1, self.nomination_round, inner_set.name]) < (
                         2 ** 256 * self.quorum_set.weight(inner_set)) and inner_set not in unique_nodes:
                     unique_nodes.add(inner_set)
-        # print("For node ", node.name, " the priority nodes are ", unique_nodes)
+
+            # print("For node ", node.name, " the priority nodes are ", unique_nodes)
         self.priority_list.update(unique_nodes)
         print("PRIORITY LIST FOR ", self.name, " IS ", self.priority_list)
         return unique_nodes
@@ -585,12 +587,13 @@ class Node():
 
     def get_highest_priority_neighbor(self):
         self.check_update_nomination_round()
+        self.get_priority_list()
         neighbors = self.priority_list
         if len(neighbors) < 1:  # Avoid empty sequence error
             log.node.warning('Node %s has no priority list!', self.name)
             print("nodes quorum set is ", self.quorum_set.nodes, " ", self.quorum_set.inner_sets)
-            return self  # Return self or handle the case differently
-        print("GOING TO RETURN",  max(neighbors, key=self.priority), "with type", type(max(neighbors, key=self.priority)))
+            return self  # or self, depending on how you want to handle it
+        # Use min instead of max if a lower number indicates higher priority.
         return max(neighbors, key=self.priority)
 
     def is_duplicate_value(self, other_val, current_vals):
@@ -991,7 +994,7 @@ class Node():
     def process_commit_ballot_message(self, message, sender):
         """
         The purpose of continuing to update the counter and send this field is to assist other nodes still in the PREPARE phase in synchronizing their counters.
-        The update of the counter is done, but it doesn't help SCPPrepare as this doesnt affect prepared ballots due to commits & prepare messages being processed separately
+        The update of the counter is done, but it doesn't help SCPPrepare as this doesn't affect prepared ballots due to commits & prepare messages being processed separately
         Also, we do not abort, just update counters if larger
         """
         received_ballot = message.ballot
@@ -1089,7 +1092,7 @@ class Node():
 
                 log.node.info('Commit ballot %s has been moved to confirmed in Node %s', ballot.value.hash, self.name)
             else:
-                log.node.info('No commit ballots in accepted state, cannot move Ballots %s to confirmed in Node %s', ballot, self.name)\
+                log.node.info('No commit ballots in accepted state, cannot move Ballots %s to confirmed in Node %s', ballot, self.name)
 
 
     def retrieve_ballot_commit_message(self, requesting_node):
@@ -1173,15 +1176,19 @@ class Node():
             log.node.info('Node %s appended SCPExternalize message for slot %d to its storage and state, message = %s', self.name, self.slot, externalize_msg)
 
             # Reset Nomination/Balloting data structures for next slot
-            self.remove_finalized_transactions(externalize_msg.ballot.value)
+            # self.remove_finalized_transactions(externalize_msg.ballot.value)
+            self.nomination_state['confirmed'] = []
 
-            self.priority_list = set()
+            self.priority_list.clear()
             self.nomination_round = 1
+
             self.last_nomination_start_time = Globals.simulation_time
-            self.committed_ballots = {}
-            self.balloting_state = {'voted': {}, 'accepted': {}, 'confirmed': {}, 'aborted': {}}
-            self.commit_ballot_state = {'voted': {}, 'accepted': {}, 'confirmed': {}, 'aborted': {}}
-            self.commit_ballot_broadcast_flags = set()
+            self.reset_commit_phase_state(externalize_msg.ballot.value)
+            self.reset_prepare_ballot_phase(externalize_msg.ballot.value)
+            # self.balloting_state = {'voted': {}, 'accepted': {}, 'confirmed': {}, 'aborted': {}}
+            # self.commit_ballot_state = {'voted': {}, 'accepted': {}, 'confirmed': {}, 'aborted': {}}
+            # self.commit_ballot_broadcast_flags = set()
+            # self.ballot_prepare_broadcast_flags = set()
 
             # save to log file
             self.log_to_file(f"NODE - INFO - Node {self.name} appended SCPExternalize message to its storage and state, message = {externalize_msg}")
@@ -1236,7 +1243,7 @@ class Node():
 
         self.slot += 1
         self.nomination_round = 1
-        self.committed_ballots = {}
+        self.nomination_state['confirmed'] = []
 
         self.ballot_statement_counter = {}
 
@@ -1253,7 +1260,35 @@ class Node():
         self.commit_ballot_state = {'voted': {}, 'accepted': {}, 'confirmed': {}}
         self.commit_ballot_statement_counter = {}
         self.commit_ballot_broadcast_flags = set()
+
         self.received_commit_ballot_broadcast_msgs = {}
-        self.committed_ballots = {}
 
         log.node.info('Node %s has finalized slot %d with value %s', self.name, slot_number, message.ballot.value)
+
+    def reset_commit_phase_state(self, value):
+        if value in self.commit_ballot_statement_counter:
+            self.commit_ballot_statement_counter[value]['voted'].clear()
+        for value in list(self.commit_ballot_statement_counter.keys()):
+            self.commit_ballot_statement_counter[value]['voted'].clear()
+            self.commit_ballot_statement_counter[value]['accepted'].clear()
+            self.commit_ballot_statement_counter[value]['confirmed'].clear()
+            self.commit_ballot_statement_counter[value]['aborted'].clear()
+
+        self.commit_ballot_state['voted'].clear()
+        self.commit_ballot_state['accepted'].clear()
+        self.commit_ballot_state['confirmed'].clear()
+
+        self.commit_ballot_broadcast_flags.clear()
+        self.received_commit_ballot_broadcast_msgs.clear()
+        log.node.info("Cleared outdated commit ballots for Node %s", self.name)
+
+    def reset_prepare_ballot_phase(self, value):
+        self.balloting_state = {'voted': {}, 'accepted': {}, 'confirmed': {}, 'aborted': {}}
+        self.prepared_ballots.clear()
+        self.ballot_statement_counter.clear()
+        self.received_prepare_broadcast_msgs.clear()
+        self.ballot_prepare_broadcast_flags.clear()
+
+
+
+
