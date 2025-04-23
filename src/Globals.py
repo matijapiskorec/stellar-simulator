@@ -13,4 +13,5 @@ class Globals:
 
     simulation_time = 0
     slot = 1
+    TIMEOUT_THRESHOLD = simulation_time * 0.01
 

@@ -13,7 +13,7 @@ from Log import log
 
 import numpy as np
 
-THRESHOLD_DEFAULT = 5 # 10% threshold by default
+THRESHOLD_DEFAULT = 10 # 10% threshold by default
 
 class QuorumSet():
 
@@ -84,15 +84,13 @@ class QuorumSet():
     # This function checks if the quorum meets threshold - it checks every node, it doesn't check for nested QuorumSlices
     def check_threshold(self, val, quorum, threshold, node_statement_counter):
         signed_counter = 0
-
+        # Safely get the entry for the candidate's hash; if not present, default to empty sets.
+        entry = node_statement_counter.get(val.hash, {"voted": set(), "accepted": set()})
         for node in quorum:
-            if node in node_statement_counter[val.hash]["voted"] or node in node_statement_counter[val.hash]["accepted"]:
+            # Assuming you compare by node names (as done elsewhere)
+            if node.name in entry.get("voted", set()) or node.name in entry.get("accepted", set()):
                 signed_counter += 1
-
-        if signed_counter >= threshold:
-            return True
-        else:
-            return False
+        return signed_counter >= threshold
 
     def check_prepare_threshold(self, ballot, quorum, threshold, prepare_statement_counter):
         signed_counter = 0
@@ -157,3 +155,26 @@ class QuorumSet():
                     flat_list.append(inner_set)
 
         return random.choice(flat_list) if flat_list else None
+
+    def weight(self, v):
+        count = self.nodes.count(v) # Count how many times 'v' appears in slices
+
+        # Include inner quorum sets
+        for inner_set in self.inner_sets:
+            if isinstance(inner_set, list):
+                if v in inner_set:
+                    count += 1
+            elif v == inner_set:
+                count += 1
+
+        # Compute fraction of quorum slices that contain 'v'
+        total_slices = len(self.nodes) + len(self.inner_sets)
+
+        if self == v:
+            count = total_slices
+            return count / total_slices
+
+        if total_slices == 0:
+            return 0.0  # Avoid division by zero
+
+        return count / total_slices

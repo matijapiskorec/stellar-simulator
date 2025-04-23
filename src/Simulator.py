@@ -34,9 +34,10 @@ from Network import Network
 from Mempool import Mempool
 # import Globals
 from Globals import Globals
+from SCPExternalize import SCPExternalize
 
 VERBOSITY_DEFAULT = 5
-N_NODES_DEFAULT = 88
+N_NODES_DEFAULT = 60
 
 class Simulator:
     '''
@@ -51,7 +52,7 @@ class Simulator:
         self._nodes = []
 
         # TODO: _max_simulation_time should be loaded from the config!
-        self._max_simulation_time = 50
+        self._max_simulation_time = 200
         # self._simulation_time = 0
 
         self._set_logging()
@@ -78,6 +79,24 @@ class Simulator:
         if self._verbosity:
             log.set_level(log_level)
 
+    def get_first_externalized_values(self):
+        first_externalized = {}
+
+        for node in self._nodes:
+            if node.externalize_broadcast_flags:
+                first_value = next(iter(node.externalize_broadcast_flags.values()))
+                first_externalized[node] = first_value  # Store the first externalized value
+
+        return first_externalized
+
+    def all_nodes_finalized(self):
+        check = all(isinstance(node.externalized_slot_counter, SCPExternalize) for node in self._nodes)
+        print("THE CHECK IS ", check)
+        # for node in self._nodes:
+            # if not isinstance(node.externalize_broadcast_flags, SCPExternalize):
+                # log.simulator.info(f"Node {node.name} has not finalized yet. Flag: {node.externalize_broadcast_flags}")
+        return check
+
     def run(self):
 
         if self._verbosity:
@@ -90,6 +109,7 @@ class Simulator:
         # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='FULL')
         # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='HARDCODE')
         self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
+        #self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='LUNCH')
 
         self._mempool = Mempool()
         # self._mempool = Mempool(simulation_time=self._simulation_time)
@@ -106,7 +126,8 @@ class Simulator:
         #             List(Node) - tau defines a node-specific probability of event
         # TODO: Simulation parameters should be loaded from the config!
 
-        """# These are simulation params for HARDCODE - real topology  from Stellar Beat API
+        # These are simulation params for HARDCODE - real topology  from Stellar Beat API
+        """
         simulation_params = {
             'mine': {'tau': 10.0, 'tau_domain': None},
             # Communication group
@@ -121,21 +142,36 @@ class Simulator:
             'prepare_commit': {'tau': 0.01, 'tau_domain': self._nodes},
             'prepare_externalize_message': {'tau': 0.01, 'tau_domain': self._nodes}  # 6 seconds
         }
-        """
+
 
         simulation_params = {
-            'mine': {'tau': 0.01, 'tau_domain': None},
+            'mine': {'tau': 1.0, 'tau_domain': None},
             # Communication group
             'retrieve_transaction_from_mempool': {'tau': 1.0, 'tau_domain': self._nodes},  # 1 second
-            'nominate': {'tau': 12.0, 'tau_domain': self._nodes},
+            'nominate': {'tau': 1.0, 'tau_domain': self._nodes},
             'receive_commit_message': {'tau': 1.0, 'tau_domain': self._nodes},
             'receive_externalize_msg': {'tau': 1.0, 'tau_domain': self._nodes},
             # Processing group
-            'retrieve_message_from_peer': {'tau': 13.0, 'tau_domain': self._nodes},
-            'prepare_ballot': {'tau': 13.0, 'tau_domain': self._nodes},
-            'receive_prepare_message': {'tau': 13.0, 'tau_domain': self._nodes},
-            'prepare_commit': {'tau': 13.0, 'tau_domain': self._nodes},
-            'prepare_externalize_message': {'tau': 20.0, 'tau_domain': self._nodes}  # 6 seconds
+            'retrieve_message_from_peer': {'tau':1.0, 'tau_domain': self._nodes},
+            'prepare_ballot': {'tau': 1.0, 'tau_domain': self._nodes},
+            'receive_prepare_message': {'tau': 1.0, 'tau_domain': self._nodes},
+            'prepare_commit': {'tau': 1.0, 'tau_domain': self._nodes},
+            'prepare_externalize_message': {'tau': 1.0, 'tau_domain': self._nodes}  # 6 seconds
+        }
+        """
+        simulation_params = {
+            'mine': {'tau': 1.0, 'tau_domain': None},
+            # Communication group
+            'retrieve_transaction_from_mempool': {'tau': 1.0, 'tau_domain': self._nodes},  # 1 second
+            'nominate': {'tau': 1.0, 'tau_domain': self._nodes},
+            'receive_commit_message': {'tau': 1.0, 'tau_domain': self._nodes},
+            'receive_externalize_msg': {'tau': 0.1, 'tau_domain': self._nodes},
+            # Processing group
+            'retrieve_message_from_peer': {'tau':1.0, 'tau_domain': self._nodes},
+            'prepare_ballot': {'tau': 1.0, 'tau_domain': self._nodes},
+            'receive_prepare_message': {'tau': 1.0, 'tau_domain': self._nodes},
+            'prepare_commit': {'tau': 1.0, 'tau_domain': self._nodes},
+            'prepare_externalize_message': {'tau': 1.0, 'tau_domain': self._nodes}  # 6 seconds
         }
 
         # ALL SIMULATION EVENTS COULD OCCUR AT ANY POINT, WHEN WE IMPLEMENT BALLOTING WE'LL HAVE TO
@@ -160,12 +196,11 @@ class Simulator:
 
         gillespie = Gillespie(self._events, max_time=self._max_simulation_time)
 
+        # Run simulation
         while gillespie.check_max_time():
-            # event_random, self._simulation_time = gillespie.next_event()
             event_random, Globals.simulation_time = gillespie.next_event()
-            # Update time for mempool so that newly mined transactions would have correct timestamps.
-            # self._mempool.update_time(self._simulation_time)
             self._handle_event(event_random)
+
         log.export_logs_to_txt("ledger_logs.txt")
 
     def _handle_event(self,event):
@@ -179,7 +214,19 @@ class Simulator:
 
         match event.name:
 
-            case 'mine':
+            # TODO: CREATE TRANSACTION
+            #  1. TRANSACTION IS RECEIVED BY A NODE (FROM EXTERNAL WALLET)
+            # 2. THIS IS VALIDATED (IF ALREADY PRESENT, IS IT DOUBLE SPEND, IS IT IN LEDGER?)
+            # 3. IF VALID, IT IS ADDED TO THE LOCAL MEMPOOL (ONLY ONE EXISTING IN SIMULATOR, THERE IS NO GLOBAL)
+            # 4. ADD BROADCAST FLAG WITH THE RETRIEVED TXS - OR MESSAGE & FILTER WITHOUT USING BROADCAST FLAG
+            # 5. 1-4 HAPPENS IN ONE EVENT IN "CREATE_TX...."
+
+            # GOSSIPING OF TRANSACTON (SEPARATE EVENT)
+            # 1. SAME MECHANISM FOR GOSSIPING AS EXISTING, ADD TO BROADCAST FLAG & OTHER RETRIEVES
+            # 2. RECEIVING & SENDING NODES ARE SELECTED & TXS FROM BROADCAST FLAGS & 1 RANDOM ONE IS TAKEN BY RECEIVING NODE
+            # 3. AFTER RECEIVAL, THE TX IS VALIDATED & IGNORED IF NOT VALID - ADDED TO MEMPOOL OR IGNORED
+
+            case 'mine': # CREATE TRANSACTION
 
                 # Mempool is responsible for handling the mine event
                 self._mempool.mine()

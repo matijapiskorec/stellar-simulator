@@ -14,11 +14,15 @@ from Log import log
 import numpy as np
 import random
 
+from SCPExternalize import SCPExternalize
+
 class Ledger():
 
     def __init__(self,node):
         self._transactions = []
         self.node = node
+
+        self.slots = {}  # Dictionary to store {slot_number: value}
 
         log.ledger.info('Initialized ledger for node %(node)s!' % self.__dict__)
 
@@ -47,3 +51,19 @@ class Ledger():
     @property
     def transactions(self):
         return self._transactions
+
+    def add_slot(self, slot, externalize_msg: SCPExternalize):
+        # Add a transaction to a specific slot with externalize timestamp
+        if slot not in self.slots:
+            self.slots[slot] = {
+                'value': externalize_msg.ballot.value,
+                'timestamp': externalize_msg._time
+            }
+            log.ledger.info('Node %s: transaction %s with timestamp %s added to slot %d!',
+                self.node.name, externalize_msg.ballot.value, externalize_msg._time, slot)
+        else:
+            log.ledger.info('Node %s: transaction for slot %d already exists!',self.node.name, slot)
+
+    def get_slot(self, slot):
+        print("SLOTS LOOKS LIKE : ", self.slots)
+        return self.slots.get(slot, None)
