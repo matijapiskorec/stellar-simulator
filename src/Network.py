@@ -4,7 +4,7 @@ Network
 =========================
 
 Author: Matija Piskorec, Jaime de Vivero Woods
-Last update: February 2025
+Last update: March 2025
 
 Network class. Setup Stellar validator network by initializing nodes and setting their quorum sets based on a predefined topology.
 """
@@ -121,7 +121,7 @@ class Network():
 
                 return nodes
 
-                """    case 'HARDCODE':
+                """ case 'HARDCODE':
                 file_path = "quorumset_20250131_095020.json"
 
                 with open(file_path, 'r') as file:
@@ -157,8 +157,8 @@ class Network():
 
                     log.network.debug( 'Node %s initialized with %d validators and %d inner quorum sets', node_id, len(node_list), len(inner_quorum_sets) )
 
-                return list(nodes.values()) 
-                    """
+                return list(nodes.values())
+                """
 
             case 'HARDCODE': # fix for HARDCODE TO REMOVE DUPLICATES
                 file_path = "quorumset_20250131_095020.json"
@@ -213,6 +213,7 @@ class Network():
                 # Return all unique nodes.
                 nodes = list(nodes_dict.values())
                 return nodes
+
 
             case 'LUNCH':
                 names = ["Alice", "Bob", "Carol", "Dave", "Elsie", "Fred", "Gwen", "Hank", "Inez", "John"]

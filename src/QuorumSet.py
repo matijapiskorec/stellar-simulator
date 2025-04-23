@@ -84,15 +84,13 @@ class QuorumSet():
     # This function checks if the quorum meets threshold - it checks every node, it doesn't check for nested QuorumSlices
     def check_threshold(self, val, quorum, threshold, node_statement_counter):
         signed_counter = 0
-
+        # Safely get the entry for the candidate's hash; if not present, default to empty sets.
+        entry = node_statement_counter.get(val.hash, {"voted": set(), "accepted": set()})
         for node in quorum:
-            if node in node_statement_counter[val.hash]["voted"] or node in node_statement_counter[val.hash]["accepted"]:
+            # Assuming you compare by node names (as done elsewhere)
+            if node.name in entry.get("voted", set()) or node.name in entry.get("accepted", set()):
                 signed_counter += 1
-
-        if signed_counter >= threshold:
-            return True
-        else:
-            return False
+        return signed_counter >= threshold
 
     def check_prepare_threshold(self, ballot, quorum, threshold, prepare_statement_counter):
         signed_counter = 0

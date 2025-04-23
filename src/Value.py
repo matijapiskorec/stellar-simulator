@@ -60,20 +60,23 @@ class Value():
         return self._hash
 
     @classmethod
-    def combine(cls,values):
+    def combine(cls, values):
         """
-        Combine a list of values into a single value.
+        Combine a list of Value objects into a single Value by taking the union
+        of their transactions. Duplicates are eliminated because they are collected in a set.
         """
-        # TODO: Currently we are combining values by taking the union of transactions!
-        if len(values)==0:
-            transactions = []
-        else:
-            transactions = set()
-            for value in values:
-                transactions.update(value.transactions)
-
-        return Value(transactions=transactions)
-
+        combined_txs = set()
+        for value in values:
+            combined_txs.update(value.transactions)
+        return Value(transactions=combined_txs)
     # TODO: Combine with union, and then take
     #  New combine function that instead of union, takes first transaction from another value
     # based on alphanumeric order
+
+    @transactions.setter
+    def transactions(self, tx_list):
+        # sanity check
+        assert all(isinstance(tx, Transaction) for tx in tx_list)
+        self._transactions = tx_list
+        # recompute your internal hash so equality still works
+        self._hash = hash(frozenset(self._transactions))

@@ -52,7 +52,7 @@ class Simulator:
         self._nodes = []
 
         # TODO: _max_simulation_time should be loaded from the config!
-        self._max_simulation_time = 150
+        self._max_simulation_time = 200
         # self._simulation_time = 0
 
         self._set_logging()
@@ -108,8 +108,8 @@ class Simulator:
 
         # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='FULL')
         # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='HARDCODE')
-        # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
-        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='LUNCH')
+        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
+        #self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='LUNCH')
 
         self._mempool = Mempool()
         # self._mempool = Mempool(simulation_time=self._simulation_time)
@@ -126,7 +126,8 @@ class Simulator:
         #             List(Node) - tau defines a node-specific probability of event
         # TODO: Simulation parameters should be loaded from the config!
 
-        """# These are simulation params for HARDCODE - real topology  from Stellar Beat API
+        # These are simulation params for HARDCODE - real topology  from Stellar Beat API
+        """
         simulation_params = {
             'mine': {'tau': 10.0, 'tau_domain': None},
             # Communication group
@@ -141,8 +142,23 @@ class Simulator:
             'prepare_commit': {'tau': 0.01, 'tau_domain': self._nodes},
             'prepare_externalize_message': {'tau': 0.01, 'tau_domain': self._nodes}  # 6 seconds
         }
-        """
 
+
+        simulation_params = {
+            'mine': {'tau': 1.0, 'tau_domain': None},
+            # Communication group
+            'retrieve_transaction_from_mempool': {'tau': 1.0, 'tau_domain': self._nodes},  # 1 second
+            'nominate': {'tau': 1.0, 'tau_domain': self._nodes},
+            'receive_commit_message': {'tau': 1.0, 'tau_domain': self._nodes},
+            'receive_externalize_msg': {'tau': 1.0, 'tau_domain': self._nodes},
+            # Processing group
+            'retrieve_message_from_peer': {'tau':1.0, 'tau_domain': self._nodes},
+            'prepare_ballot': {'tau': 1.0, 'tau_domain': self._nodes},
+            'receive_prepare_message': {'tau': 1.0, 'tau_domain': self._nodes},
+            'prepare_commit': {'tau': 1.0, 'tau_domain': self._nodes},
+            'prepare_externalize_message': {'tau': 1.0, 'tau_domain': self._nodes}  # 6 seconds
+        }
+        """
         simulation_params = {
             'mine': {'tau': 1.0, 'tau_domain': None},
             # Communication group
@@ -151,7 +167,7 @@ class Simulator:
             'receive_commit_message': {'tau': 1.0, 'tau_domain': self._nodes},
             'receive_externalize_msg': {'tau': 0.1, 'tau_domain': self._nodes},
             # Processing group
-            'retrieve_message_from_peer': {'tau': 1.0, 'tau_domain': self._nodes},
+            'retrieve_message_from_peer': {'tau':1.0, 'tau_domain': self._nodes},
             'prepare_ballot': {'tau': 1.0, 'tau_domain': self._nodes},
             'receive_prepare_message': {'tau': 1.0, 'tau_domain': self._nodes},
             'prepare_commit': {'tau': 1.0, 'tau_domain': self._nodes},
@@ -182,23 +198,6 @@ class Simulator:
 
         # Run simulation
         while gillespie.check_max_time():
-            print("GILLESPIE CHECKS ARE OCURRING")
-            log.simulator.info("GILLESPIE CHECKS ARE OCURRING")
-            if self.all_nodes_finalized():
-                log.simulator.info("All nodes have finalized at least once. Checking consensus...")
-
-                first_externalized = self.get_first_externalized_values()
-
-                # Extract unique values
-                unique_values = set(first_externalized.values())
-
-                if len(unique_values) == 1:
-                    log.simulator.info(f"Consensus achieved! All nodes agreed on value: {unique_values.pop()}")
-                else:
-                    log.simulator.warning(f"Consensus NOT reached! Different values: {unique_values}")
-
-                break  # Stop simulation
-
             event_random, Globals.simulation_time = gillespie.next_event()
             self._handle_event(event_random)
 
@@ -215,7 +214,19 @@ class Simulator:
 
         match event.name:
 
-            case 'mine':
+            # TODO: CREATE TRANSACTION
+            #  1. TRANSACTION IS RECEIVED BY A NODE (FROM EXTERNAL WALLET)
+            # 2. THIS IS VALIDATED (IF ALREADY PRESENT, IS IT DOUBLE SPEND, IS IT IN LEDGER?)
+            # 3. IF VALID, IT IS ADDED TO THE LOCAL MEMPOOL (ONLY ONE EXISTING IN SIMULATOR, THERE IS NO GLOBAL)
+            # 4. ADD BROADCAST FLAG WITH THE RETRIEVED TXS - OR MESSAGE & FILTER WITHOUT USING BROADCAST FLAG
+            # 5. 1-4 HAPPENS IN ONE EVENT IN "CREATE_TX...."
+
+            # GOSSIPING OF TRANSACTON (SEPARATE EVENT)
+            # 1. SAME MECHANISM FOR GOSSIPING AS EXISTING, ADD TO BROADCAST FLAG & OTHER RETRIEVES
+            # 2. RECEIVING & SENDING NODES ARE SELECTED & TXS FROM BROADCAST FLAGS & 1 RANDOM ONE IS TAKEN BY RECEIVING NODE
+            # 3. AFTER RECEIVAL, THE TX IS VALIDATED & IGNORED IF NOT VALID - ADDED TO MEMPOOL OR IGNORED
+
+            case 'mine': # CREATE TRANSACTION
 
                 # Mempool is responsible for handling the mine event
                 self._mempool.mine()
