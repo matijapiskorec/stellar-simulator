@@ -111,11 +111,11 @@ class Simulator:
         self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
         #self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='LUNCH')
 
-        self._mempool = Mempool()
+        #self._mempool = Mempool()
         # self._mempool = Mempool(simulation_time=self._simulation_time)
         # self._mempool = Mempool(self._simulation_time)
         for node in self._nodes:
-            node.attach_mempool(self._mempool)
+            node.attach_mempool(Mempool())
 
         # Run Gillespie algorithm
         if self._verbosity:
@@ -160,12 +160,15 @@ class Simulator:
         }
         """
         simulation_params = {
-            'mine': {'tau': 1.0, 'tau_domain': None},
+            # EDIT MINE, SO THAT ITS OVER ALL NODES AND EACH NODE HAS LOCAL MEMPOOL
+            # having self.nodes as domain affects the poisson distribution, so tau
+            # has to be adjusted or total txs will scale based on no. of nodes
+            'mine': {'tau': 3.0, 'tau_domain': self._nodes},
             # Communication group
             'retrieve_transaction_from_mempool': {'tau':1.0, 'tau_domain': self._nodes},  # 1 second
             'nominate': {'tau': 1.0, 'tau_domain': self._nodes},
             'receive_commit_message': {'tau': 1.0, 'tau_domain': self._nodes},
-            'receive_externalize_msg': {'tau': 1.0, 'tau_domain': self._nodes},
+            'receive_externalize_msg': {'tau': 0.1, 'tau_domain': self._nodes},
             # Processing group
             'retrieve_message_from_peer': {'tau':1.0, 'tau_domain': self._nodes},
             'prepare_ballot': {'tau': 1.0, 'tau_domain': self._nodes},
@@ -229,7 +232,9 @@ class Simulator:
             case 'mine': # CREATE TRANSACTION
 
                 # Mempool is responsible for handling the mine event
-                self._mempool.mine()
+                #self._mempool.mine()
+                node = np.random.choice(self._nodes)
+                node.mempool.mine()
                 # Globals.mempool.mine()
 
             case 'retrieve_transaction_from_mempool':
