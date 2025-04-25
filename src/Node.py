@@ -755,13 +755,9 @@ class Node():
         log.node.info('Node %s appended SCPNominate message to its storage and state, message = %s', self.name, message)
         return message"""
 
-    def prepare_nomination_msg(self):
+    """
+        def prepare_nomination_msg(self):
 
-        """
-        Prepares an SCPNominate message to propose a nominated value.
-        Instead of creating duplicate Value objects, this function
-        combines any new transaction with the existing nominated value.
-        """
         # Retrieve a single transaction from the mempool.
         tx = self.retrieve_transaction_from_mempool()
         if tx is None:
@@ -839,6 +835,138 @@ class Node():
         self.broadcast_flags = [message]
         #elf.broadcast_flags.append(message)
         log.node.info('Node %s appended SCPNominate message to its storage and state, message = %s', self.name, message)
+        return message
+    """
+
+    def clean_prepare_and_commit_state(self):
+        """
+        Removes entries from prepare and commit phases that contain finalized transactions.
+        Ensures finalized transactions do not block nomination.
+        """
+
+        # Helper to check if a ballot's value is entirely finalized
+        def is_finalized(value):
+            return all(t.hash in self.finalised_transactions for t in value.transactions)
+
+        # Clean prepare phase
+        for phase in ['voted', 'accepted', 'confirmed', 'aborted']:
+            self.balloting_state[phase] = {
+                val_hash: ballot for val_hash, ballot in self.balloting_state[phase].items()
+                if not is_finalized(ballot.value)
+            }
+
+        self.ballot_statement_counter = {
+            val: counters for val, counters in self.ballot_statement_counter.items()
+            if not is_finalized(val)
+        }
+
+        self.prepared_ballots = {
+            val: prep for val, prep in self.prepared_ballots.items()
+            if not is_finalized(val)
+        }
+
+        # Clean commit phase
+        for phase in ['voted', 'accepted', 'confirmed']:
+            self.commit_ballot_state[phase] = {
+                val_hash: ballot for val_hash, ballot in self.commit_ballot_state[phase].items()
+                if not is_finalized(ballot.value)
+            }
+
+        self.commit_ballot_statement_counter = {
+            val: counters for val, counters in self.commit_ballot_statement_counter.items()
+            if not is_finalized(val)
+        }
+
+        self.committed_ballots = {
+            val: cmt for val, cmt in self.committed_ballots.items()
+            if not is_finalized(val)
+        }
+
+    def prepare_nomination_msg(self):
+        """
+        Prepares an SCPNominate message by collecting all available transactions,
+        excluding those already nominated, in ballot phases, or finalized.
+        Combines new transactions into the nomination state.
+        """
+
+        # Step 1: Get all transactions from the mempool
+        all_tx = self.mempool.get_all_transactions()
+        if not all_tx:
+            log.node.info('Node %s found no transactions to nominate.', self.name)
+            return
+
+        # Step 2: Update finalized transactions and prune 'voted'
+        self.collect_finalised_transactions()
+        self.clean_prepare_and_commit_state()  # Optional: if you want to clean out states fully
+
+        pruned = []
+        for old_val in self.nomination_state.get('voted', []):
+            keep = {t for t in old_val.transactions if t.hash not in self.finalised_transactions}
+            if keep:
+                pruned.append(Value(transactions=keep))
+        self.nomination_state['voted'] = pruned
+
+        # Step 3: Gather hashes to exclude
+        excluded_hashes = set(self.finalised_transactions)
+
+        # From nomination state
+        for state in ['voted', 'accepted', 'confirmed']:
+            for val in self.nomination_state.get(state, []):
+                excluded_hashes.update(t.hash for t in val.transactions)
+
+        # From prepare ballot state
+        for phase in ['voted', 'accepted', 'confirmed', 'aborted']:
+            for ballot in self.balloting_state.get(phase, {}).values():
+                excluded_hashes.update(t.hash for t in ballot.value.transactions)
+
+        # From commit ballot state
+        for phase in ['voted', 'accepted', 'confirmed']:
+            for ballot in self.commit_ballot_state.get(phase, {}).values():
+                excluded_hashes.update(t.hash for t in ballot.value.transactions)
+
+        # Step 4: Filter new transactions
+        new_transactions = {t for t in all_tx if t.hash not in excluded_hashes}
+        if not new_transactions:
+            log.node.info('Node %s found no new transactions to nominate after filtering.', self.name)
+            return
+
+        # Step 5: Wrap filtered transactions in a new Value
+        new_value = Value(transactions=new_transactions)
+        if self.is_value_already_present(new_value):
+            log.node.info('Node %s already has a nomination with transactions %s. Skipping nomination.',
+                          self.name, new_value.transactions)
+            return
+
+        # Step 6: Merge with existing 'voted'
+        if self.nomination_state['voted']:
+            existing = self.nomination_state['voted']
+            combined_value = Value.combine(existing + [new_value])
+            if self.is_value_already_present(combined_value):
+                log.node.info('Node %s already has a nomination with transactions %s. Skipping nomination.',
+                              self.name, combined_value.transactions)
+                return
+            self.nomination_state['voted'] = [combined_value]
+            log.node.info('Node %s merged new transactions into voted nomination state: %s',
+                          self.name, combined_value)
+        else:
+            self.nomination_state['voted'] = [new_value]
+            log.node.info('Node %s set its voted nomination state to new value: %s',
+                          self.name, new_value)
+
+        # Step 7: Final cleanup and message prep
+        self.clean_nomination_state_duplicates()
+        voted_vals = self.nomination_state['voted']
+        accepted_vals = self.nomination_state['accepted']
+        confirmed_vals = self.nomination_state['confirmed']
+
+        if not voted_vals and not accepted_vals:
+            log.node.info('Node %s has no values to nominate!', self.name)
+            return
+
+        message = SCPNominate(voted=voted_vals, accepted=accepted_vals, confirmed=confirmed_vals)
+        self.storage.add_messages(message)
+        self.broadcast_flags = [message]
+        log.node.info('Node %s prepared SCPNominate message: %s', self.name, message)
         return message
 
     def get_messages(self):
@@ -1461,7 +1589,6 @@ class Node():
                         self.received_prepare_broadcast_msgs[sending_node.name].append(retrieved_message)
                         return retrieved_message
         return None
-
 
 
 

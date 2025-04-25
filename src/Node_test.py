@@ -285,7 +285,7 @@ class NodeTest(unittest.TestCase):
                 # Then assert that the number of transactions in this combined nomination equals the expected amount (e.g., the number of transactions in the ledger).
                 self.assertTrue(len(node.nomination_state['voted'][0].transactions) == len(node.ledger.transactions))
                 self.assertTrue(len(node.storage.messages) > 0)
-                self.assertEqual(len(node.broadcast_flags), 2)
+                self.assertEqual(len(node.broadcast_flags), 1)
 
     def test_process_received_messages_processes_empty_state_correctly(self):
             self.node = Node("test_node")
@@ -512,7 +512,7 @@ class NodeTest(unittest.TestCase):
 
         message = SCPNominate(voted=[value1], accepted=[value2])
 
-        self.node.broadcast_flags = [message]
+        self.retrieving_node.broadcast_flags = [message]
 
         retrieved = self.node.retrieve_broadcast_message(self.retrieving_node)
 

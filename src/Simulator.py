@@ -162,10 +162,10 @@ class Simulator:
         simulation_params = {
             'mine': {'tau': 1.0, 'tau_domain': None},
             # Communication group
-            'retrieve_transaction_from_mempool': {'tau': 1.0, 'tau_domain': self._nodes},  # 1 second
+            'retrieve_transaction_from_mempool': {'tau':1.0, 'tau_domain': self._nodes},  # 1 second
             'nominate': {'tau': 1.0, 'tau_domain': self._nodes},
             'receive_commit_message': {'tau': 1.0, 'tau_domain': self._nodes},
-            'receive_externalize_msg': {'tau': 0.1, 'tau_domain': self._nodes},
+            'receive_externalize_msg': {'tau': 1.0, 'tau_domain': self._nodes},
             # Processing group
             'retrieve_message_from_peer': {'tau':1.0, 'tau_domain': self._nodes},
             'prepare_ballot': {'tau': 1.0, 'tau_domain': self._nodes},
