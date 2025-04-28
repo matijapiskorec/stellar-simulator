@@ -37,14 +37,14 @@ from Globals import Globals
 from SCPExternalize import SCPExternalize
 
 VERBOSITY_DEFAULT = 5
-N_NODES_DEFAULT = 60
+N_NODES_DEFAULT = 50
 
 class Simulator:
     '''
     Command line (CLI) interface for the simulator.
     '''
 
-    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT,**kvargs):
+    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=200, simulation_params=None, **kvargs):
 
         self._verbosity = verbosity
         self._n_nodes = n_nodes
@@ -52,13 +52,30 @@ class Simulator:
         self._nodes = []
 
         # TODO: _max_simulation_time should be loaded from the config!
-        self._max_simulation_time = 200
+        self._max_simulation_time = max_simulation_time
         # self._simulation_time = 0
 
         self._set_logging()
 
         # Total elapsed time doesn't include initialization!
         self.timeStart = time.time()
+        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
+
+        if simulation_params is not None:
+            self.simulation_params = simulation_params
+        else:
+            self.simulation_params = {
+                'mine': {'tau': 5.0, 'tau_domain': self._nodes},
+                'retrieve_transaction_from_mempool': {'tau': 5.0, 'tau_domain': self._nodes},
+                'nominate': {'tau': 1.0, 'tau_domain': self._nodes},
+                'receive_commit_message': {'tau': 1.0, 'tau_domain': self._nodes},
+                'receive_externalize_msg': {'tau': 1.0, 'tau_domain': self._nodes},
+                'retrieve_message_from_peer': {'tau': 1.0, 'tau_domain': self._nodes},
+                'prepare_ballot': {'tau': 1.0, 'tau_domain': self._nodes},
+                'receive_prepare_message': {'tau': 1.0, 'tau_domain': self._nodes},
+                'prepare_commit': {'tau': 1.0, 'tau_domain': self._nodes},
+                'prepare_externalize_message': {'tau': 1.0, 'tau_domain': self._nodes}
+            }
 
     @property
     def verbosity(self):
@@ -100,15 +117,15 @@ class Simulator:
     def run(self):
 
         if self._verbosity:
-            log.simulator.info('Started simulation vith verbosity level %s and %s nodes.',
-                               self._verbosity, self._n_nodes)
+            log.simulator.info('Started simulation vith verbosity level %s and %s nodes for simulation time %s.',
+                               self._verbosity, self._n_nodes, self._max_simulation_time)
 
         if self._verbosity:
             log.simulator.debug('Creating %s nodes.', self._n_nodes)
 
         # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='FULL')
         # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='HARDCODE')
-        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
+        #self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
         #self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='LUNCH')
 
         #self._mempool = Mempool()
@@ -158,7 +175,7 @@ class Simulator:
             'prepare_commit': {'tau': 1.0, 'tau_domain': self._nodes},
             'prepare_externalize_message': {'tau': 1.0, 'tau_domain': self._nodes}  # 6 seconds
         }
-        """
+        
         simulation_params = {
             # EDIT MINE, SO THAT ITS OVER ALL NODES AND EACH NODE HAS LOCAL MEMPOOL
             # having self.nodes as domain affects the poisson distribution, so tau
@@ -175,7 +192,7 @@ class Simulator:
             'receive_prepare_message': {'tau': 1.0, 'tau_domain': self._nodes},
             'prepare_commit': {'tau': 1.0, 'tau_domain': self._nodes},
             'prepare_externalize_message': {'tau': 1.0, 'tau_domain': self._nodes}  # 6 seconds
-        }
+        }"""
 
         # ALL SIMULATION EVENTS COULD OCCUR AT ANY POINT, WHEN WE IMPLEMENT BALLOTING WE'LL HAVE TO
         # DISABLE NOMINATE
@@ -185,8 +202,8 @@ class Simulator:
 
         # Set the simulation parameters of all events for which we have them
         for event in self._events:
-            if event.name in simulation_params:
-                event.simulation_params = simulation_params[event.name]
+            if event.name in self.simulation_params:
+                event.simulation_params = self.simulation_params[event.name]
             else:
                 if self._verbosity:
                     log.simulator.warning('No simulation parameters for event %s - igoring the event!', event.name)

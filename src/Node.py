@@ -1864,10 +1864,10 @@ class Node():
                 return True
         return False
 
+
+
     def prepare_Externalize_msg(self):
-        """
-        Prepare SCPExternalize message for Externalize phase
-        """
+
         if len(self.commit_ballot_state['confirmed']) == 0: # Check if there are any values to prepare
             log.node.info('Node %s has no committed ballots to externalize.', self.name)
             return
@@ -1908,6 +1908,7 @@ class Node():
             # self.ballot_prepare_broadcast_flags = set()
 
         log.node.info('Node %s could not retrieve a confirmed SCPCommit message from its peer!')
+
 
     def retrieve_externalize_msg(self, requesting_node):
         # Check if there are any broadcast flags

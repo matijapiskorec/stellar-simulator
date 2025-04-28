@@ -13,7 +13,7 @@ from Log import log
 
 import numpy as np
 
-THRESHOLD_DEFAULT = 10 # 10% threshold by default
+THRESHOLD_DEFAULT = 20 # 10% threshold by default
 
 class QuorumSet():
 
