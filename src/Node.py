@@ -66,6 +66,7 @@ class Node():
         self.priority_list = set()
         self.finalised_transactions = set()
         self._seen_finalised_ballots = set()
+        self.MAX_SLOT_TXS = 50
 
         #  TODO: function get/retrieve nomination round which gets nomination round based on current global sim time - not class variable, but running function
         #   this needs time of externalise - to compare with sim time (what is time 1?)
@@ -513,15 +514,31 @@ class Node():
 
                 if type(voted_val) is Value and self.check_Blocking_threshold(voted_val):
                     log.node.info('Blocking threshold met for value %s at Node %s', voted_val, self.name)
+                    # NEW AND VERIFY!!!!!!!!!!!!!!!!!!!!!!
+                    """if voted_val not in self.nomination_state["voted"] and voted_val not in self.nomination_state[
+                        "accepted"]:
+                        log.node.info('Blocking threshold met for new value %s at Node %s – voting immediately!',
+                                      voted_val, self.name)
+                        self.nomination_state["voted"].append(voted_val)
+                        self.update_local_nomination_broadcast()"""
 
                 accepted_val = message[1] # message[1] is accepted field
                 if type(accepted_val) is Value and self.check_Quorum_threshold(accepted_val):
 
                     log.node.info('Quorum threshold met for accepted value %s at Node %s', accepted_val, self.name)
+
                     self.update_nomination_state(accepted_val, "accepted")
 
                 if type(accepted_val) is Value and self.check_Blocking_threshold(accepted_val):
+                    # NEW AND VERIFY!!!!!!!!!!!!!!!!!!!!!!
                     log.node.info('Blocking threshold met for value %s at Node %s', accepted_val, self.name)
+                    """if accepted_val not in self.nomination_state["voted"] and accepted_val not in self.nomination_state[
+                        "accepted"]:
+                        log.node.info(
+                            'Blocking threshold met for new accepted value %s at Node %s – voting immediately!',
+                            accepted_val, self.name)
+                        self.nomination_state["voted"].append(accepted_val)
+                        self.update_local_nomination_broadcast()"""
 
             else:
                 log.node.info('Node %s has no messages to retrieve from his highest priority neighbor Node %s!', self.name, priority_node.name)
@@ -598,29 +615,78 @@ class Node():
                 if keep:
                     pruned.append(Value(transactions=keep))
             self.nomination_state['voted'] = pruned
-            # to here
+
+            # merge and cap txs to here
             current_voted = self.nomination_state.get('voted', [])
             combined_voted = Value.combine(current_voted + [filtered_incoming_voted])
+            """
+            # 4) enforce MAX_SLOT_TXS
+            txs = list(combined_voted.transactions)
+            if len(txs) > self.MAX_SLOT_TXS:
+                # e.g. take first N (or random.sample for fairness)
+                limited = set(txs[:self.MAX_SLOT_TXS])
+                combined_voted = Value(transactions=limited)
+                log.node.info( 'Node %s: truncating merged voted txs → %d (slot limit).', self.name, self.MAX_SLOT_TXS)"""
+
+
             self.nomination_state['voted'] = [combined_voted]
             log.node.info('Node %s updated its voted nomination state with combined value: %s', self.name,
                           combined_voted)
 
-        # Process the "accepted" nomination field.
-        incoming_accepted = message[1]
-        if isinstance(incoming_accepted, Value):
+            # Process the "accepted" nomination field.
+            incoming_accepted = message[1]
+            if isinstance(incoming_accepted, Value):
+    
+                self.nomination_state['accepted'].append(incoming_accepted)
+                pruned = []
+                for old_val in self.nomination_state.get('accepted', []):
+                    keep = {t for t in old_val.transactions
+                            if t.hash not in self.finalised_transactions}
+                    if keep:
+                        pruned.append(Value(transactions=keep))
+                self.nomination_state['accepted'] = pruned
+                log.node.info('Node %s updated its accepted nomination state with combined value: %s', self.name,
+                              pruned)
+            """
+            incoming_accepted = message[1]
+            if isinstance(incoming_accepted, Value):
+                # 1) prune out finalized txs from any old accepted Value
+                pruned = []
+                for old_val in self.nomination_state.get('accepted', []):
+                    keep = {t for t in old_val.transactions
+                            if t.hash not in self.finalised_transactions}
+                    if keep:
+                        pruned.append(Value(transactions=keep))
 
-            self.nomination_state['accepted'].append(incoming_accepted)
-            pruned = []
-            for old_val in self.nomination_state.get('accepted', []):
-                keep = {t for t in old_val.transactions
-                        if t.hash not in self.finalised_transactions}
-                if keep:
-                    pruned.append(Value(transactions=keep))
-            self.nomination_state['accepted'] = pruned
-            log.node.info('Node %s updated its accepted nomination state with combined value: %s', self.name,
-                          pruned)
+                # 2) merge old + incoming into a single Value
+                combined_accepted = Value.combine(pruned + [incoming_accepted])
 
-        self.update_local_nomination_broadcast()
+                # 3) drop if empty
+                if not combined_accepted.transactions:
+                    log.node.info(
+                        'Node %s: no accepted txs remain after pruning; clearing accepted state.',
+                        self.name
+                    )
+                    self.nomination_state['accepted'] = []
+                else:
+                    # 4) enforce MAX_SLOT_TXS cap
+                    txs = list(combined_accepted.transactions)
+                    if len(txs) > self.MAX_SLOT_TXS:
+                        limited = set(txs[:self.MAX_SLOT_TXS])
+                        combined_accepted = Value(transactions=limited)
+                        log.node.info(
+                            'Node %s: truncating merged accepted txs → %d (slot limit).',
+                            self.name, self.MAX_SLOT_TXS
+                        )
+
+                    # 5) store back as a single accepted Value
+                    self.nomination_state['accepted'] = [combined_accepted]
+                    log.node.info(
+                        'Node %s updated its accepted nomination state with combined value: %s',
+                        self.name, combined_accepted
+                    )"""
+
+            self.update_local_nomination_broadcast()
 
     """
     def retrieve_message_from_peer(self):
@@ -891,6 +957,9 @@ class Node():
 
         # Step 1: Get all transactions from the mempool
         all_tx = self.mempool.get_all_transactions()
+
+        # NEW TEST CHANGE FOR FULL
+        all_tx = self.mempool.get_transaction()
         if not all_tx:
             log.node.info('Node %s found no transactions to nominate.', self.name)
             return
@@ -915,7 +984,7 @@ class Node():
                 excluded_hashes.update(t.hash for t in val.transactions)
 
         # From prepare ballot state
-        for phase in ['voted', 'accepted', 'confirmed', 'aborted']:
+        for phase in ['voted', 'accepted', 'confir22med', 'aborted']:
             for ballot in self.balloting_state.get(phase, {}).values():
                 excluded_hashes.update(t.hash for t in ballot.value.transactions)
 
@@ -925,13 +994,27 @@ class Node():
                 excluded_hashes.update(t.hash for t in ballot.value.transactions)
 
         # Step 4: Filter new transactions
-        new_transactions = {t for t in all_tx if t.hash not in excluded_hashes}
-        if not new_transactions:
-            log.node.info('Node %s found no new transactions to nominate after filtering.', self.name)
-            return
+        ##new_transactions = {t for t in all_tx if t.hash not in excluded_hashes}
+        #if not new_transactions:
+        #    log.node.info('Node %s found no new transactions to nominate after filtering.', self.name)
+        #    new_transactions = set()
+
+        """"
+        # *** ENFORCE SLOT SIZE LIMIT HERE ***
+        if len(new_transactions) > self.MAX_SLOT_TXS:
+            # choose the top-fee ones
+            sorted_txs = sorted(new_transactions, key=lambda t: t.hash, reverse=True)
+            limited_set = set(sorted_txs[:self.MAX_SLOT_TXS])
+            log.node.info(
+                'Node %s: truncating %d new txs → %d (slot limit).',
+                self.name, len(new_transactions), self.MAX_SLOT_TXS
+            )
+        else:
+            limited_set = new_transactions"""
+
 
         # Step 5: Wrap filtered transactions in a new Value
-        new_value = Value(transactions=new_transactions)
+        new_value = Value(transactions=excluded_hashes)
         if self.is_value_already_present(new_value):
             log.node.info('Node %s already has a nomination with transactions %s. Skipping nomination.',
                           self.name, new_value.transactions)
@@ -941,6 +1024,19 @@ class Node():
         if self.nomination_state['voted']:
             existing = self.nomination_state['voted']
             combined_value = Value.combine(existing + [new_value])
+            """
+            # --- ENFORCE SLOT SIZE LIMIT AFTER MERGE ---
+            if len(combined_value.transactions) > self.MAX_SLOT_TXS:
+                # pick a deterministic subset (e.g. first 100 by hash)
+                txs_sorted = sorted(combined_value.transactions, key=lambda tx: tx.hash)
+                capped = set(txs_sorted[:self.MAX_SLOT_TXS])
+                combined_value = Value(transactions=capped)
+                log.node.info(
+                    'Node %s: truncating merged %d txs → %d (slot limit).',
+                    self.name, len(txs_sorted), self.MAX_SLOT_TXS
+                )
+            # ---------------------------------------------"""
+
             if self.is_value_already_present(combined_value):
                 log.node.info('Node %s already has a nomination with transactions %s. Skipping nomination.',
                               self.name, combined_value.transactions)

@@ -44,7 +44,7 @@ class Simulator:
     Command line (CLI) interface for the simulator.
     '''
 
-    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=200, simulation_params=None, **kvargs):
+    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=50, simulation_params=None, **kvargs):
 
         self._verbosity = verbosity
         self._n_nodes = n_nodes
@@ -59,22 +59,85 @@ class Simulator:
 
         # Total elapsed time doesn't include initialization!
         self.timeStart = time.time()
-        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
+        # ER_singlequorumset
+        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='FULL')
 
         if simulation_params is not None:
             self.simulation_params = simulation_params
         else:
+            """
             self.simulation_params = {
-                'mine': {'tau': 5.0, 'tau_domain': self._nodes},
+                #'mine': {'tau': 1.0, 'tau_domain': self._nodes}, # 1tx per node per time unit
+                'mine': {'tau': 10.0, 'tau_domain': self._nodes},
                 'retrieve_transaction_from_mempool': {'tau': 5.0, 'tau_domain': self._nodes},
                 'nominate': {'tau': 1.0, 'tau_domain': self._nodes},
-                'receive_commit_message': {'tau': 1.0, 'tau_domain': self._nodes},
-                'receive_externalize_msg': {'tau': 1.0, 'tau_domain': self._nodes},
-                'retrieve_message_from_peer': {'tau': 1.0, 'tau_domain': self._nodes},
+                'receive_commit_message': {'tau': 0.5, 'tau_domain': self._nodes},
+                'receive_externalize_msg': {'tau': 0.5, 'tau_domain': self._nodes},
+                'retrieve_message_from_peer': {'tau': 0.5, 'tau_domain': self._nodes},
                 'prepare_ballot': {'tau': 1.0, 'tau_domain': self._nodes},
-                'receive_prepare_message': {'tau': 1.0, 'tau_domain': self._nodes},
+                'receive_prepare_message': {'tau': 0.5, 'tau_domain': self._nodes},
                 'prepare_commit': {'tau': 1.0, 'tau_domain': self._nodes},
                 'prepare_externalize_message': {'tau': 1.0, 'tau_domain': self._nodes}
+            }
+            
+            
+                        self.simulation_params = {
+                'mine': {'tau': 10.0, 'tau_domain': self._nodes},
+                'retrieve_transaction_from_mempool': {'tau': 1.0, 'tau_domain': self._nodes},
+                'nominate': {'tau': 0.02, 'tau_domain': self._nodes},
+                'receive_commit_message': {'tau': 0.01, 'tau_domain': self._nodes},
+                'receive_externalize_msg': {'tau': 0.01, 'tau_domain': self._nodes},
+                'retrieve_message_from_peer': {'tau': 0.01, 'tau_domain': self._nodes},
+                'prepare_ballot': {'tau': 0.02, 'tau_domain': self._nodes},
+                'receive_prepare_message': {'tau': 0.01, 'tau_domain': self._nodes},
+                'prepare_commit': {'tau': 0.02, 'tau_domain': self._nodes},
+                'prepare_externalize_message': {'tau': 0.02, 'tau_domain': self._nodes},
+            }
+                        self.simulation_params = {
+                'mine': {'tau': 5.0, 'tau_domain': self._nodes},  # Faster mining improves tx availability moderately
+                'retrieve_transaction_from_mempool': {'tau': 0.5, 'tau_domain': self._nodes},
+                # Slightly faster tx pickup
+                'nominate': {'tau': 0.005, 'tau_domain': self._nodes},  # Very frequent nominations
+                'receive_commit_message': {'tau': 0.001, 'tau_domain': self._nodes},  # Faster message processing
+                'receive_externalize_msg': {'tau': 0.001, 'tau_domain': self._nodes},  # Faster finalization processing
+                'retrieve_message_from_peer': {'tau': 0.001, 'tau_domain': self._nodes},  # Very fast message retrieval
+                'prepare_ballot': {'tau': 0.005, 'tau_domain': self._nodes},  # Rapid ballot preparation
+                'receive_prepare_message': {'tau': 0.001, 'tau_domain': self._nodes},
+                # Fast propagation of prepare msgs
+                'prepare_commit': {'tau': 0.005, 'tau_domain': self._nodes},  # Quickly move to commit stage
+                'prepare_externalize_message': {'tau': 0.005, 'tau_domain': self._nodes},
+                # Quick externalize initiation
+            }
+                        self.simulation_params = {
+                'mine': {'tau': 5.0, 'tau_domain': self._nodes},  # Faster mining improves tx availability moderately
+                'retrieve_transaction_from_mempool': {'tau':0.1, 'tau_domain': self._nodes},
+                # Processing
+                'prepare_commit': {'tau': 0.5, 'tau_domain': self._nodes},  # Quickly move to commit stage
+                'prepare_externalize_message': {'tau': 0.5, 'tau_domain': self._nodes},
+                'nominate': {'tau': 0.5, 'tau_domain': self._nodes},  # Very frequent nominations
+                'prepare_ballot': {'tau': 0.5, 'tau_domain': self._nodes},  # Rapid ballot preparation
+                # Communication
+                'retrieve_message_from_peer': {'tau': 0.1, 'tau_domain': self._nodes},  # Very fast message retrieval
+                'receive_prepare_message': {'tau': 0.1, 'tau_domain': self._nodes},
+                'receive_commit_message': {'tau': 0.1, 'tau_domain': self._nodes},  # Faster message processing
+                'receive_externalize_msg': {'tau': 0.1, 'tau_domain': self._nodes} # Faster finalization processing
+                # Quick externalize initiation
+            }
+            """
+            self.simulation_params = {
+                'mine': {'tau': 5.0, 'tau_domain': self._nodes},  # Faster mining improves tx availability moderately
+                'retrieve_transaction_from_mempool': {'tau':1.0, 'tau_domain': self._nodes},
+                # Processing
+                'prepare_commit': {'tau': 1.0, 'tau_domain': self._nodes},  # Quickly move to commit stage
+                'prepare_externalize_message': {'tau': 1.0, 'tau_domain': self._nodes},
+                'nominate': {'tau': 1.0, 'tau_domain': self._nodes},  # Very frequent nominations
+                'prepare_ballot': {'tau': 1.0, 'tau_domain': self._nodes},  # Rapid ballot preparation
+                # Communication
+                'retrieve_message_from_peer': {'tau': 1.0, 'tau_domain': self._nodes},  # Very fast message retrieval
+                'receive_prepare_message': {'tau': 1.0, 'tau_domain': self._nodes},
+                'receive_commit_message': {'tau': 1.0, 'tau_domain': self._nodes},  # Faster message processing
+                'receive_externalize_msg': {'tau': 1.0, 'tau_domain': self._nodes} # Faster finalization processing
+                # Quick externalize initiation
             }
 
     @property

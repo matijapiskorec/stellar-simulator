@@ -4,7 +4,7 @@ Quorum Set
 =========================
 
 Author: Matija Piskorec, Jaime de Vivero Woods
-Last update: December 2024
+Last update: May 2025
 QuorumSet class.
 """
 import math
@@ -13,7 +13,7 @@ from Log import log
 
 import numpy as np
 
-THRESHOLD_DEFAULT = 20 # 10% threshold by default
+THRESHOLD_DEFAULT = 10 # 25% threshold by default
 
 class QuorumSet():
 
