@@ -37,14 +37,14 @@ from Globals import Globals
 from SCPExternalize import SCPExternalize
 
 VERBOSITY_DEFAULT = 5
-N_NODES_DEFAULT = 50
+N_NODES_DEFAULT = 10
 
 class Simulator:
     '''
     Command line (CLI) interface for the simulator.
     '''
 
-    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=50, simulation_params=None, **kvargs):
+    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=150, simulation_params=None, **kvargs):
 
         self._verbosity = verbosity
         self._n_nodes = n_nodes
@@ -125,7 +125,7 @@ class Simulator:
             }
             """
             self.simulation_params = {
-                'mine': {'tau': 5.0, 'tau_domain': self._nodes},  # Faster mining improves tx availability moderately
+                'mine': {'tau': 1.0, 'tau_domain': self._nodes},  # Faster mining improves tx availability moderately
                 'retrieve_transaction_from_mempool': {'tau':1.0, 'tau_domain': self._nodes},
                 # Processing
                 'prepare_commit': {'tau': 1.0, 'tau_domain': self._nodes},  # Quickly move to commit stage

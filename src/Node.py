@@ -66,7 +66,7 @@ class Node():
         self.priority_list = set()
         self.finalised_transactions = set()
         self._seen_finalised_ballots = set()
-        self.MAX_SLOT_TXS = 50
+        self.MAX_SLOT_TXS = 10
 
         #  TODO: function get/retrieve nomination round which gets nomination round based on current global sim time - not class variable, but running function
         #   this needs time of externalise - to compare with sim time (what is time 1?)
@@ -619,20 +619,21 @@ class Node():
             # merge and cap txs to here
             current_voted = self.nomination_state.get('voted', [])
             combined_voted = Value.combine(current_voted + [filtered_incoming_voted])
-            """
+
             # 4) enforce MAX_SLOT_TXS
             txs = list(combined_voted.transactions)
             if len(txs) > self.MAX_SLOT_TXS:
                 # e.g. take first N (or random.sample for fairness)
                 limited = set(txs[:self.MAX_SLOT_TXS])
                 combined_voted = Value(transactions=limited)
-                log.node.info( 'Node %s: truncating merged voted txs → %d (slot limit).', self.name, self.MAX_SLOT_TXS)"""
+                log.node.info( 'Node %s: truncating merged voted txs → %d (slot limit).', self.name, self.MAX_SLOT_TXS)
 
 
             self.nomination_state['voted'] = [combined_voted]
             log.node.info('Node %s updated its voted nomination state with combined value: %s', self.name,
                           combined_voted)
 
+            """
             # Process the "accepted" nomination field.
             incoming_accepted = message[1]
             if isinstance(incoming_accepted, Value):
@@ -684,7 +685,7 @@ class Node():
                     log.node.info(
                         'Node %s updated its accepted nomination state with combined value: %s',
                         self.name, combined_accepted
-                    )"""
+                    )
 
             self.update_local_nomination_broadcast()
 
@@ -955,11 +956,12 @@ class Node():
         Combines new transactions into the nomination state.
         """
 
+        if len(self.nomination_state['voted']) >= 100:
+            return
+
         # Step 1: Get all transactions from the mempool
         all_tx = self.mempool.get_all_transactions()
 
-        # NEW TEST CHANGE FOR FULL
-        all_tx = self.mempool.get_transaction()
         if not all_tx:
             log.node.info('Node %s found no transactions to nominate.', self.name)
             return
@@ -994,12 +996,12 @@ class Node():
                 excluded_hashes.update(t.hash for t in ballot.value.transactions)
 
         # Step 4: Filter new transactions
-        ##new_transactions = {t for t in all_tx if t.hash not in excluded_hashes}
-        #if not new_transactions:
-        #    log.node.info('Node %s found no new transactions to nominate after filtering.', self.name)
+        new_transactions = {t for t in all_tx if t.hash not in excluded_hashes}
+        if not new_transactions:
+            log.node.info('Node %s found no new transactions to nominate after filtering.', self.name)
         #    new_transactions = set()
 
-        """"
+
         # *** ENFORCE SLOT SIZE LIMIT HERE ***
         if len(new_transactions) > self.MAX_SLOT_TXS:
             # choose the top-fee ones
@@ -1010,11 +1012,11 @@ class Node():
                 self.name, len(new_transactions), self.MAX_SLOT_TXS
             )
         else:
-            limited_set = new_transactions"""
+            limited_set = new_transactions
 
 
         # Step 5: Wrap filtered transactions in a new Value
-        new_value = Value(transactions=excluded_hashes)
+        new_value = Value(transactions=limited_set)
         if self.is_value_already_present(new_value):
             log.node.info('Node %s already has a nomination with transactions %s. Skipping nomination.',
                           self.name, new_value.transactions)
@@ -1024,7 +1026,7 @@ class Node():
         if self.nomination_state['voted']:
             existing = self.nomination_state['voted']
             combined_value = Value.combine(existing + [new_value])
-            """
+
             # --- ENFORCE SLOT SIZE LIMIT AFTER MERGE ---
             if len(combined_value.transactions) > self.MAX_SLOT_TXS:
                 # pick a deterministic subset (e.g. first 100 by hash)
