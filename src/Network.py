@@ -74,7 +74,7 @@ class Network():
 
                 log.network.debug('Calculating quorum sets based on the network topology=%s', topology)
                 # Generate a random graph with n_nodes and 50% chance for each edge
-                graph = nx.fast_gnp_random_graph(n_nodes, 0.7)
+                graph = nx.fast_gnp_random_graph(n_nodes, 0.5)
                 # Find the largest connected component (LCC)
                 lcc_set = max(nx.connected_components(graph), key=len)
                 # Identify missing nodes (not in LCC)

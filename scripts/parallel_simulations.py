@@ -9,7 +9,7 @@ import re
 from collections import defaultdict
 import pandas as pd
 
-print(f"📣 Booting {__file__}, argv={sys.argv!r}")
+print(f" Booting {__file__}, argv={sys.argv!r}")
 
 SUMMARY_CSV = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "simulation_summary.csv")
@@ -135,7 +135,7 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
     cwd = os.getcwd()
     os.chdir(run_dir)
     try:
-        sim = Simulator(verbosity=5, n_nodes=n_nodes, max_simulation_time=max_sim_time)
+        sim = Simulator(verbosity=1, n_nodes=n_nodes, max_simulation_time=max_sim_time)
         sim.run()
         events_log = "simulator_events_log.txt"
         print(f"[worker] Parsing events from {events_log}")
