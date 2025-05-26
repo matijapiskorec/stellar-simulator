@@ -2552,7 +2552,7 @@ class Node():
         """
         # FULL reset of nomination, not just pruning
         self.reset_nomination_state()
-
+        self.last_nomination_start_time = Globals.simulation_time
         #self.nomination_state['confirmed'] = []
         #self.remove_all_finalized_nomination_transactions()
 
