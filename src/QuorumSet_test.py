@@ -4,6 +4,7 @@ from Node import Node
 from Transaction import Transaction
 from src.SCPBallot import SCPBallot
 from src.SCPPrepare import SCPPrepare
+from QuorumSet import QuorumSet
 
 
 class QuorumSetTest(unittest.TestCase):
@@ -181,6 +182,63 @@ class QuorumSetTest(unittest.TestCase):
 
         self.node.quorum_set.nodes = [test_node1, test_node2]
         self.node.quorum_set.inner_sets = [[self.node, test_node3], [self.node, test_node4]]
+
+    def test_weight_with_no_nodes(self):
+        # Test weight when there are no nodes and no inner sets
+        self.node = Node("test_node")
+        # The node's quorum set should be initialized automatically
+        self.assertEqual(self.node.quorum_set.weight(self.node), 0.0)
+
+    def test_weight_with_one_node_in_quorum(self):
+        self.node = Node("test_node")
+        # Test weight when there is one node in the quorum set
+        test_node = Node("test_node1")
+        self.node.quorum_set.nodes.append(test_node)
+        self.assertEqual(self.node.quorum_set.weight(test_node), 1.0)
+
+    def test_weight_with_multiple_nodes_in_quorum(self):
+        self.node = Node("test_node")
+        # Test weight when multiple nodes exist in the quorum set
+        test_node1 = Node("test_node1")
+        test_node2 = Node("test_node2")
+        self.node.quorum_set.nodes.extend([test_node1, test_node2])
+        self.assertEqual(self.node.quorum_set.weight(test_node1), 0.5)
+
+    def test_weight_with_inner_sets(self):
+        # Initialize the test node, which automatically creates its quorum set
+        self.node = Node("test_node")
+        inner_node = Node("inner_node")  # This node will be part of the inner quorum set
+
+        # Add the inner node to the outer quorum set's nodes
+        self.node.quorum_set.nodes.append(inner_node)
+
+        # Add the inner node to the inner quorum set (which is also part of the outer node's quorum set)
+        self.node.quorum_set.inner_sets.append(inner_node)
+
+        # Test the weight for a node that is present in the inner set
+        self.assertEqual(self.node.quorum_set.weight(inner_node), 1.0)
+
+    def test_weight_with_duplicate_node_in_quorum(self):
+        self.node = Node("test_node")
+        # Test weight when a node appears multiple times in the quorum set
+        test_node1 = Node("test_node1")
+        self.node.quorum_set.nodes.extend([test_node1, test_node1])  # Duplicate node
+        self.assertEqual(self.node.quorum_set.weight(test_node1), 1.0)
+
+    def test_weight_with_multiple_inner_sets(self):
+        self.node = Node("test_node")
+        # Test weight when there are multiple inner sets
+        inner_node1 = Node("inner_node1")
+        inner_node2 = Node("inner_node2")
+
+        # Add nodes to inner sets (quorum set is automatically associated with the node)
+        self.node.quorum_set.inner_sets.append(inner_node1)
+        self.node.quorum_set.inner_sets.append(inner_node2)
+
+        # Test the weight for nodes in inner sets
+        self.assertEqual(self.node.quorum_set.weight(inner_node1), 0.5)
+        self.assertEqual(self.node.quorum_set.weight(inner_node2), 0.5)
+
 
 
 
