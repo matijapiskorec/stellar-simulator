@@ -13,6 +13,7 @@ Documentation:
 
 [2] Nicolas Barry and Giuliano Losa and David Mazieres and Jed McCaleb and Stanislas Polu, The Stellar Consensus Protocol (SCP) - technical implementation draft, https://datatracker.ietf.org/doc/draft-mazieres-dinrg-scp/05/
 """
+import math
 import random
 from collections import deque
 
@@ -33,6 +34,23 @@ import copy
 import xdrlib3
 import hashlib
 import os
+from typing import List
+
+def _flatten_quorum_list(q: List) -> List["Node"]:
+    """
+    Recursively flatten a (possibly nested) list of Node objects.
+    If an element is a Node, add it. If it’s a list, recurse into it.
+    """
+    result = []
+    for x in q:
+        if isinstance(x, Node):
+            result.append(x)
+        elif isinstance(x, list):
+            result.extend(_flatten_quorum_list(x))
+        # anything else we ignore
+    return result
+
+
 
 class Node():
     name = None
@@ -324,7 +342,7 @@ class Node():
         #  If it does not have the highest priority, it waits for higher-priority nodes to propose values before deciding what to nominate
         self.check_update_nomination_round()
         self.get_priority_list()
-        if self.name in self.priority_list:
+        if self in self.priority_list:
             msg = self.prepare_nomination_msg() # Prepares Values for Nomination and broadcasts message
             if msg is None:
                 return
@@ -1377,34 +1395,50 @@ class Node():
     # Because Gi(1 || n || v) is a random function with a maximum value of 2^{256}, this formula effectivelly
     # selects a peer as a neighbor with a probability equal to its weight!
 
+    def _flatten_nested(self, q):
+        """
+        Recursively descend into `q`, which may be:
+          - a Node
+          - a list of Node
+          - a list of lists (and so on)
+        Return a flat Python list of all Node objects found inside.
+        """
+        flat = []
+        for x in q:
+            if isinstance(x, list):
+                flat.extend(self._flatten_nested(x))
+            else:
+                # we assume anything not a list is a Node instance
+                flat.append(x)
+        return flat
+
     def get_priority_list(self):
         print(f"Nodes in quorum set: {self.quorum_set.get_nodes()}")
         print(f"Inner sets in quorum set: {self.quorum_set.get_inner_sets()}")
-        unique_nodes = set()  # Use set to avoid duplication - used to check for duplicates in loops
+
+        unique_nodes = set()
+
+        # 1) Always allow “self” if hash‐prng gives it priority
         if self.Gi([1, self.nomination_round, str(self.name)]) < (2 ** 256 * 1.0):
             print("SELF WAS ADDED")
             unique_nodes.add(self)
 
-        # LATEST ADDITION - DONT ADD SELF
+        # 2) Check each top‐level validator
         for node in self.quorum_set.get_nodes():
-            # print("Weight for node ", node.name, " : ", self.quorum_set.weight(node))
-            # print("self.Gi([1, self.nomination_round, node.name]) returns ", self.Gi([1, self.nomination_round, node.name]), " for node ", node.name)
-            # print(" this is less than ", (2 ** 256 * self.quorum_set.weight(node)), self.Gi([1, self.nomination_round, node.name]) < (2 ** 256 * self.quorum_set.weight(node)))
-            if self.Gi([1, self.nomination_round, str(node.name)]) < (2 ** 256 * self.quorum_set.weight(node)):
-               unique_nodes.add(node)  # Add to set
+            if self.Gi([1, self.nomination_round, str(node.name)]) < (
+                    2 ** 256 * self.quorum_set.weight(node)):
+                unique_nodes.add(node)
 
+        # 3) Now descend into all nested inner‐sets (any depth)
         for inner_set in self.quorum_set.get_inner_sets():
-            if isinstance(inner_set, list):
-                for node in inner_set:
-                    if self.Gi([1, self.nomination_round, node.name]) < (
-                            2 ** 256 * self.quorum_set.weight(node)):
-                        unique_nodes.add(node)
-            elif isinstance(inner_set, Node):  # Ensure inner_set is a Node, not a duplicate list
-                if self.Gi([1, self.nomination_round, inner_set.name]) < (
-                        2 ** 256 * self.quorum_set.weight(inner_set)):
-                    unique_nodes.add(inner_set)
+            # `inner_set` might be a list of Node or a list of lists…
+            all_nodes = self._flatten_nested(inner_set)
+            for node in all_nodes:
+                if self.Gi([1, self.nomination_round, str(node.name)]) < (
+                        2 ** 256 * self.quorum_set.weight(node)):
+                    unique_nodes.add(node)
 
-            # print("For node ", node.name, " the priority nodes are ", unique_nodes)
+        # 4) Update and return
         self.priority_list.update(unique_nodes)
         print("THE SELF PRIORITY LIST IS ", self.priority_list)
         print("PRIORITY LIST FOR ", self.name, " IS ", self.priority_list)
@@ -1446,82 +1480,132 @@ class Node():
     # TODO: Call this after receiving a message + Update state in this event once its met
     def check_Quorum_threshold(self, val):
         """
-        Checks if the candidate value (val) meets the quorum threshold for nomination.
+        Return True iff at least `self.quorum_set.threshold` members of
+        my *flattened* quorum (including nested inner-lists) have voted
+        or accepted `val`.  Here `threshold` is an absolute count
+        loaded straight from JSON.
         """
-        # Condition 1: The node must already have voted for or accepted this value.
+        # 1) We must have signed already
+        if val not in self.nomination_state["voted"] \
+           and val not in self.nomination_state["accepted"]:
+            return False
+
+        # 2) Grab top-level validators + every nested inner-list
+        top = self.quorum_set.get_nodes()
+        inner = self.quorum_set.get_inner_sets()
+
+        def _flatten(q):
+            flat = []
+            for x in q:
+                if isinstance(x, list):
+                    flat.extend(_flatten(x))
+                else:
+                    flat.append(x)
+            return flat
+
+        all_peers = list(top) + _flatten(inner)
+        # dedupe by object identity
+        unique = []
+        seen = set()
+        for p in all_peers:
+            if id(p) not in seen:
+                seen.add(id(p))
+                unique.append(p)
+        # include self
+        unique.append(self)
+
+        # 3) Count who’s already voted/accepted
+        entry = self.statement_counter.get(val.hash,
+                   {"voted": set(), "accepted": set()})
+        signed = 0
+        for peer in unique:
+            if peer is self or peer.name in entry["voted"] \
+                             or peer.name in entry["accepted"]:
+                signed += 1
+
+        # 4) Compare against absolute JSON threshold
+        return signed >= self.quorum_set.threshold
+
+
+    def check_Blocking_threshold(self, val):
+        """
+        Checks whether `val` meets the blocking threshold.  We must count:
+
+          1) all “validators” (top‐level) in this node’s quorum, plus
+          2) all members of every nested inner‐list (recursively flattened)
+
+        and then see if enough of them have voted/accepted to exceed (n – k).
+
+        We also assume `self.statement_counter[val.hash]['voted']` and
+        `['accepted']` are sets of Node objects that have signed.
+        """
+
+        # 1) First, the node itself must already have “voted” or “accepted” this value.
         if val not in self.nomination_state["voted"] and val not in self.nomination_state["accepted"]:
             return False
 
-        # Start with a count of 1 for self.
-        signed_count = 1
-        inner_sets_meeting_threshold_count = 0
-        nodes, inner_sets = self.quorum_set.get_quorum()
-        threshold = self.quorum_set.minimum_quorum
+        # 2) Grab the top‐level validators and the inner_sets (which are nested lists)
+        validators, inner_sets = self.quorum_set.get_quorum()
 
-        # Safely get the vote/accept counts for this candidate Value.
-        entry = self.statement_counter.get(val.hash, {'voted': set(), 'accepted': set()})
+        # 3) Define a helper to recursively flatten any nested list structure:
+        def _flatten(q):
+            flat = []
+            for x in q:
+                if isinstance(x, list):
+                    flat.extend(_flatten(x))
+                else:
+                    flat.append(x)
+            return flat
 
-        for node in nodes:
-            # Check if this node's name is recorded as voting or accepting the candidate.
-            if node.name in entry.get('voted', set()) or node.name in entry.get('accepted', set()):
+        # 4) Build one flat list of *all* Nodes in this quorum: top‐level + all nested
+        all_quorum_nodes = list(validators) + _flatten(inner_sets)
+
+        # 5) n = total number of distinct Node objects in that flat quorum
+        #    (duplicates can occur if the same Node appears in multiple inner‐lists;
+        #     so we dedupe by identity).
+        unique_quorum_nodes = []
+        seen_ids = set()
+        for node in all_quorum_nodes:
+            if id(node) not in seen_ids:
+                seen_ids.add(id(node))
+                unique_quorum_nodes.append(node)
+        n = len(unique_quorum_nodes)
+
+        # 6) k = quorum_set.minimum_quorum
+        k = self.quorum_set.minimum_quorum
+
+        if n == 0:
+            return False
+
+        # 7) Count how many of those unique_quorum_nodes (excluding self) have already voted/accepted
+        signed_count = 1  # start with “1” because this node itself has signed (by step #1)
+        seen_signed = set()  # to avoid double‐counting the same Node
+        for node in unique_quorum_nodes:
+            if node is self:
+                continue
+            # check if that node has “voted” or “accepted” in statement_counter for this value
+            voted_set = self.statement_counter[val.hash]["voted"]
+            accepted_set = self.statement_counter[val.hash]["accepted"]
+            if (node in voted_set or node in accepted_set) and node not in seen_signed:
+                seen_signed.add(node)
                 signed_count += 1
 
-        # For each inner set (at one level of nesting), check if it meets threshold.
-        for element in inner_sets:
-            if isinstance(element, list):
-                threshold_met = self.quorum_set.check_threshold(
-                    val=val,
-                    quorum=element,
-                    threshold=threshold,
-                    node_statement_counter=self.statement_counter.copy()
-                )
-                if threshold_met:
-                    inner_sets_meeting_threshold_count += 1
+        # 8) Now we must add up, for each *inner slice*, whether that slice itself reached its blocking threshold.
+        #    Suppose check_inner_set_blocking_threshold expects a flat list of Nodes in that slice.
+        inner_set_count = 0
+        for raw_slice in inner_sets:
+            # flatten that one slice …
+            flat_slice = _flatten([raw_slice])
+            # … and ask QuorumSet to count how many signed
+            inner_set_count += self.quorum_set.check_inner_set_blocking_threshold(
+                calling_node=self,
+                val=val,
+                quorum=flat_slice
+            )
 
-        # Return True if the total is at least the quorum threshold.
-        return (signed_count + inner_sets_meeting_threshold_count) >= threshold
+        # 9) Finally: blocking threshold is met if (signed_count + inner_set_count) > (n – k)
+        return (signed_count + inner_set_count) > (n - k)
 
-    def check_Blocking_threshold(self, val):
-        # Check for Blocking threshold:
-        # A message reaches blocking threshold at "v" when the number of
-        # "validators" making the statement plus (recursively) the number
-        # "innerSets" reaching blocking threshold exceeds "n-k".
-        # Blocking threshold is met when  at least one member of each of "v"'s
-        # quorum slices (a set that does not necessarily include "v" itself) has issued message "m"
-        if val in (self.nomination_state["voted"]) or val in (self.nomination_state["accepted"]):  # Condition 1. - node itself has signed message
-            signed_count = 1
-            validators, inner_sets = self.quorum_set.get_quorum()
-            n = len(validators)
-            seen = set()
-            for node in validators:
-                seen.add(node)
-
-            for element in inner_sets:
-                if isinstance(element, list):
-                    for node in element:
-                        if node not in seen:
-                            n += 1
-                            seen.add(node)
-
-            k = self.quorum_set.minimum_quorum
-
-            if n == 0:
-                return False
-
-            signed_seen = set()
-            for node in validators:
-                if node.name != self.name and (node in self.statement_counter[val.hash]["voted"] or node in self.statement_counter[val.hash]["accepted"]) and (node not in signed_seen):
-                    signed_count += 1
-                    signed_seen.add(node)
-
-            inner_set_count = 0
-            for slice in inner_sets:
-                if isinstance(slice, list):
-                    inner_set_count += self.quorum_set.check_inner_set_blocking_threshold(calling_node=self, val=val, quorum=slice)
-
-            return (signed_count + inner_set_count) > (n - k)
-
-        return False
 
     def update_nomination_state(self, val, field):
         if field == "voted":
@@ -1566,7 +1650,6 @@ class Node():
             log.node.info('Node %s has no confirmed values to use for SCPPrepare!', self.name)
             return None
 
-    # Get the counters for balloting state given a value
     def get_prepared_ballot_counters(self, value):
         return self.prepared_ballots.get(value)
 
@@ -1738,37 +1821,33 @@ class Node():
         for ballot in accepted_ballots_to_del:
             self.balloting_state['accepted'].pop(ballot)
 
-
     def check_Prepare_Quorum_threshold(self, ballot):
-        # Check for Quorum threshold:
-        # 1. the node itself has signed the message
-        # 2. Number of nodes in the current QuorumSet who have signed + the number of innerSets that meet threshold is at least k
-        # 3. These conditions apply recursively to the inner sets to fulfill condition 2.
-        if ballot.value.hash in (self.balloting_state["voted"]) or ballot.value.hash in (self.balloting_state["accepted"]): # Condition 1. - node itself has signed message
-            signed_count = 1 # Node itself has voted for it so already has a count of 1
-            inner_sets_meeting_threshold_count = 0
-            nodes, inner_sets = self.quorum_set.get_quorum()
-            threshold = self.quorum_set.minimum_quorum
+        """
+        Checks whether `ballot` meets the prepare‐phase quorum threshold,
+        flattening any nested inner‐sets.
+        """
+        val_hash = ballot.value.hash
 
-            for node in nodes:
-                # check if the node name from the quorum is in the value's voted or accepted dict - meaning it has voted for the message
-                if node in self.ballot_statement_counter[ballot.value]['voted'] or node in self.ballot_statement_counter[ballot.value]['accepted']:
-                    signed_count += 1
-
-            for element in inner_sets: # Keep to just 1 layer of depth for now - so only 1 inner set per quorum, [ [], [] ], not [ [], [[]] ]
-                if isinstance(element, list):
-                        # 2. Check if the innerSets meet threshold
-                        threshold_met = self.quorum_set.check_prepare_threshold(ballot=ballot, quorum=element, threshold=threshold, prepare_statement_counter=self.ballot_statement_counter.copy())
-                        if threshold_met:
-                            inner_sets_meeting_threshold_count += 1
-
-            if signed_count + inner_sets_meeting_threshold_count >= threshold: # 3. conditions apply recursively to the inner sets to fulfill condition 2
-                return True
-            else:
-                return False
-        else:
+        # 1) We must already have voted or accepted this value
+        if val_hash not in self.balloting_state["voted"] and \
+           val_hash not in self.balloting_state["accepted"]:
             return False
 
+        # 2) Gather every Node in this quorum: top‐level + all nested inner‐sets
+        validators, inner_sets = self.quorum_set.get_quorum()
+        all_quorum = list(validators) + self._flatten_nested(inner_sets)
+
+        # 3) Count how many have voted/accepted (excluding self)
+        signed = 1  # self
+        entry = self.ballot_statement_counter.get(ballot.value, {"voted": set(), "accepted": set()})
+        for n in all_quorum:
+            if n is self:
+                continue
+            if n in entry["voted"] or n in entry["accepted"]:
+                signed += 1
+
+        # 4) Compare to the minimum quorum (ceil(percent * size))
+        return signed >= self.quorum_set.minimum_quorum
 
     def update_prepare_balloting_state(self, ballot, field):
         if field == "voted":
@@ -1797,6 +1876,7 @@ class Node():
                 log.node.info('Ballot %s has been moved to confirmed for SCPPrepare phase in Node %s', ballot.value.hash, self.name)
             else:
                 log.node.info('No ballots in accepted state, cannot move Ballots %s for SCPPrepare phase to confirmed in Node %s', ballot, self.name)
+    # Get the counters for balloting state given a value
 
     """
     # OLD RETRIEVE FUNCTION
@@ -1861,19 +1941,21 @@ class Node():
 
     def is_v_blocking(self, other_ballot):
         """
-        Returns True if more than (n - k) of your peers
-        have voted or accepted other_ballot,
-        meaning no quorum for your current ballot is possible
-        without supporting other_ballot.
+        True if more than (n - k) of your peers have voted/accepted other_ballot,
+        i.e. v‐blocking for your current ballot.
         """
         validators, inner_sets = self.quorum_set.get_quorum()
-        n = len(validators) + sum(len(s) if isinstance(s, list) else 1 for s in inner_sets)
+        all_quorum = list(validators) + self._flatten_nested(inner_sets)
+
+        # n = distinct number of peers in the flat quorum
+        unique_peers = {id(n) for n in all_quorum}
+        n = len(unique_peers)
+
+        # k = minimum_quorum (ceil(percent * size))
         k = self.quorum_set.minimum_quorum
         threshold = n - k
 
-        # count how many distinct peers have voted/accepted other_ballot
-        entry = self.ballot_statement_counter.get(other_ballot.value,
-                                                  {"voted": set(), "accepted": set()})
+        entry = self.ballot_statement_counter.get(other_ballot.value, {"voted": set(), "accepted": set()})
         count = len(entry["voted"] | entry["accepted"])
         return count > threshold
 
@@ -2136,36 +2218,58 @@ class Node():
                 self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
             return"""
 
-
     def check_Commit_Quorum_threshold(self, ballot):
-        # Check for Quorum threshold:
-        # 1. the node itself has signed the message
-        # 2. Number of nodes in the current QuorumSet who have signed + the number of innerSets that meet threshold is at least k
-        # 3. These conditions apply recursively to the inner sets to fulfill condition 2.
-        if ballot.value.hash in (self.commit_ballot_state["voted"]) or ballot.value.hash in (self.commit_ballot_state["accepted"]): # Condition 1. - node itself has signed message
-            signed_count = 1 # Node itself has voted for it so already has a count of 1
-            inner_sets_meeting_threshold_count = 0
-            nodes, inner_sets = self.quorum_set.get_quorum()
-            threshold = self.quorum_set.minimum_quorum
+        """
+        Return True iff at least `threshold` (absolute) of *all* nodes
+        in my quorum (including nested inner-lists) have voted or accepted `ballot`.
+        """
 
-            for node in nodes:
-                # check if the node name from the quorum is in the value's voted or accepted dict - meaning it has voted for the message
-                if node in self.commit_ballot_statement_counter[ballot.value]['voted'] or node in self.commit_ballot_statement_counter[ballot.value]['accepted']:
-                    signed_count += 1
-
-            for element in inner_sets: # Keep to just 1 layer of depth for now - so only 1 inner set per quorum, [ [], [] ], not [ [], [[]] ]
-                if isinstance(element, list):
-                        # 2. Check if the innerSets meet threshold
-                        threshold_met = self.quorum_set.check_commit_threshold(ballot=ballot, quorum=element, threshold=threshold, commit_statement_counter=self.commit_ballot_statement_counter.copy())
-                        if threshold_met:
-                            inner_sets_meeting_threshold_count += 1
-
-            if signed_count + inner_sets_meeting_threshold_count >= threshold: # 3. conditions apply recursively to the inner sets to fulfill condition 2
-                return True
-            else:
-                return False
-        else:
+        # 1) Must have already “voted” or “accepted” yourself
+        h = ballot.value.hash
+        if h not in self.commit_ballot_state["voted"] and h not in self.commit_ballot_state["accepted"]:
             return False
+
+        # 2) Grab top-level validators and nested inner_sets
+        validators, inner_sets = self.quorum_set.get_quorum()
+
+        # 3) Recursively flatten any nested list structure
+        def _flatten(q):
+            flat = []
+            for x in q:
+                if isinstance(x, list):
+                    flat.extend(_flatten(x))
+                else:
+                    # anything not a list is assumed to be a Node
+                    flat.append(x)
+            return flat
+
+        # 4) Build the full unique peer set
+        all_peers = []
+        all_peers.extend(validators)
+        all_peers.extend(_flatten(inner_sets))
+        # dedupe by identity
+        seen = set()
+        unique_peers = []
+        for node in all_peers + [self]:  # include self
+            if id(node) not in seen:
+                seen.add(id(node))
+                unique_peers.append(node)
+
+        n = len(unique_peers)
+        k = self.quorum_set.threshold  # absolute count from JSON
+
+        # 5) Count how many have actually voted/accepted in commit state
+        signed = 0
+        for node in unique_peers:
+            if node is self:
+                signed += 1
+            else:
+                entry = self.commit_ballot_statement_counter.get(ballot.value, {"voted": set(), "accepted": set()})
+                if node in entry["voted"] or node in entry["accepted"]:
+                    signed += 1
+
+        # 6) Promise if we meet threshold
+        return signed >= k
 
     def update_commit_balloting_state(self, ballot, field):
         if field == "voted":
@@ -2242,21 +2346,44 @@ class Node():
         the given commit ballot, meaning no quorum can form for any other ballot
         without including supporters of this one.
         """
-        # Safely get the vote/accept counts
+        # 1) Gather vote/accept counts for this ballot
         entry = self.commit_ballot_statement_counter.get(
-            ballot.value,
-            {"voted": set(), "accepted": set()}
+            ballot.value, {"voted": set(), "accepted": set()}
         )
-        count = len(entry["voted"] | entry["accepted"])
-
-        # total slice size (nodes + inner sets)
+        # 2) Flatten all peers (top‐level + any nested inner_sets)
         validators, inner_sets = self.quorum_set.get_quorum()
-        slice_size = len(validators) + sum(len(s) if isinstance(s, list) else 1 for s in inner_sets)
+
+        def _flatten(q):
+            flat = []
+            for x in q:
+                if isinstance(x, list):
+                    flat.extend(_flatten(x))
+                else:
+                    flat.append(x)
+            return flat
+
+        all_peers = list(validators) + _flatten(inner_sets)
+
+        # 3) Deduplicate by identity
+        seen_ids = set()
+        unique_peers = []
+        for p in all_peers:
+            if id(p) not in seen_ids:
+                seen_ids.add(id(p))
+                unique_peers.append(p)
+
+        n = len(unique_peers)
         k = self.quorum_set.minimum_quorum
 
-        # v-blocking if count > (n - k)
-        return count > (slice_size - k)
+        # 4) Count how many of those have voted or accepted
+        signed = sum(
+            1
+            for p in unique_peers
+            if (p in entry["voted"] or p in entry["accepted"])
+        )
 
+        # 5) v-blocking if signed > (n - k)
+        return signed > (n - k)
 
     def receive_commit_message(self):
         """

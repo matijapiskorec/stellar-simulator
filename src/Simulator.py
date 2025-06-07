@@ -35,7 +35,7 @@ from Mempool import Mempool
 from Globals import Globals
 from SCPExternalize import SCPExternalize
 
-VERBOSITY_DEFAULT = 1
+VERBOSITY_DEFAULT = 5
 N_NODES_DEFAULT = 50
 
 class Simulator:
@@ -43,7 +43,7 @@ class Simulator:
     Command line (CLI) interface for the simulator.
     '''
 
-    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=100, simulation_params=None, **kvargs):
+    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=4, simulation_params=None, **kvargs):
 
         self._verbosity = verbosity
         self._n_nodes = n_nodes
@@ -59,7 +59,7 @@ class Simulator:
         # Total elapsed time doesn't include initialization!
         self.timeStart = time.time()
         # ER_singlequorumset
-        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER_singlequorumset')
+        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='HARDCODE', percent_threshold=0.25)
 
         if simulation_params is not None:
             self.simulation_params = simulation_params
@@ -135,7 +135,7 @@ class Simulator:
                 'retrieve_message_from_peer': {'tau': 0.05, 'tau_domain': self._nodes},  # Very fast message retrieval
                 'receive_prepare_message': {'tau': 0.05, 'tau_domain': self._nodes},
                 'receive_commit_message': {'tau': 0.05, 'tau_domain': self._nodes},  # Faster message processing
-                'receive_externalize_msg': {'tau': 0.001, 'tau_domain': self._nodes} # Ensure externalisation occurs very quick when a node reaches it -ensure s consistency
+                'receive_externalize_msg': {'tau': 0.05, 'tau_domain': self._nodes} # Ensure externalisation occurs very quick when a node reaches it -ensure s consistency
                 # Quick externalize initiation
             }
 

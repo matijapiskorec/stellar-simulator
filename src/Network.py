@@ -8,6 +8,7 @@ Last update: March 2025
 
 Network class. Setup Stellar validator network by initializing nodes and setting their quorum sets based on a predefined topology.
 """
+import math
 
 from Log import log
 from Node import Node
@@ -43,7 +44,7 @@ class Network():
         return nodes
 
     @classmethod
-    def generate_nodes(cls,n_nodes=2,topology='FULL'):
+    def generate_nodes(cls,n_nodes=2,topology='FULL', percent_threshold = None):
 
         assert n_nodes > 0
         assert topology in cls.topologies
@@ -159,47 +160,126 @@ class Network():
                 # 5) return exactly the validators that made it into the LCC
                 return sq_nodes
 
-                """ case 'HARDCODE':
-                file_path = "quorumset_20250131_095020.json"
+            # Replace this snippet into your Network.py under case 'HARDCODE':
 
-                with open(file_path, 'r') as file:
-                    data = json.load(file)
+            case 'HARDCODE':
+                file_path = "quorumset_05_06_2025.json"
+                with open(file_path, 'r') as f:
+                    raw = json.load(f)
 
-                nodes = {}
+                # 1) pull out raw["nodes"]
+                if not isinstance(raw, dict) or "nodes" not in raw:
+                    raise RuntimeError(f"HARDCODE loader expected a dict with key 'nodes'. Got: {raw!r}")
+                data_list = raw["nodes"]
+                if not isinstance(data_list, list):
+                    raise RuntimeError(f"'nodes' must be a list. Got: {data_list!r}")
 
-                for validator_data in data:
-                    node_id = validator_data["publicKey"]
-                    node_list = validator_data.get("validators", [])
-                    threshold = validator_data.get("threshold", 1)
+                # 2) record exactly which publicKeys are “real” validators
+                defined_ids = {entry.get("publicKey") for entry in data_list}
+                if any(not isinstance(pk, str) for pk in defined_ids):
+                    raise RuntimeError(f"All publicKey fields must be strings. Got: {defined_ids}")
 
-                    if node_id not in nodes:
-                        nodes[node_id] = Node(node_id)
+                # 3) instantiate only your real Nodes
+                nodes_dict = {pk: Node(pk) for pk in defined_ids}
 
-                    node = nodes[node_id]
+                # track any stray IDs we see in innerQuorumSets
+                referenced_undefined = set()
 
-                    # We are only parsing the first inner set
-                    inner_quorum_sets = []
-                    for inner_set in validator_data.get("innerQuorumSets", []):
-                        inner_threshold = inner_set.get("threshold", 1)
-                        inner_validators = inner_set.get("validators", [])
+                # 4) recursive helper to build nested lists, skipping undefined IDs
+                def build_inner_list(inner_json, parent_node_id):
+                    if not isinstance(inner_json, dict):
+                        raise RuntimeError(f"Each innerQuorumSets entry must be a dict. Got: {inner_json!r}")
+                    result = []
+                    # (a) validators
+                    for v_id in inner_json.get("validators", []):
+                        if not isinstance(v_id, str):
+                            raise RuntimeError(f"Validator IDs must be strings. Got: {v_id!r}")
+                        if v_id not in defined_ids:
+                            referenced_undefined.add(v_id)
+                            log.network.warning(
+                                "Dropping undefined validator %s in innerQuorumSets under node %s",
+                                v_id, parent_node_id
+                            )
+                            continue
+                        result.append(nodes_dict[v_id])
+                    # (b) recurse deeper
+                    for sub in inner_json.get("innerQuorumSets", []):
+                        result.append(build_inner_list(sub, parent_node_id))
+                    return result
 
-                        inner_nodes = []
-                        for v in inner_validators:
-                            if v not in nodes:
-                                nodes[v] = Node(v)
-                            inner_nodes.append(nodes[v])
+                # 5) second pass: wire up each Node’s QuorumSet
+                for entry in data_list:
+                    node_id = entry["publicKey"]
+                    node = nodes_dict[node_id]
 
-                        inner_quorum_sets.append(Node(f"InnerSet-{node_id}"))  # Represent inner quorum as Node
+                    qset = entry.get("quorumSet")
+                    if not isinstance(qset, dict):
+                        raise RuntimeError(f"Entry for {node_id} must have a dict 'quorumSet'. Got: {qset!r}")
 
-                    node.set_quorum( nodes=[nodes[v] for v in node_list if v in nodes], inner_sets=inner_quorum_sets, threshold=threshold)
+                    # threshold is an absolute count in JSON
+                    thr = qset.get("threshold")
+                    if not isinstance(thr, int):
+                        raise RuntimeError(f"'threshold' must be an int for {node_id}. Got: {thr!r}")
+                    node.quorum_set.threshold = thr
 
-                    log.network.debug( 'Node %s initialized with %d validators and %d inner quorum sets', node_id, len(node_list), len(inner_quorum_sets) )
+                    # top‐level validators (usually empty)
+                    top_level = []
+                    for v_id in qset.get("validators", []):
+                        if not isinstance(v_id, str):
+                            raise RuntimeError(f"Validator IDs must be strings. Got: {v_id!r}")
+                        if v_id not in defined_ids:
+                            referenced_undefined.add(v_id)
+                            log.network.warning(
+                                "Dropping undefined validator %s in top‐level list of node %s",
+                                v_id, node_id
+                            )
+                            continue
+                        top_level.append(nodes_dict[v_id])
 
-                return list(nodes.values())
+                    # build nested inner lists
+                    inner_lists = [
+                        build_inner_list(inner_json, node_id)
+                        for inner_json in qset.get("innerQuorumSets", [])
+                    ]
+                    # ─── INSERT DYNAMIC THRESHOLD CALCULATION HERE ───
+                    PERCENT_THRESHOLD = 0.60
+                    total_slices = len(top_level) + len(inner_lists)
+                    # ceil so that 60% of e.g. 7 slices ≔ ceil(4.2) == 5
+                    dynamic_threshold = math.ceil(total_slices * PERCENT_THRESHOLD)
+                    # ────────────────────────────────────────────────
+
+                    # set it all
+                    node.quorum_set.set(nodes=top_level, inner_sets=inner_lists)
+                    log.network.debug(
+                        "Node %s initialized: top‐level validators = %d, inner lists = %d",
+                        node_id, len(top_level), len(inner_lists)
+                    )
+                    # threshold is an absolute count in JSON
+                    thr = qset.get("threshold")
+                    if not isinstance(thr, int):
+                        node.quorum_set.threshold = dynamic_threshold
+                        raise RuntimeError(f"'threshold' must be an int for {node_id}. Got: {thr!r}")
+                    else:
+                        node.quorum_set.threshold = thr
+
+                # 6) drop any nodes we created only by accident (referenced but never defined)
+                dropped = referenced_undefined
+                if dropped:
+                    log.network.info(
+                        "Dropped %d isolated nodes referenced only in innerQuorumSets: %s",
+                        len(dropped), sorted(dropped)
+                    )
+
+                final_nodes = [nodes_dict[pk] for pk in sorted(defined_ids)]
+                log.network.info("Final network size: %d nodes", len(final_nodes))
+                return final_nodes
+
+                # ... handle other topologies as needed ...
+
                 """
 
             case 'HARDCODE': # fix for HARDCODE TO REMOVE DUPLICATES
-                file_path = "quorumset_20250131_095020.json"
+                file_path = "quorumset_05_06_2025.json"
 
                 with open(file_path, 'r') as file:
                     data = json.load(file)
@@ -208,7 +288,7 @@ class Network():
                 nodes_dict = {}
 
                 for validator_data in data:
-                    node_id = validator_data["publicKey"]
+                    node_id =   validator_data["publicKey"]
                     node_list = validator_data.get("validators", [])
                     threshold = validator_data.get("threshold", 1)
 
@@ -250,7 +330,7 @@ class Network():
 
                 # Return all unique nodes.
                 nodes = list(nodes_dict.values())
-                return nodes
+                return nodes"""
 
 
             case 'LUNCH':
