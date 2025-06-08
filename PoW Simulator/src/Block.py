@@ -4,7 +4,7 @@ Block
 =========================
 
 Author: Jaime de Vivero Woods
-Last update: April 2025
+Last update: June 2025
 
 Block class.
 """
@@ -24,8 +24,6 @@ class Block():
       - _hash: computed block hash
     """
 
-    # For our purposes a value is just a set of transactions.
-    # def __init__(self,transactions,**kwargs):
     def __init__(self, *, prev_hash, transactions=None, timestamp=None, height: int = 0):
         self.prev_hash = prev_hash
         self._transactions = transactions if transactions is not None else []
@@ -33,9 +31,6 @@ class Block():
         self._hash = self._compute_hash()
         self.is_canonical = False
         self.height = height
-
-        # All transactions have to be of type Transaction - empty list is also allowed!
-        #assert all([isinstance(htransaction,Transaction) for transaction in self._transactions])
 
         log.block.info(
             "Created Block: prev=%s, hash=%s, timestamp=%s, txs=%s",
@@ -58,14 +53,12 @@ class Block():
         )
 
     def __hash__(self):
-        # allow Blocks to be placed in sets/maps keyed by their computed hash
         return self._hash
 
     def _compute_hash(self):
         """
         Compute a (Python) hash of the block’s contents.
-        In a real PoW you’d do double SHA256 over the header; here we
-        just use Python’s hash() for simulation purposes.
+        Using Python’s hash() for simulation purposes.
         """
         return hash(( self.prev_hash, frozenset(self._transactions), self.timestamp,))
 

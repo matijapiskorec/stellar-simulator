@@ -2,8 +2,8 @@ import unittest
 from Value import Value
 from Node import Node
 from Transaction import Transaction
-from src.SCPBallot import SCPBallot
-from src.SCPPrepare import SCPPrepare
+from SCPBallot import SCPBallot
+from SCPPrepare import SCPPrepare
 from QuorumSet import QuorumSet
 
 

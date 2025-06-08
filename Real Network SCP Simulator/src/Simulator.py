@@ -43,7 +43,7 @@ class Simulator:
     Command line (CLI) interface for the simulator.
     '''
 
-    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=15, simulation_params=None, **kvargs):
+    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=5, simulation_params=None, **kvargs):
 
         self._verbosity = verbosity
         self._n_nodes = n_nodes

@@ -1,6 +1,6 @@
-# Stellar Consensus Protocol (SCP) simulator
+# Proof-of-Work (PoW) simulator
 
-Implementation of Stellar Consensus Protocol (SCP) simulator using Gillespie algorithm. Stellar uses Federated Byzantine Agreement (FBA) to reach consensus.
+Implementation of Proof-of-Work (PoW) simulator using Gillespie algorithm.
 
 Install Python virtual environment:
 ```
@@ -12,7 +12,7 @@ pip install -r requirements.txt
 Or you can run it with Docker file:
 ```
 docker-compose up -d --build
-docker-compose exec stellar bash
+docker-compose exec pow bash
 ```
 
 There is also a Makefile which makes it easier to manage Docker, with few targets `build`, `start`, `bash`, `ls`, `kill`, `simulator` and `test`.
@@ -24,6 +24,4 @@ python src/simulator.py > output.txt 2>&1
 
 ## Bibliography
 
-[1] David Maziers, The Stellar Consensus Protocol: A Federated Model for Internet-level Consensus, https://www.stellar.org/papers/stellar-consensus-protocol
-
-[2] Nicolas Barry and Giuliano Losa and David Mazieres and Jed McCaleb and Stanislas Polu, The Stellar Consensus Protocol (SCP) - technical implementation draft, https://datatracker.ietf.org/doc/draft-mazieres-dinrg-scp/05/
+[1] Satoshi Nakamoto, Bitcoin: A Peer-to-Peer Electronic Cash System, https://bitcoin.org/bitcoin.pdf

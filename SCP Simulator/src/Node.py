@@ -5,7 +5,7 @@ Node
 
 Author: Matija Piskorec, Jaime de Vivero Woods
 
-Last update: March 2025
+Last update: June 2025
 
 Node class.
 
@@ -271,7 +271,6 @@ class Node():
             return None  # Ensure something is returned.
 
     # Add nodes to quorum
-    # TODO: Consider removing add_to_quorum() because we are only using set_quorum()!
     def add_to_quorum(self, nodes):
         self.quorum_set.add(nodes)
         return
@@ -286,12 +285,6 @@ class Node():
     def attach_mempool(self, mempool):
         self.mempool = mempool
         return
-
-    # TODO: URGENT! Keep track which transactions are already included in the ledger and broadcasted!
-    # TODO: - We can do it on the level of Ledger (better) or Transactions (worse)!
-
-    # TODO: URGENT! At beginning of nominate(), combine all values in storage and then nominate!
-    # TODO: - Use Value.combine() for combining multiple values into one!
 
     def collect_finalised_transactions(self):
         """
@@ -320,7 +313,7 @@ class Node():
         """
         Broadcast SCPNominate message to the storage.
         """
-        # TODO: A node can nominate a value itself if it has the highest priority in the current round.
+        # A node can nominate a value itself if it has the highest priority in the current round.
         #  If it does not have the highest priority, it waits for higher-priority nodes to propose values before deciding what to nominate
         self.check_update_nomination_round()
         self.get_priority_list()
@@ -344,9 +337,6 @@ class Node():
         # self.prepare_nomination_msg()  # Prepares Values for Nomination and broadcasts message
         #priority_node = self.get_highest_priority_neighbor()
 
-        # TODO: Neighbour should check global time & priority neighbour
-        # TODO: nominate function should update nominations from peers until the quorum threshold is met
-        # TODO: the respective function should be implemented and called here
         return
 
     """
@@ -520,18 +510,7 @@ class Node():
 
                     if type(voted_val) is Value and self.check_Blocking_threshold(voted_val):
                         log.node.info('Blocking threshold met for value %s at Node %s', voted_val, self.name)
-                        ##################################################
-                        ##################################################
-                        # NEW AND VERIFY!!!!!!!!!!!!!!!!!!!!!!
-                        ### MAKE SURRE!!!!!
-                        ##################################################
-                        ##################################################
-                        """ if voted_val not in self.nomination_state["voted"] and voted_val not in self.nomination_state[
-                            "accepted"]:
-                            log.node.info('Blocking threshold met for new value %s at Node %s – voting immediately!',
-                                          voted_val, self.name)
-                            self.nomination_state["voted"].append(voted_val)
-                            self.update_local_nomination_broadcast()"""
+
 
                     accepted_val = message[1] # message[1] is accepted field
                     if type(accepted_val) is Value and self.check_Quorum_threshold(accepted_val):
@@ -541,15 +520,8 @@ class Node():
                         self.update_nomination_state(accepted_val, "accepted")
 
                     if type(accepted_val) is Value and self.check_Blocking_threshold(accepted_val):
-                        # NEW AND VERIFY!!!!!!!!!!!!!!!!!!!!!!
                         log.node.info('Blocking threshold met for value %s at Node %s', accepted_val, self.name)
-                        """if accepted_val not in self.nomination_state["voted"] and accepted_val not in self.nomination_state[
-                            "accepted"]:
-                            log.node.info(
-                                'Blocking threshold met for new accepted value %s at Node %s – voting immediately!',
-                                accepted_val, self.name)
-                            self.nomination_state["voted"].append(accepted_val)
-                            self.update_local_nomination_broadcast()"""
+
 
                 else:
                     log.node.info('Node %s has no messages to retrieve from his highest priority neighbor Node %s!', self.name, priority_node.name)
@@ -565,47 +537,12 @@ class Node():
         if not voted_vals and not accepted_vals:
             log.node.info("Node %s has empty nomination state; not updating broadcast flag.", self.name)
             return
-        # Create a new SCPNominate message with the latest nomination state.
+        # Create a new SCPNominate message with the latest nomination state
         new_nom_msg = SCPNominate(voted=voted_vals, accepted=accepted_vals, confirmed=confirmed_vals)
-        # Replace the broadcast flags with just this new message.
+        # Replace the broadcast flags with just this new message
         self.broadcast_flags = [new_nom_msg]
-        #elf.broadcast_flags.append(new_nom_msg)
         log.node.info("Node %s updated its local nomination broadcast flag: %s", self.name, new_nom_msg)
 
-    """
-    def process_received_message(self, message):
-
-        # Retrieve finalized transaction hashes from the ledger.
-        finalized_tx_ids = self.get_finalized_transaction_ids()
-
-        # Process the "voted" nomination field.
-        incoming_voted = message[0]
-        if isinstance(incoming_voted, Value):
-            # Filter out finalized transactions from the incoming voted value.
-            filtered_voted_transactions = {tx for tx in incoming_voted.transactions if tx.hash not in finalized_tx_ids}
-            filtered_incoming_voted = Value(transactions=filtered_voted_transactions)
-            voted_list = self.nomination_state.get('voted', [])
-            if voted_list:
-                last = self.nomination_state['voted'][-1]
-                merged = Value.combine([last, filtered_incoming_voted])
-                self.nomination_state['voted'][-1] = merged
-                log.node.info('Node %s updated its voted nomination state with combined value: %s', self.name,
-                             merged)
-            else:
-                combined_voted = filtered_incoming_voted
-                self.nomination_state['voted'].append(combined_voted)
-                log.node.info('Node %s updated its voted nomination state with appended value: %s', self.name,
-                          combined_voted)
-
-        # Process the "accepted" nomination field.
-        incoming_accepted = message[1]
-        if isinstance(incoming_accepted, Value):
-            if incoming_accepted not in self.nomination_state['accepted']:
-                self.nomination_state['accepted'].append(incoming_accepted)
-                log.node.info('Node %s updated its accepted nomination state with value: %s', self.name,
-                          incoming_accepted)
-
-        self.update_local_nomination_broadcast() """
 
     def process_received_message(self, message):
         finalized_tx_ids = self.get_finalized_transaction_ids()
@@ -622,14 +559,12 @@ class Node():
         # --- Handle incoming “voted” field ---
         incoming_voted = message[0]
         if isinstance(incoming_voted, Value):
-            # 1) Prune out finalized txs
-            filtered = {tx for tx in incoming_voted.transactions if tx.hash not in finalized_tx_ids}
+            filtered = {tx for tx in incoming_voted.transactions if tx.hash not in finalized_tx_ids} # Filter out finalized txs
             if filtered:
-                # 2) Merge with our existing voted Values
-                current = self.nomination_state.get('voted', [])
+                current = self.nomination_state.get('voted', []) # Merge with existing voted Values as union
                 merged = Value.combine(current + [Value(transactions=filtered)])
 
-                # 3) ENFORCE MAX_SLOT_TXS CAP
+                # ENFORCE MAX_SLOT_TXS CAP
                 txs = sorted(merged.transactions, key=lambda tx: tx.hash)
                 if len(txs) > self.MAX_SLOT_TXS:
                     capped = set(txs[: self.MAX_SLOT_TXS])
@@ -639,25 +574,21 @@ class Node():
                         self.name, self.MAX_SLOT_TXS
                     )
 
-                # 4) Store back
-                self.nomination_state['voted'] = [merged]
+                self.nomination_state['voted'] = [merged] # store new Value with union of ts
                 log.node.info(
                     "Node %s updated voted nomination state with capped merged value: %s",
                     self.name, merged
                 )
 
-        # --- Handle incoming “accepted” field ---
         incoming_accepted = message[1]
         if isinstance(incoming_accepted, Value):
-            # Same pattern: prune, merge, cap, store
             filtered = {tx for tx in incoming_accepted.transactions if tx.hash not in finalized_tx_ids}
             if filtered:
                 current = self.nomination_state.get('accepted', [])
                 merged = Value.combine(current + [Value(transactions=filtered)])
 
-                # Cap it
                 txs = sorted(merged.transactions, key=lambda tx: tx.hash)
-                if len(txs) > self.MAX_SLOT_TXS:
+                if len(txs) > self.MAX_SLOT_TXS: # cap txs
                     capped = set(txs[: self.MAX_SLOT_TXS])
                     merged = Value(transactions=capped)
                     log.node.info(
@@ -671,133 +602,8 @@ class Node():
                     self.name, merged
                 )
 
-        # Broadcast your updated state
-        self.update_local_nomination_broadcast()
+        self.update_local_nomination_broadcast() # Broadcast updated state
 
-    """
-    def process_received_message(self, message):
-        finalized_tx_ids = self.get_finalized_transaction_ids()
-
-        # Process the "voted" nomination field.
-        incoming_voted = message[0]
-        if isinstance(incoming_voted, Value):
-            # Filter out finalized transactions from the incoming voted value.
-            filtered_voted_transactions = {tx for tx in incoming_voted.transactions if tx.hash not in finalized_tx_ids}
-            filtered_incoming_voted = Value(transactions=filtered_voted_transactions)
-            #current_voted = self.nomination_state.get('voted', [])
-            # ADDED HERE
-            pruned = []
-            for old_val in self.nomination_state.get('voted', []):
-                keep = {t for t in old_val.transactions
-                        if t.hash not in self.finalised_transactions}
-                if keep:
-                    pruned.append(Value(transactions=keep))
-            self.nomination_state['voted'] = pruned
-
-            # merge and cap txs to here
-            current_voted = self.nomination_state.get('voted', [])
-            combined_voted = Value.combine(current_voted + [filtered_incoming_voted])
-
-            # 4) enforce MAX_SLOT_TXS
-            txs = list(combined_voted.transactions)
-
-            #if len(txs) > self.MAX_SLOT_TXS:
-                # e.g. take first N (or random.sample for fairness)
-                #limited = set(txs[:self.MAX_SLOT_TXS])
-                #combined_voted = Value(transactions=limited)
-                #log.node.info( 'Node %s: truncating merged voted txs → %d (slot limit).', self.name, self.MAX_SLOT_TXS)
-
-
-            self.nomination_state['voted'] = [combined_voted]
-            log.node.info('Node %s updated its voted nomination state with combined value: %s', self.name,
-                          combined_voted)
-
-
-            # Process the "accepted" nomination field.
-            #incoming_accepted = message[1]
-            #if isinstance(incoming_accepted, Value):
-    
-            #    self.nomination_state['accepted'].append(incoming_accepted)
-            #    pruned = []
-            #    for old_val in self.nomination_state.get('accepted', []):
-            #        keep = {t for t in old_val.transactions
-            #                if t.hash not in self.finalised_transactions}
-            #        if keep:
-            #            pruned.append(Value(transactions=keep))
-            #    self.nomination_state['accepted'] = pruned
-            #    log.node.info('Node %s updated its accepted nomination state with combined value: %s', self.name,
-            #                  pruned)
-
-            incoming_accepted = message[1]
-            if isinstance(incoming_accepted, Value):
-                # 1) prune out finalized txs from any old accepted Value
-                pruned = []
-                for old_val in self.nomination_state.get('accepted', []):
-                    keep = {t for t in old_val.transactions
-                            if t.hash not in self.finalised_transactions}
-                    if keep:
-                        pruned.append(Value(transactions=keep))
-
-                # 2) merge old + incoming into a single Value
-                combined_accepted = Value.combine(pruned + [incoming_accepted])
-
-                # 3) drop if empty
-                if not combined_accepted.transactions:
-                    log.node.info(
-                        'Node %s: no accepted txs remain after pruning; clearing accepted state.',
-                        self.name
-                    )
-                    self.nomination_state['accepted'] = []
-                else:
-                    # 4) enforce MAX_SLOT_TXS cap
-                    txs = list(combined_accepted.transactions)
-                    
-                    #if len(txs) > self.MAX_SLOT_TXS:
-                    #    limited = set(txs[:self.MAX_SLOT_TXS])
-                    #    combined_accepted = Value(transactions=limited)
-                    #    log.node.info(
-                    #        'Node %s: truncating merged accepted txs → %d (slot limit).',
-                    #        self.name, self.MAX_SLOT_TXS
-                    #   )
-
-                    # 5) store back as a single accepted Value
-                    self.nomination_state['accepted'] = [combined_accepted]
-                    log.node.info(
-                        'Node %s updated its accepted nomination state with combined value: %s',
-                        self.name, combined_accepted
-                    )
-
-            self.update_local_nomination_broadcast()"""
-
-    """
-    def retrieve_message_from_peer(self):
-
-        # Update nomination round and priority list if simulation time exceeds nomination round time and
-        # choose a neighbor with the highest priority from which we fetch messages
-        v = 'test'
-        other_node = self.get_highest_priority_neighbor()
-        print("OTHER NODE IS ", other_node, " which has type ", type(other_node))
-        print("checking against none")
-        if other_node is None:
-            log.node.info('Node %s has no one in quorum set!',self.name)
-            return
-
-        print("now checking against self")
-
-        if other_node is not None:
-            print("GOT HERE TO CHECK MESSAGES")
-            log.node.info('Node %s retrieving messages from his highest priority neighbor Node %s!',
-                          self.name,other_node.name)
-            retrieved_messages = other_node.get_messages()
-            if retrieved_messages is not None:
-                self.storage.add_messages(retrieved_messages)
-            else:
-                log.node.info('Node %s has no messages to retrieve from his highest priority neighbor Node %s!',
-                              self.name,other_node.name)
-        else:
-            log.node.info('Node %s is his own highest priority neighbor!',self.name)
-        return
-    """
 
     def is_value_already_present(self, new_value):
         """
@@ -828,175 +634,16 @@ class Node():
         log.node.info("Node %s cleaned nomination_state; current state: %s", self.name, self.nomination_state)
 
 
-    """
-        def prepare_nomination_msg(self):
-
-        # Retrieve a single transaction from the mempool.
-        tx = self.retrieve_transaction_from_mempool()
-        if tx is None:
-            log.node.info('Node %s found no transaction to nominate.', self.name)
-            return
-
-        # Gather hashes of all finalized (externalized) transactions.
-        self.collect_finalised_transactions()
-        # If the transaction has already been finalized, skip nomination.
-        if tx.hash in self.finalised_transactions:
-            log.node.info('Node %s retrieved transaction %s but it is already finalized. Skipping nomination.',
-                          self.name, tx)
-            return
-
-        # Now check if this transaction is already in the nomination state (“voted” field)
-        for existing_value in self.nomination_state.get('voted', []):
-            if any(existing_tx.hash == tx.hash for existing_tx in existing_value.transactions):
-                log.node.info('Node %s already contains transaction %s in its nomination state. Skipping nomination.',
-                              self.name, tx)
-                return
-        
-
-        # Wrap the transaction in a new Value.
-        new_value = Value(transactions={tx})
-
-        if self.is_value_already_present(new_value):
-            log.node.info('Node %s already has a nomination with transaction %s. Skipping nomination.', self.name, tx)
-            return
-
-        # Instead of always appending a new Value, check if there's already a nominated value.
-        if self.nomination_state['voted']:
-            # If there is an existing nominated value, combine it with the new value.
-            # This merges the transactions and removes duplicates.
-
-            existing = self.nomination_state.get('voted', [])
-            combined_value = Value.combine(existing + [new_value])
-            #last = self.nomination_state['voted'][-1]
-           # combined_value = Value.combine([last, new_value])
-            if self.is_value_already_present(combined_value):
-                log.node.info('Node %s already has a nomination with transactions %s. Skipping nomination.', self.name,
-                              combined_value.transactions)
-                return
-            self.nomination_state['voted'] = [combined_value]
-            #self.nomination_state['voted'].append(combined_value)
-            log.node.info('Node %s merged the new transaction into its voted nomination state: %s', self.name,
-                          combined_value)
-        else:
-            # If no nomination exists, simply add the new value.
-            self.nomination_state['voted'] = [new_value]
-            log.node.info('Node %s set its voted nomination state to new value: %s', self.name, new_value)
-
-        self.clean_nomination_state_duplicates()
-        # Prepare the nomination message.
-        voted_vals = self.nomination_state['voted']
-        # In many designs, accepted values may be carried over from previous rounds.
-        accepted_vals = self.nomination_state['accepted']
-        confirmed_vals = self.nomination_state['confirmed']
-
-        # Avoid sending an empty nomination message.
-        if not voted_vals and not accepted_vals:
-            log.node.info('Node %s has no transactions or accepted values to nominate!', self.name)
-            return
-
-        # Create the nomination message.
-        message = SCPNominate(voted=voted_vals, accepted=accepted_vals, confirmed=confirmed_vals)
-        self.storage.add_messages(message)
-        self.broadcast_flags = [message]
-        #elf.broadcast_flags.append(message)
-        log.node.info('Node %s appended SCPNominate message to its storage and state, message = %s', self.name, message)
-        return message"""
-
-    """
-        def prepare_nomination_msg(self):
-
-        # Retrieve a single transaction from the mempool.
-        tx = self.retrieve_transaction_from_mempool()
-        if tx is None:
-            log.node.info('Node %s found no transaction to nominate.', self.name)
-            return
-
-        # Gather hashes of all finalized (externalized) transactions.
-        self.collect_finalised_transactions()
-        pruned = []
-        for old_val in self.nomination_state.get('voted', []):
-            keep = {t for t in old_val.transactions
-                    if t.hash not in self.finalised_transactions}
-            if keep:
-                pruned.append(Value(transactions=keep))
-        self.nomination_state['voted'] = pruned
-
-        # 5) now check if *new* tx is already in one of those pruned Values
-        for existing_value in pruned:
-            if any(t.hash == tx.hash for t in existing_value.transactions):
-                log.node.info('Node %s already has tx %s in nomination state. Skipping.',
-                              self.name, tx)
-                return
-
-        # Now check if this transaction is already in the nomination state (“voted” field)
-        for existing_value in self.nomination_state.get('voted', []):
-            if any(existing_tx.hash == tx.hash for existing_tx in existing_value.transactions):
-                log.node.info('Node %s already contains transaction %s in its nomination state. Skipping nomination.',
-                              self.name, tx)
-                return
-
-        # Wrap the transaction in a new Value.
-        new_value = Value(transactions={tx})
-
-        if self.is_value_already_present(new_value):
-            log.node.info('Node %s already has a nomination with transaction %s. Skipping nomination.', self.name, tx)
-            return
-
-        # Instead of always appending a new Value, check if there's already a nominated value.
-        if self.nomination_state['voted']:
-            # If there is an existing nominated value, combine it with the new value.
-            # This merges the transactions and removes duplicates.
-
-            existing = self.nomination_state.get('voted', [])
-            combined_value = Value.combine(existing + [new_value])
-            #last = self.nomination_state['voted'][-1]
-           # combined_value = Value.combine([last, new_value])
-            if self.is_value_already_present(combined_value):
-                log.node.info('Node %s already has a nomination with transactions %s. Skipping nomination.', self.name,
-                              combined_value.transactions)
-                return
-            self.nomination_state['voted'] = [combined_value]
-            #self.nomination_state['voted'].append(combined_value)
-            log.node.info('Node %s merged the new transaction into its voted nomination state: %s', self.name,
-                          combined_value)
-        else:
-            # If no nomination exists, simply add the new value.
-            self.nomination_state['voted'] = [new_value]
-            log.node.info('Node %s set its voted nomination state to new value: %s', self.name, new_value)
-
-        self.clean_nomination_state_duplicates()
-        # Prepare the nomination message.
-        voted_vals = self.nomination_state['voted']
-        # In many designs, accepted values may be carried over from previous rounds.
-        accepted_vals = self.nomination_state['accepted']
-        confirmed_vals = self.nomination_state['confirmed']
-
-        # Avoid sending an empty nomination message.
-        if not voted_vals and not accepted_vals:
-            log.node.info('Node %s has no transactions or accepted values to nominate!', self.name)
-            return
-
-        # Create the nomination message.
-        message = SCPNominate(voted=voted_vals, accepted=accepted_vals, confirmed=confirmed_vals)
-        self.storage.add_messages(message)
-        self.broadcast_flags = [message]
-        #elf.broadcast_flags.append(message)
-        log.node.info('Node %s appended SCPNominate message to its storage and state, message = %s', self.name, message)
-        return message
-    """
-
     def clean_prepare_and_commit_state(self):
         """
         Removes entries from prepare and commit phases that contain finalized transactions.
         Ensures finalized transactions do not block nomination.
         """
 
-        # Helper to check if a ballot's value is entirely finalized
         def is_finalized(value):
             return all(t.hash in self.finalised_transactions for t in value.transactions)
 
-        # Clean prepare phase
-        for phase in ['voted', 'accepted', 'confirmed', 'aborted']:
+        for phase in ['voted', 'accepted', 'confirmed', 'aborted']: # Clean prepare phase
             self.balloting_state[phase] = {
                 val_hash: ballot for val_hash, ballot in self.balloting_state[phase].items()
                 if not is_finalized(ballot.value)
@@ -1012,8 +659,7 @@ class Node():
             if not is_finalized(val)
         }
 
-        # Clean commit phase
-        for phase in ['voted', 'accepted', 'confirmed']:
+        for phase in ['voted', 'accepted', 'confirmed']: # Clean commit phase
             self.commit_ballot_state[phase] = {
                 val_hash: ballot for val_hash, ballot in self.commit_ballot_state[phase].items()
                 if not is_finalized(ballot.value)
@@ -1035,19 +681,16 @@ class Node():
         using a sliding-window queue. Every seen transaction is enqueued, and each slot
         nominates at most MAX_SLOT_TXS in FIFO order, ensuring no starvation.
         """
-        # Initialize tx_queue if not already present
         if not hasattr(self, 'tx_queue'):
             from collections import deque
             self.tx_queue = deque()
 
-        # Step 1: Enqueue any new transactions from mempool
         all_tx = self.mempool.get_all_transactions()
         for tx in all_tx:
-            # Only enqueue if not finalized and not already enqueued
+            # Enqueue any new transactions from mempool
             if tx.hash not in self.finalised_transactions and tx not in self.tx_queue:
                 self.tx_queue.append(tx)
 
-        # Step 2: Prune nomination_state of finalized txs
         self.collect_finalised_transactions()
         self.clean_prepare_and_commit_state()
         for phase in ['voted', 'accepted', 'confirmed']:
@@ -1058,7 +701,6 @@ class Node():
                     pruned.append(Value(transactions=keep))
             self.nomination_state[phase] = pruned
 
-        # Step 3: Select up to MAX_SLOT_TXS from the front of the tx_queue
         to_nominate = []
         for _ in range(min(self.MAX_SLOT_TXS, len(self.tx_queue))):
             to_nominate.append(self.tx_queue.popleft())
@@ -1067,7 +709,6 @@ class Node():
             log.node.info('Node %s found no transactions to nominate after queue processing.', self.name)
             return
 
-        # Step 4: Build new Value and merge with existing 'voted'
         new_value = Value(transactions=set(to_nominate))
         if self.is_value_already_present(new_value):
             log.node.info('Node %s already has a nomination with transactions %s. Skipping.',
@@ -1077,7 +718,7 @@ class Node():
         if self.nomination_state['voted']:
             existing = self.nomination_state['voted']
             combined = Value.combine(existing + [new_value])
-            # Optionally enforce cap after merge (rarely needed since queue ensures cap)
+
             if len(combined.transactions) > self.MAX_SLOT_TXS:
                 sorted_txs = sorted(combined.transactions, key=lambda tx: tx.hash)
                 capped = set(sorted_txs[:self.MAX_SLOT_TXS])
@@ -1092,7 +733,6 @@ class Node():
             self.nomination_state['voted'] = [new_value]
             log.node.info('Node %s set its voted nomination to new value: %s', self.name, new_value)
 
-        # Step 5: Broadcast the SCPNominate message
         message = SCPNominate(
             voted=self.nomination_state['voted'],
             accepted=self.nomination_state['accepted'],
@@ -1102,132 +742,6 @@ class Node():
         self.broadcast_flags = [message]
         log.node.info('Node %s prepared SCPNominate message: %s', self.name, message)
         return message
-
-    """
-    def prepare_nomination_msg(self):
-
-        #if len(self.nomination_state['voted']) >= 100:
-        #    return
-
-        # Step 1: Get all transactions from the mempool
-        all_tx = self.mempool.get_all_transactions()
-
-        if not all_tx:
-            log.node.info('Node %s found no transactions to nominate.', self.name)
-            return
-
-        # Step 2: Update finalized transactions and prune 'voted'
-        self.collect_finalised_transactions()
-        self.clean_prepare_and_commit_state()  # Optional: if you want to clean out states fully
-
-        # OLD PRUNE REPLACED FOR PRUNNING OF ALL STATES
-        #pruned = []
-        #for old_val in self.nomination_state.get('voted', []):
-        #    keep = {t for t in old_val.transactions if t.hash not in self.finalised_transactions}
-        #    if keep:
-        #        pruned.append(Value(transactions=keep))
-        #self.nomination_state['voted'] = pruned
-
-        for phase in ['voted', 'accepted', 'confirmed']:
-            pruned = []
-            for old_val in self.nomination_state.get(phase, []):
-                keep = {t for t in old_val.transactions if t.hash not in self.finalised_transactions}
-                if keep:
-                    pruned.append(Value(transactions=keep))
-            self.nomination_state[phase] = pruned
-
-        # Step 3: Gather hashes to exclude
-        excluded_hashes = set(self.finalised_transactions)
-
-        # From nomination state
-        for state in ['voted', 'accepted', 'confirmed']:
-            for val in self.nomination_state.get(state, []):
-                excluded_hashes.update(t.hash for t in val.transactions)
-
-        # From prepare ballot state
-        for phase in ['voted', 'accepted', 'confir22med', 'aborted']:
-            for ballot in self.balloting_state.get(phase, {}).values():
-                excluded_hashes.update(t.hash for t in ballot.value.transactions)
-
-        # From commit ballot state
-        for phase in ['voted', 'accepted', 'confirmed']:
-            for ballot in self.commit_ballot_state.get(phase, {}).values():
-                excluded_hashes.update(t.hash for t in ballot.value.transactions)
-
-        # Step 4: Filter new transactions
-        new_transactions = {t for t in all_tx if t.hash not in excluded_hashes}
-        if not new_transactions:
-            log.node.info('Node %s found no new transactions to nominate after filtering.', self.name)
-            new_transactions = set()
-
-
-        # *** ENFORCE SLOT SIZE LIMIT HERE ***
-        #if len(new_transactions) > self.MAX_SLOT_TXS:
-        #    # choose the top-fee ones
-        #    sorted_txs = sorted(new_transactions, key=lambda t: t.hash, reverse=True)
-        #    limited_set = set(sorted_txs[:self.MAX_SLOT_TXS])
-        #    log.node.info(
-        #        'Node %s: truncating %d new txs → %d (slot limit).',
-        #        self.name, len(new_transactions), self.MAX_SLOT_TXS
-        #    )
-        #else:
-        #    limited_set = new_transactions
-
-
-        # Step 5: Wrap filtered transactions in a new Value
-        new_value = Value(transactions=new_transactions)
-        if self.is_value_already_present(new_value):
-            log.node.info('Node %s already has a nomination with transactions %s. Skipping nomination.',
-                          self.name, new_value.transactions)
-            return
-
-        # Step 6: Merge with existing 'voted'
-        if self.nomination_state['voted']:
-            existing = self.nomination_state['voted']
-            combined_value = Value.combine(existing + [new_value])
-
-            # --- ENFORCE SLOT SIZE LIMIT AFTER MERGE ---
-            
-            #if len(combined_value.transactions) > self.MAX_SLOT_TXS:
-            #    # pick a deterministic subset (e.g. first 100 by hash)
-            #    txs_sorted = sorted(combined_value.transactions, key=lambda tx: tx.hash)
-            #    capped = set(txs_sorted[:self.MAX_SLOT_TXS])
-            #    combined_value = Value(transactions=capped)
-            #    log.node.info(
-            #        'Node %s: truncating merged %d txs → %d (slot limit).',
-            #        self.name, len(txs_sorted), self.MAX_SLOT_TXS
-            #    )
-            # ---------------------------------------------
-
-            if self.is_value_already_present(combined_value):
-                log.node.info('Node %s already has a nomination with transactions %s. Skipping nomination.',
-                              self.name, combined_value.transactions)
-                return
-            self.nomination_state['voted'] = [combined_value]
-            log.node.info('Node %s merged new transactions into voted nomination state: %s',
-                          self.name, combined_value)
-        else:
-            self.nomination_state['voted'] = [new_value]
-            log.node.info('Node %s set its voted nomination state to new value: %s',
-                          self.name, new_value)
-
-        # Step 7: Final cleanup and message prep
-        voted_vals = self.nomination_state['voted']  # every Value you've voted for
-        accepted_vals = self.nomination_state['accepted']  # every Value you've accepted
-        confirmed_vals = self.nomination_state['confirmed']
-
-        # Build the nomination that echoes your full history
-        message = SCPNominate(
-            voted=voted_vals,
-            accepted=accepted_vals,
-            confirmed=confirmed_vals
-        )
-
-        # Push or assign it so peers pull this exact list
-        self.storage.add_messages(message)
-        self.broadcast_flags = [message]
-        log.node.info('Node %s prepared SCPNominate message: %s', self.name, message)
-        return message"""
 
     def get_messages(self):
         print("CHECKING GET MESSAGES")
@@ -1258,13 +772,11 @@ class Node():
         else:
             accepted_vals = []
 
-        # First handle all the accepted nominations
         for val in accepted_vals:
             h = val.hash
-            # Ensure an entry in the counter
             if h not in self.statement_counter:
                 self.statement_counter[h] = {"voted": {}, "accepted": {}}
-            # If we haven't recorded other_node's accept yet, record it
+
             if other_node.name not in self.statement_counter[h]["accepted"]:
                 self.statement_counter[h]["accepted"][other_node.name] = 1
                 log.node.info(
@@ -1272,13 +784,12 @@ class Node():
                     self.name, other_node.name, h
                 )
 
-        # Now handle all the voted nominations
         for val in voted_vals:
             h = val.hash
-            # Ensure an entry in the counter
+
             if h not in self.statement_counter:
                 self.statement_counter[h] = {"voted": {}, "accepted": {}}
-            # If we haven't recorded other_node's vote yet, record it
+
             if other_node.name not in self.statement_counter[h]["voted"]:
                 self.statement_counter[h]["voted"][other_node.name] = 1
                 log.node.info(
@@ -1286,42 +797,6 @@ class Node():
                     self.name, other_node.name, h
                 )
 
-
-    """
-        def update_statement_count(self, other_node, message):
-        incoming_voted = message[0]
-        incoming_accepted = message[1]
-
-        if type(incoming_accepted) == Value:
-            if incoming_accepted.hash in self.statement_counter:
-                    if other_node.name not in self.statement_counter[incoming_accepted.hash]['accepted']:
-                        # As value has a dictionary but this node isn't in it, simpy set the node counter to 1
-                        self.statement_counter[incoming_accepted.hash]['accepted'][other_node.name] = 1
-                        log.node.info('Node %s has set an accepted statement counter for Node %s with nominated value!', self.name, other_node.name)
-            else:
-                # Initiate dictionary for value & accepted for the value and then add the count for the node
-                self.statement_counter[incoming_accepted.hash] = {"voted": {}, "accepted": {}}
-                self.statement_counter[incoming_accepted.hash]['accepted'][other_node.name] = 1
-                log.node.info('Node %s has added an accepted statement counter for Node %s with nominated values!', self.name, other_node.name)
-
-        if type(incoming_voted) == Value:
-                if incoming_voted.hash in self.statement_counter:
-                        if other_node.name not in self.statement_counter[incoming_voted.hash]['voted']:
-                            self.statement_counter[incoming_voted.hash]['voted'][other_node.name] = 1
-                            log.node.info('Node %s has added a voted statement counter for Node %s with nominated values!',self.name, other_node.name)
-
-                else:
-                    self.statement_counter[incoming_voted.hash] = {"voted": {}, "accepted": {}}
-                    self.statement_counter[incoming_voted.hash]['voted'] = {other_node.name: 1}
-                    log.node.info('Node %s has set its voted statement counter for %s with nominated values!', self.name, other_node.name)
-    """
-
-
-    # In round "n" of slot "i", each node determines an additional
-    # peer whose nominated values it should incorporate in its own
-    # "SCPNominate" message as follows:
-
-    # TODO: Consider making some of these priority functions as class methods of Node or QuorumSet!
 
     # - Let "Gi(m) = SHA-256(i || m)", where "||" denotes the
     #   concatenation of serialized XDR values.  Treat the output of "Gi"
@@ -1337,7 +812,6 @@ class Node():
         # Concatenate XDR serialized values
         packer = xdrlib3.Packer()
 
-        # Slot value "i" is implicitly passed as the first value to Gi!
         packer.pack_int(self.slot)
 
         for value in values:
@@ -1363,8 +837,7 @@ class Node():
     # - For each peer "v", define "weight(v)" as the fraction of quorum
     #   slices containing "v".
     def weight(self,v):
-        # TODO: Because our QuorumSet only has a single slice, the weight is 1.0 for all peers!
-        # TODO: Implement get_weight() in QuorumSet and expand it to have multiple slices!
+        # TODO: NOT USED IN SIMULATOR, CAN BE REMOVED
         # return self.quorum_set.get_weight(v)
         return 1.0
 
@@ -1387,9 +860,6 @@ class Node():
 
         # LATEST ADDITION - DONT ADD SELF
         for node in self.quorum_set.get_nodes():
-            # print("Weight for node ", node.name, " : ", self.quorum_set.weight(node))
-            # print("self.Gi([1, self.nomination_round, node.name]) returns ", self.Gi([1, self.nomination_round, node.name]), " for node ", node.name)
-            # print(" this is less than ", (2 ** 256 * self.quorum_set.weight(node)), self.Gi([1, self.nomination_round, node.name]) < (2 ** 256 * self.quorum_set.weight(node)))
             if self.Gi([1, self.nomination_round, str(node.name)]) < (2 ** 256 * self.quorum_set.weight(node)):
                unique_nodes.add(node)  # Add to set
 
@@ -1404,10 +874,9 @@ class Node():
                         2 ** 256 * self.quorum_set.weight(inner_set)):
                     unique_nodes.add(inner_set)
 
-            # print("For node ", node.name, " the priority nodes are ", unique_nodes)
         self.priority_list.update(unique_nodes)
-        print("THE SELF PRIORITY LIST IS ", self.priority_list)
-        print("PRIORITY LIST FOR ", self.name, " IS ", self.priority_list)
+        #print("THE SELF PRIORITY LIST IS ", self.priority_list)
+        #print("PRIORITY LIST FOR ", self.name, " IS ", self.priority_list)
         return unique_nodes
 
     # - Define "priority(n, v)" as "Gi(2 || n || v)", where "2" and "n"
@@ -1443,7 +912,6 @@ class Node():
                 return True
         return False
 
-    # TODO: Call this after receiving a message + Update state in this event once its met
     def check_Quorum_threshold(self, val):
         """
         Checks if the candidate value (val) meets the quorum threshold for nomination.
@@ -1458,15 +926,15 @@ class Node():
         nodes, inner_sets = self.quorum_set.get_quorum()
         threshold = self.quorum_set.minimum_quorum
 
-        # Safely get the vote/accept counts for this candidate Value.
+        # Get the vote/accept counts for this Value
         entry = self.statement_counter.get(val.hash, {'voted': set(), 'accepted': set()})
 
         for node in nodes:
-            # Check if this node's name is recorded as voting or accepting the candidate.
+            # Check if this node's name is recorded as voted or accepted
             if node.name in entry.get('voted', set()) or node.name in entry.get('accepted', set()):
                 signed_count += 1
 
-        # For each inner set (at one level of nesting), check if it meets threshold.
+        # For each inner set (at one level of nesting), check if it meets threshold
         for element in inner_sets:
             if isinstance(element, list):
                 threshold_met = self.quorum_set.check_threshold(
@@ -1478,7 +946,7 @@ class Node():
                 if threshold_met:
                     inner_sets_meeting_threshold_count += 1
 
-        # Return True if the total is at least the quorum threshold.
+        # Return True if the total is at least the quorum threshold
         return (signed_count + inner_sets_meeting_threshold_count) >= threshold
 
     def check_Blocking_threshold(self, val):
@@ -1798,37 +1266,6 @@ class Node():
             else:
                 log.node.info('No ballots in accepted state, cannot move Ballots %s for SCPPrepare phase to confirmed in Node %s', ballot, self.name)
 
-    """
-    # OLD RETRIEVE FUNCTION
-    def retrieve_ballot_prepare_message(self, requesting_node):
-        print("RUNNING RETRIEVE BALLOT MESSAGE")
-        print("LENGTH OF PREPARE BROADCAST FLAG IS", len(self.ballot_prepare_broadcast_flags) )
-        print("THE BROADCAST FLAG IS ", self.ballot_prepare_broadcast_flags)
-        # Select a random ballot and check if its already been sent to the requesting_node
-        if len(self.ballot_prepare_broadcast_flags) > 0:
-            if requesting_node.name not in self.received_prepare_broadcast_msgs:
-                retrieved_message = np.random.choice(list(self.ballot_prepare_broadcast_flags))
-                if self.check_if_finalised(retrieved_message.ballot):
-                    log.node.info(
-                            'Node %s: Value in Ballot %s is already finalized, skipping SCPCommit preparation.',
-                            self.name, retrieved_message.ballot.value)
-
-                    # Remove the finalized ballot from balloting_state['confirmed']
-                    return None
-
-                self.received_prepare_broadcast_msgs[requesting_node.name] = [retrieved_message]
-                return retrieved_message
-
-            elif len(self.received_prepare_broadcast_msgs[requesting_node.name]) != len(list(self.ballot_prepare_broadcast_flags)):
-                statement = True
-                while statement:
-                    retrieved_message = np.random.choice(list(self.ballot_prepare_broadcast_flags))
-                    if retrieved_message not in self.received_prepare_broadcast_msgs[requesting_node.name]:
-                        self.received_prepare_broadcast_msgs[requesting_node.name].append(retrieved_message)
-                        return retrieved_message
-        return None
-    """
-
 
     def retrieve_ballot_prepare_message(self, sending_node):
         print("RUNNING RETRIEVE BALLOT MESSAGE")
@@ -1882,37 +1319,29 @@ class Node():
         Pulls and processes *all* outstanding SCPPrepare messages
         from a single randomly‐chosen peer in one go, using a set to track seen msgs.
         """
-        # 1) Pick one peer
         peer = self.quorum_set.retrieve_random_peer(self)
         if peer is None or peer is self:
             log.node.info('Node %s: no valid peer for prepare messages', self.name)
             return
 
-        # 2) Ensure we have a SET for this peer’s seen messages
         existing = self.received_prepare_broadcast_msgs.get(peer.name)
         if not isinstance(existing, set):
-            # Replace any list or other with a fresh set
             self.received_prepare_broadcast_msgs[peer.name] = set()
         seen = self.received_prepare_broadcast_msgs[peer.name]
 
-        # 3) Gather all unseen Prepare msgs
         unseen = [msg for msg in peer.ballot_prepare_broadcast_flags if msg not in seen]
         if not unseen:
             log.node.info('Node %s: no new prepare messages from %s', self.name, peer.name)
             return
 
-        # 4) Process each one
-        for msg in unseen:
-            # Mark it seen so we don't re-process
+        for msg in unseen: # process all unseen prepare msgs
             seen.add(msg)
 
-            # Skip if it’s already finalized
             if self.check_if_finalised(msg.ballot):
                 log.node.info('Node %s: skipping finalized prepare %s from %s',
                               self.name, msg.ballot, peer.name)
                 continue
 
-            # Record & handle the ballot
             self.process_prepare_ballot_message(msg, peer)
             log.node.info('Node %s retrieved prepare from %s: %s',
                           self.name, peer.name, msg.ballot)
@@ -1921,7 +1350,6 @@ class Node():
             is_ballot = isinstance(b, SCPBallot)
             b_hash = b.value.hash
 
-            # 4a) Quorum promotions
             if is_ballot and b_hash in self.balloting_state['voted'] \
                     and self.check_Prepare_Quorum_threshold(b):
                 log.node.info('Node %s: quorum met for voted %s', self.name, b)
@@ -1932,7 +1360,6 @@ class Node():
                 log.node.info('Node %s: quorum met for accepted %s', self.name, b)
                 self.update_prepare_balloting_state(b, "accepted")
 
-            # 4b) Blocking‐threshold check
             for old_hash, old_ballot in list(self.balloting_state['voted'].items()):
                 if old_hash != b_hash and self.is_v_blocking(b):
                     log.node.info('Node %s: %s v-blocks %s → aborting %s',
@@ -1942,84 +1369,6 @@ class Node():
                     if b_hash not in self.balloting_state['voted']:
                         self.balloting_state['voted'][b_hash] = b
                     break
-
-    """ NEW RECEIVE BUT THAT TAKES SINGLE MESSAGE - NEW ONE TAKES ALL OUTSTANDING PREPARE MESSAGE FROM NODE TO AMORTIZE THE PER-PULL
-    def receive_prepare_message(self):
-        # 1) Fetch a peer to pull from
-        peer = self.quorum_set.retrieve_random_peer(self)
-        if peer is None or peer is self:
-            log.node.info('Node %s: no valid peer for prepare messages', self.name)
-            return
-
-        # 2) Pull one prepare and skip if none or already finalized
-        msg = self.retrieve_ballot_prepare_message(peer)
-        if msg is None or self.check_if_finalised(msg.ballot):
-            log.node.info('Node %s: no new prepare from %s', self.name, peer.name)
-            return
-
-        # 3) Record and process the incoming prepare
-        self.process_prepare_ballot_message(msg, peer)
-        log.node.info('Node %s retrieved prepare from %s: %s', self.name, peer.name, msg.ballot)
-
-        b = msg.ballot
-        is_ballot = isinstance(b, SCPBallot)
-        b_hash = b.value.hash
-
-        # 4) Quorum threshold: promote voted→accepted or accepted→confirmed
-        if is_ballot and b_hash in self.balloting_state['voted'] \
-                and self.check_Prepare_Quorum_threshold(b):
-            log.node.info('Node %s: quorum met for voted %s', self.name, b)
-            self.update_prepare_balloting_state(b, "voted")
-        elif is_ballot and b_hash in self.balloting_state['accepted'] \
-                and self.check_Prepare_Quorum_threshold(b):
-            log.node.info('Node %s: quorum met for accepted %s', self.name, b)
-            self.update_prepare_balloting_state(b, "accepted")
-
-        # 5) Blocking threshold: abort any old voted ballots that are now v-blocked
-        #    and cast your vote for the stronger one if not already
-        for old_hash, old_ballot in list(self.balloting_state['voted'].items()):
-            if old_hash != b_hash and self.is_v_blocking(b):
-                log.node.info('Node %s: %s v-blocks %s → aborting %s',
-                              self.name, b, old_ballot, old_ballot)
-                self.abort_ballots(b)  # abort lower-support ballots
-                # ensure you vote for the blocking ballot
-                if b_hash not in self.balloting_state['voted']:
-                    self.balloting_state['voted'][b_hash] = b
-                break
-    """
-
-    """ OLD RECEIVE PREPARE MESSAGE WITHOUT BLOCKING THRESHOLD
-    
-        def receive_prepare_message(self):
-        # self.ballot_statement_counter = {}
-        # Looks like: {SCPBallot1.value: {'voted': set(Node1), ‘accepted’: set(Node2, Node3), ‘confirmed’: set(), ‘aborted’: set(), SCPBallot2.value: {'voted': set(), ‘accepted’: set(), ‘confirmed’: set(), ‘aborted’: set(node1, node2, node3)}
-
-        sending_node = self.quorum_set.retrieve_random_peer(self)
-        if sending_node is not None:
-            if sending_node != self and not None:
-                message = self.retrieve_ballot_prepare_message(sending_node)
-
-                if message is not None and not self.check_if_finalised(message.ballot):
-                    self.process_prepare_ballot_message(message, sending_node)
-                    log.node.info('Node %s retrieving messages from his peer Node %s!', self.name,sending_node.name)
-                    ballot = message.ballot # message[0] is voted field
-                    if type(ballot) is SCPBallot and ballot.value.hash in self.balloting_state['voted'] and self.check_Prepare_Quorum_threshold(ballot):
-                        log.node.info('Quorum threshold met for voted ballot %s at Node %s', ballot, self.name)
-                        self.update_prepare_balloting_state(ballot, "voted")
-
-                    elif type(ballot) is SCPBallot and ballot.value.hash in self.balloting_state['accepted'] and self.check_Prepare_Quorum_threshold(ballot):
-
-                        log.node.info('Quorum threshold met for accepted ballot %s at Node %s', ballot, self.name)
-                        self.update_prepare_balloting_state(ballot, "accepted")
-                else:
-                    log.node.info('Node %s has no SCPPrepare messages to retrieve from neighbor Node %s!', self.name, sending_node.name)
-        else:
-            log.node.info('Node %s could not retrieve peer!', self.name)
-
-    
-    """
-
-
 
     def retrieve_confirmed_prepare_ballot(self):
         if len(self.balloting_state['confirmed']) > 0:
@@ -2088,54 +1437,6 @@ class Node():
 
         # Log receipt
         log.node.info("Node %s recorded commit ballot for %s from %s", self.name, h, sender)
-
-
-    """ OLD PROCESS BALLOT MESSAGE
-    def process_commit_ballot_message(self, message, sender):
-
-        #The purpose of continuing to update the counter and send this field is to assist other nodes still in the PREPARE phase in synchronizing their counters.
-        #The update of the counter is done, but it doesn't help SCPPrepare as this doesn't affect prepared ballots due to commits & prepare messages being processed separately
-        #Also, we do not abort, just update counters if larger
-
-        received_ballot = message.ballot
-        # This will look like: self.commit_ballot_state = {'voted': {'value_hash_1': SCPBallot(counter=1, value=ValueObject1),},'accepted': { 'value_hash_2': SCPBallot(counter=3, value=ValueObject2)},'confirmed': {
-
-        # Case 1: New ballot received has the same value but a higher counter
-        if received_ballot.value.hash in self.commit_ballot_state['voted']:
-            if received_ballot.value == self.commit_ballot_state['voted'][received_ballot.value.hash].value and received_ballot.counter > self.commit_ballot_state['voted'][received_ballot.value.hash].counter:
-                log.node.info("Node %s received a commit ballot with the same value but a higher counter. Updating to the new counter.", self.name)
-                self.commit_ballot_state['voted'][received_ballot.value.hash] = received_ballot
-
-                if received_ballot.value not in self.commit_ballot_statement_counter:
-                    self.commit_ballot_statement_counter[received_ballot.value] = {'voted': set(), 'accepted': set(), 'confirmed': set(), 'aborted': set()}
-                    self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
-
-                else:
-                    self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
-                return
-
-            # Case 3: New ballot received has the same value but a lower counter
-            if received_ballot.counter < self.commit_ballot_state['voted'][received_ballot.value.hash].counter:
-                log.node.info("Node %s that has been received has the same commit ballot value but a lower counter than a previously voted commit ballot.", self.name)
-                if received_ballot.value not in self.commit_ballot_statement_counter:
-                    self.commit_ballot_statement_counter[received_ballot.value] = {'voted': set(),'accepted': set(),'confirmed': set()}
-                    self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
-                else:
-                    self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
-                return
-
-        # Case 2: New ballot received has different value and a higher counter
-        elif received_ballot.value.hash not in self.commit_ballot_state['voted']:
-            self.commit_ballot_state['voted'][received_ballot.value.hash] = received_ballot
-            log.node.info("Node %s has received and added a commit ballot to its state.", self.name)
-            if received_ballot.value not in self.commit_ballot_statement_counter:
-                self.commit_ballot_statement_counter[received_ballot.value] = {'voted': set(), 'accepted': set(),'confirmed': set()}
-                self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
-                self.commit_ballot_statement_counter[received_ballot.value]['accepted'].add(sender)
-            else:
-                self.commit_ballot_statement_counter[received_ballot.value]['voted'].add(sender)
-            return"""
-
 
     def check_Commit_Quorum_threshold(self, ballot):
         # Check for Quorum threshold:
@@ -2215,34 +1516,13 @@ class Node():
         return None
 
 
-    """
-    # OLD RETRIEVE COMMIT FUNCTION
-    def retrieve_ballot_commit_message(self, requesting_node):
-        # Check if there are any broadcast flags
-        if len(self.commit_ballot_broadcast_flags) > 0:
-            if requesting_node.name not in self.received_commit_ballot_broadcast_msgs:
-                retrieved_message = np.random.choice(list(self.commit_ballot_broadcast_flags))
-                self.received_commit_ballot_broadcast_msgs[requesting_node.name] = [retrieved_message]
-                return retrieved_message
-
-            already_sent = self.received_commit_ballot_broadcast_msgs[requesting_node.name]
-            if len(already_sent) < len(self.commit_ballot_broadcast_flags):
-                # Choose a random message not yet sent
-                remaining_messages = list(set(self.commit_ballot_broadcast_flags) - set(already_sent))
-                retrieved_message = np.random.choice(remaining_messages)
-                self.received_commit_ballot_broadcast_msgs[requesting_node.name].append(retrieved_message)
-                return retrieved_message
-
-        return None
-        """
-
     def _is_v_blocking_commit(self, ballot: SCPBallot) -> bool:
         """
         Returns True if more than (n - k) of your peers have voted or accepted
         the given commit ballot, meaning no quorum can form for any other ballot
         without including supporters of this one.
         """
-        # Safely get the vote/accept counts
+        # get the vote/accept counts
         entry = self.commit_ballot_statement_counter.get(
             ballot.value,
             {"voted": set(), "accepted": set()}
@@ -2263,42 +1543,35 @@ class Node():
         Pulls and processes *all* outstanding SCPCommit messages
         from a single randomly‐chosen peer in one go.
         """
-        # 1) Pick a peer
+
         peer = self.quorum_set.retrieve_random_peer(self)
         if peer is None or peer is self:
             log.node.info('Node %s: no valid peer for commit', self.name)
             return
 
-        # 2) Ensure we have a SET for this peer’s seen commit msgs
         existing = self.received_commit_ballot_broadcast_msgs.get(peer.name)
         if not isinstance(existing, set):
             self.received_commit_ballot_broadcast_msgs[peer.name] = set()
         seen = self.received_commit_ballot_broadcast_msgs[peer.name]
 
-        # 3) Gather all unseen commit messages
         unseen = [msg for msg in peer.commit_ballot_broadcast_flags if msg not in seen]
         if not unseen:
             log.node.info('Node %s: no new commit messages from %s', self.name, peer.name)
             return
 
-        # 4) Process each one
         for msg in unseen:
-            # Mark it seen
             seen.add(msg)
 
             b = msg.ballot
             log.node.info('Node %s retrieved commit %s from %s', self.name, b, peer.name)
 
-            # 5) Finalize‐check
             if self.is_ballot_finalized(b):
                 self.reset_prepare_ballot_phase(b)
                 self.reset_commit_phase_state(b)
                 continue
 
-            # 6) Record the commit vote
             self.simple_process_commit_ballot_message(msg, peer)
 
-            # 7) Quorum‐threshold promotions
             bh = b.value.hash
             if bh in self.commit_ballot_state['accepted'] and self.check_Commit_Quorum_threshold(b):
                 log.node.info('Node %s: quorum met for accepted commit %s', self.name, b)
@@ -2308,7 +1581,6 @@ class Node():
                 log.node.info('Node %s: quorum met for voted commit %s', self.name, b)
                 self.update_commit_balloting_state(b, "voted")
 
-            # 8) Blocking‐threshold: abort any outstanding voted ballots v‐blocked by b
             for old_hash, old_ballot in list(self.commit_ballot_state['voted'].items()):
                 if old_hash != bh and self._is_v_blocking_commit(b):
                     log.node.info('Node %s: %s v-blocks %s → aborting', self.name, b, old_ballot)
@@ -2317,107 +1589,6 @@ class Node():
                     if bh not in self.commit_ballot_state['voted']:
                         self.commit_ballot_state['voted'][bh] = b
                     break
-
-    """
-        def receive_commit_message(self):
-        # 1) pick a peer
-        peer = self.quorum_set.retrieve_random_peer(self)
-        if peer is None or peer is self:
-            log.node.info('Node %s: no valid peer for commit', self.name)
-            return
-
-        # 2) pull one commit from that peer
-        msg = self.retrieve_ballot_commit_message(peer)
-        if msg is None:
-            log.node.info('Node %s: no commit from %s', self.name, peer.name)
-            return
-
-        b = msg.ballot
-        log.node.info('Node %s retrieved commit %s from %s', self.name, b, peer.name)
-
-        # 3) finalize‐check
-        if self.is_ballot_finalized(b):
-            self.reset_prepare_ballot_phase(b)
-            self.reset_commit_phase_state(b)
-            return
-
-        # 4) record the commit vote
-        self.simple_process_commit_ballot_message(msg, peer)
-
-        # 5) quorum‐threshold promotions
-        bh = b.value.hash
-        if bh in self.commit_ballot_state['accepted'] and self.check_Commit_Quorum_threshold(b):
-            log.node.info('Node %s: quorum met for accepted commit %s', self.name, b)
-            self.update_commit_balloting_state(b, "accepted")
-            self.prepare_Externalize_msg()
-        elif bh in self.commit_ballot_state['voted'] and self.check_Commit_Quorum_threshold(b):
-            log.node.info('Node %s: quorum met for voted commit %s', self.name, b)
-            self.update_commit_balloting_state(b, "voted")
-
-        # 6) blocking‐threshold: abort any outstanding voted ballots v-blocked by b
-        for old_hash, old_ballot in list(self.commit_ballot_state['voted'].items()):
-            if old_hash != bh and self._is_v_blocking_commit(b):
-                log.node.info('Node %s: %s v-blocks %s → aborting', self.name, b, old_ballot)
-                # abort the stale ballot
-                self.reset_commit_phase_state(old_ballot)
-                # cast your own vote for the stronger ballot if not already
-                if bh not in self.commit_ballot_state['voted']:
-                    self.commit_ballot_state['voted'][bh] = b
-                break
-    """
-
-
-
-    """ OLD RECEIVE_COMMIT_MSG FROM 24TH MAY
-        def receive_commit_message(self):
-
-    # self.ballot_statement_counter = {}
-    # Looks like: {SCPBallot1.value: {'voted': set(Node1), ‘accepted’: set(Node2, Node3), ‘confirmed’: set(), ‘aborted’: set(), SCPBallot2.value: {'voted': set(), ‘accepted’: set(), ‘confirmed’: set(), ‘aborted’: set(node1, node2, node3)}
-
-    sending_node = self.quorum_set.retrieve_random_peer(self)
-    if sending_node is not None:
-        if sending_node != self and not None:
-            message = self.retrieve_ballot_commit_message(sending_node)
-
-            if message is not None:
-                ballot = message.ballot  # Extract the ballot from the message
-
-                # Check if the ballot has already been finalized
-                if self.is_ballot_finalized(ballot):
-                    #log.node.info('Node %s ignored commit ballot %s as it has already been finalized.', self.name,ballot)
-
-                    # Remove the finalized ballot from all balloting states
-                    #for state in ['voted', 'accepted', 'confirmed']:
-                    #    self.balloting_state[state] = {
-                    #        k: v for k, v in self.balloting_state[state].items()
-                    #        if v != ballot
-                    #    }
-
-                    #return  # Stop processing this ballot
-                    self.reset_prepare_ballot_phase(ballot)
-                    self.reset_commit_phase_state(ballot)
-
-                self.process_commit_ballot_message(message, sending_node)
-                log.node.info('Node %s retrieving messages from his peer Node %s!', self.name, sending_node.name)
-                ballot = message.ballot  # message[0] is voted field
-                if type(ballot) is SCPBallot and ballot.value.hash in self.commit_ballot_state[
-                    'accepted'] and self.check_Commit_Quorum_threshold(ballot):
-                    log.node.info('Quorum threshold met for accepted commit ballot %s at Node %s', ballot, self.name)
-                    self.update_commit_balloting_state(ballot, "accepted")
-                    self.prepare_Externalize_msg()
-                elif type(ballot) is SCPBallot and ballot.value.hash in self.commit_ballot_state[
-                    'voted'] and self.check_Commit_Quorum_threshold(ballot):
-                    log.node.info('Quorum threshold met for voted commit ballot %s at Node %s', ballot, self.name)
-                    self.update_commit_balloting_state(ballot, "voted")
-
-            else:
-                log.node.info('Node %s has no SCPCommit messages to retrieve from neighbor Node %s!', self.name,
-                              sending_node.name)
-    else:
-        log.node.info('Node %s could not retrieve peer!', self.name)
-    """
-
-
 
     def retrieve_confirmed_commit_ballot(self):
         if len(self.commit_ballot_state['confirmed']) > 0:
@@ -2435,8 +1606,6 @@ class Node():
             if externalize_msg.ballot == ballot:
                 return True
         return False
-
-
 
     def prepare_Externalize_msg(self):
 
@@ -2460,9 +1629,7 @@ class Node():
             # Reset Nomination/Balloting data structures for next slot
             # self.remove_finalized_transactions(externalize_msg.ballot.value)
             #self.nomination_state['confirmed'] = []
-            """
-            NEW CHANGE !!!!!!!!!
-            """
+
             # FULL reset of nomination, not just pruning
             self.reset_nomination_state()
             #self.remove_all_finalized_nomination_transactions()
@@ -2546,10 +1713,6 @@ class Node():
 
         self.nomination_round = 1
 
-
-        """
-        NEW CHANGE !!!!!!!!!
-        """
         # FULL reset of nomination, not just pruning
         self.reset_nomination_state()
         self.last_nomination_start_time = Globals.simulation_time
@@ -2566,9 +1729,7 @@ class Node():
 
         log.node.info('Node %s has finalized slot %d with value %s', self.name, slot_number, message.ballot.value)
 
-    """
-    TRY THIS TO GET MORE SLOTS FINALISED
-    """
+
     def reset_nomination_state(self):
         """
         Completely clear out any prior nomination state so that
@@ -2600,14 +1761,12 @@ class Node():
             # For a Value object, it has transactions directly.
             return any(tx.hash in finalized_tx_ids for tx in value.transactions)
 
-        # 1. Clean commit_ballot_statement_counter (keys are Value objects)
         self.commit_ballot_statement_counter = {
             value: data
             for value, data in self.commit_ballot_statement_counter.items()
             if not value_contains_finalized_tx(value)
         }
 
-        # 2. Clean commit_ballot_state for ballots (values are SCPBallot).
         for state in ['voted', 'accepted', 'confirmed']:
             self.commit_ballot_state[state] = {
                 key: ballot
@@ -2615,13 +1774,11 @@ class Node():
                 if not ballot_contains_finalized_tx(ballot)
             }
 
-        # 3. Clean commit broadcast messages.
         self.commit_ballot_broadcast_flags = {
             msg for msg in self.commit_ballot_broadcast_flags
             if not ballot_contains_finalized_tx(msg.ballot)
         }
 
-        # 4. Clean received commit ballot broadcast messages.
         for node_name in list(self.received_commit_ballot_broadcast_msgs.keys()):
             self.received_commit_ballot_broadcast_msgs[node_name] = [
                 msg for msg in self.received_commit_ballot_broadcast_msgs[node_name]
@@ -2639,7 +1796,6 @@ class Node():
         """
         finalized_value_hash = finalized_ballot.value.hash
 
-        # 1. Remove entries from balloting_state for ballots whose value matches the finalized value.
         for state in ['voted', 'accepted', 'confirmed', 'aborted']:
             self.balloting_state[state] = {
                 key: ballot
@@ -2647,27 +1803,23 @@ class Node():
                 if ballot.value.hash != finalized_value_hash
             }
 
-        # 2. Remove entries from the ballot statement counter for ballots with the finalized value.
         self.ballot_statement_counter = {
             value: data
             for value, data in self.ballot_statement_counter.items()
             if value.hash != finalized_value_hash
         }
 
-        # 3. Remove entries from prepared_ballots for ballots with the finalized value.
         self.prepared_ballots = {
             value: ballot
             for value, ballot in self.prepared_ballots.items()
             if value.hash != finalized_value_hash
         }
 
-        # 4. Remove prepare broadcast messages for ballots with the finalized value.
         self.ballot_prepare_broadcast_flags = {
             msg for msg in self.ballot_prepare_broadcast_flags
             if msg.ballot.value.hash != finalized_value_hash
         }
 
-        # 5. Remove outdated prepare ballot messages from received prepare broadcast messages.
         for node_name in list(self.received_prepare_broadcast_msgs.keys()):
             self.received_prepare_broadcast_msgs[node_name] = [
                 msg for msg in self.received_prepare_broadcast_msgs[node_name]
@@ -2718,7 +1870,6 @@ class Node():
                     "Removed finalized tx %s from mempool for Node %s.", tx, self.name
                 )
             except ValueError:
-                # maybe it was already gone
                 pass
 
         for tx in value.transactions:
@@ -2727,7 +1878,6 @@ class Node():
                 self.mempool.transactions.remove(tx)
                 log.mempool.info('Removed transaction %s from mempool for Node %s.', tx, self.name)
             except ValueError:
-                # Transaction might not be present; that's fine.
                 log.mempool.info('Transaction %s was not found in mempool for Node %s.', tx, self.name)
 
     def remove_all_finalized_nomination_transactions(self):
@@ -2735,14 +1885,12 @@ class Node():
         Removes from the nomination state (keys: 'voted', 'accepted', 'confirmed')
         any transaction that appears in the ledger as finalized.
         """
-        # Collect finalized transaction hashes from ledger.
+        # Collect finalized transaction hashes from ledger
         finalized_hashes = set()
         for slot, ext_msg in self.ledger.slots.items():
-            # Assuming ext_msg is stored as a dictionary with a "ballot" key.
             if isinstance(ext_msg, dict) and "ballot" in ext_msg:
                 ballot = ext_msg["ballot"]
-                # Try to support both dict and object types for ballot.
-                if hasattr(ballot, 'value'):
+                if hasattr(ballot, 'value'): # make sure its value to avoid possible data type errors
                     value = ballot.value
                     if hasattr(value, 'transactions'):
                         for tx in value.transactions:
@@ -2754,32 +1902,26 @@ class Node():
                             finalized_hashes.add(getattr(tx, 'hash', tx))
         log.node.info("Finalized transaction hashes: %s", finalized_hashes)
 
-        # Process each nomination state category.
         for key in ['voted', 'accepted', 'confirmed']:
             new_values = []
             for value in self.nomination_state.get(key, []):
-                # Make sure the value has transactions.
                 if hasattr(value, 'transactions'):
-                    # Filter out any transactions whose hash is in finalized_hashes.
+                    # Filter out any transactions whose hash is in finalized_hashes
                     filtered_tx = {tx for tx in value.transactions if tx.hash not in finalized_hashes}
                     if filtered_tx:
                         new_values.append(Value(transactions=filtered_tx))
                     else:
                         log.node.info("Removing an empty nomination value from '%s'.", key)
                 else:
-                    # If for some reason the value does not have transactions, keep it unchanged.
                     new_values.append(value)
             self.nomination_state[key] = new_values
 
-        # Optionally, reset the nomination round.
         self.nomination_round = 1
 
 
     def prune_nomination_phase_data(self):
-        # -- Step 1: Collect finalized Value hashes from the ledger.
         finalized_value_hashes = set()
         for slot_data in self.ledger.slots.values():
-            # Each slot is a dict with key 'value' (a Value object).
             value = slot_data.get('value')
             if not value:
                 continue
@@ -2787,7 +1929,6 @@ class Node():
 
         log.node.info("Pruning nomination data: finalized Value hashes: %s", finalized_value_hashes)
 
-        # -- Step 2: Prune statement_counter.
         new_statement_counter = {vh: counters for vh, counters in self.statement_counter.items()
                                  if vh not in finalized_value_hashes}
         for vh in self.statement_counter:
@@ -2795,7 +1936,6 @@ class Node():
                 log.node.info("Pruning statement counter for finalized value %s", vh)
         self.statement_counter = new_statement_counter
 
-        # -- Helper: flatten nested lists by one level.
         def flatten(values):
             flat = []
             for item in values:
@@ -2805,24 +1945,22 @@ class Node():
                     flat.append(item)
             return flat
 
-        # -- Step 3: Prune broadcast_flags.
         new_broadcast_flags = []
         for msg in self.broadcast_flags:
             remove_flag = False
             candidate_values = None
-            # First, try to get candidate Values from msg.ballot.value.
             if hasattr(msg, "ballot"):
                 candidate_values = getattr(msg.ballot, "value", None)
-            # If not found, try checking for an attribute like _voted.
+
             if candidate_values is None and hasattr(msg, "_voted"):
                 candidate_values = msg._voted
             if candidate_values:
-                # If candidate_values is a list, flatten it one level.
+
                 if isinstance(candidate_values, list):
                     candidates = flatten(candidate_values)
                 else:
                     candidates = [candidate_values]
-                # Check each candidate Value.
+
                 for candidate in candidates:
                     if hasattr(candidate, "hash"):
                         if candidate.hash in finalized_value_hashes:

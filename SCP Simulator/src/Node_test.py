@@ -1558,7 +1558,7 @@ class NodeTest(unittest.TestCase):
         mock_ballot = SCPBallot(counter=2, value=value1)
         mock_msg = SCPCommit(ballot=mock_ballot, preparedCounter=mock_ballot.counter)
 
-        self.node.process_commit_ballot_message(mock_msg, self.sender_node)
+        self.node.simple_process_commit_ballot_message(mock_msg, self.sender_node)
 
         self.assertIn(ballot.value.hash, self.node.commit_ballot_state['voted'])
         self.assertEqual(self.node.commit_ballot_state['voted'][value1.hash], mock_ballot)
@@ -1577,7 +1577,7 @@ class NodeTest(unittest.TestCase):
         mock_ballot = SCPBallot(counter=2, value=value2)
         mock_msg = SCPCommit(ballot=mock_ballot, preparedCounter=mock_ballot.counter)
 
-        self.node.process_commit_ballot_message(mock_msg, self.sender_node)
+        self.node.simple_process_commit_ballot_message(mock_msg, self.sender_node)
 
         self.assertIn(ballot1.value.hash, self.node.commit_ballot_state['voted'])
         self.assertEqual(self.node.commit_ballot_state['voted'][value2.hash], mock_ballot)
@@ -1596,7 +1596,7 @@ class NodeTest(unittest.TestCase):
 
         mock_msg = SCPCommit(ballot=smaller_ballot1, preparedCounter=smaller_ballot1.counter)
 
-        self.node.process_commit_ballot_message(mock_msg, self.sender_node)
+        self.node.simple_process_commit_ballot_message(mock_msg, self.sender_node)
 
         self.assertIn(larger_ballot2.value.hash, self.node.commit_ballot_state['voted'])
         self.assertEqual(self.node.commit_ballot_state['voted'][value1.hash].counter, larger_ballot2.counter)
@@ -1902,7 +1902,7 @@ class NodeTest(unittest.TestCase):
 
         self.node.quorum_set.retrieve_random_peer = MagicMock(return_value=self.sending_node) # this is quorum.retrieve_random_peer()
         self.node.retrieve_ballot_commit_message = MagicMock(return_value=message) # this retrieves message, its retrieve_ballot_prepare_message()
-        self.node.process_commit_ballot_message = MagicMock()
+        self.node.simple_process_commit_ballot_message = MagicMock()
         self.node.update_commit_balloting_state = MagicMock()
         self.node.check_Commit_Quorum_threshold = MagicMock(return_value=True)
 
@@ -1911,11 +1911,11 @@ class NodeTest(unittest.TestCase):
         # Assert that functions are called
         self.node.quorum_set.retrieve_random_peer.assert_called()
         self.node.retrieve_ballot_commit_message.assert_called()
-        self.node.process_commit_ballot_message.assert_called_once()
+        self.node.simple_process_commit_ballot_message.assert_called_once()
         self.node.update_commit_balloting_state.assert_called_once()
 
         # Assert that nomination state is updated when quorum threshold is met
-        self.node.process_commit_ballot_message.assert_called_with(message, self.sending_node)
+        self.node.simple_process_commit_ballot_message.assert_called_with(message, self.sending_node)
         self.node.update_commit_balloting_state.assert_called_with(ballot1, 'voted')
 
 
@@ -1934,7 +1934,7 @@ class NodeTest(unittest.TestCase):
 
         self.node.quorum_set.retrieve_random_peer = MagicMock(return_value=self.sending_node) # this is quorum.retrieve_random_peer()
         self.node.retrieve_ballot_commit_message = MagicMock(return_value=message) # this retrieves message, its retrieve_ballot_prepare_message()
-        self.node.process_commit_ballot_message = MagicMock()
+        self.node.simple_process_commit_ballot_message = MagicMock()
         self.node.update_commit_balloting_state = MagicMock()
         self.node.check_Commit_Quorum_threshold = MagicMock(return_value=True)
 
@@ -1943,11 +1943,11 @@ class NodeTest(unittest.TestCase):
         # Assert that functions are called
         self.node.quorum_set.retrieve_random_peer.assert_called()
         self.node.retrieve_ballot_commit_message.assert_called()
-        self.node.process_commit_ballot_message.assert_called_once()
+        self.node.simple_process_commit_ballot_message.assert_called_once()
         self.node.update_commit_balloting_state.assert_called_once()
 
         # Assert that nomination state is updated when quorum threshold is met
-        self.node.process_commit_ballot_message.assert_called_with(message, self.sending_node)
+        self.node.simple_process_commit_ballot_message.assert_called_with(message, self.sending_node)
         self.node.update_commit_balloting_state.assert_called_with(ballot1, 'accepted')
 
 

@@ -51,7 +51,7 @@ class Simulator:
         self._nodes = []
 
         # TODO: _max_simulation_time should be loaded from the config!
-        self._max_simulation_time = 100
+        self._max_simulation_time = 25
         # self._simulation_time = 0
 
         self._set_logging()
@@ -92,7 +92,7 @@ class Simulator:
         # PoW‐style peer network: Erdős–Rényi with avg degree ≈10 (default)
         # (remove the old topology arg)
         self._nodes = Network.generate_nodes(
-            topology='FULL',
+            topology='ER',
             n_nodes=self._n_nodes,
             degree=10,  # or pull from self._config if you’ve made it configurable
         )
