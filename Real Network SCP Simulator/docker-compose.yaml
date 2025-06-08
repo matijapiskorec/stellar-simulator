@@ -1,0 +1,15 @@
+version: "3"
+
+services:
+
+  stellar:
+    image: python:3    
+    container_name: stellar
+    
+    volumes:      
+      - .:/project
+    tty: true    
+    working_dir: /project    
+    command: /bin/bash
+    environment:                
+        PYTHONPATH: "/project"

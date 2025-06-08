@@ -4,7 +4,7 @@ Blockchain
 =========================
 
 Author: Jaime de Vivero Woods
-Last update: April 2025
+Last update: June 2025
 
 Blockchain class.
 """
@@ -42,8 +42,7 @@ class Blockchain():
             self._connect_orphans(block.hash)
             return True
 
-        # Duplicate check
-        if block.hash in self.chain:
+        if block.hash in self.chain:  # Duplicate check
             log.blockchain.debug('Node %s: block %s already known', self.node.name, block.hash)
             return False
 
@@ -89,7 +88,6 @@ class Blockchain():
         chain = []
         current = self.chain.get(tip_hash)
         while current is not None:
-            # go backwards to the genesis block parent by parent, at each iteration append the current block into chain
             block = current['block']
             chain.append(block)
             prev = block.prev_hash
@@ -136,7 +134,6 @@ class Blockchain():
             key=lambda blk: blk.height
         )
 
-
     # From blockchain documentation - returns up to 2000 headers
     def get_headers(self, locator):
         """
@@ -176,5 +173,3 @@ class Blockchain():
             step *= 2
 
         return locator
-
-

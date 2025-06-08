@@ -43,7 +43,7 @@ class Simulator:
     Command line (CLI) interface for the simulator.
     '''
 
-    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=25, simulation_params=None, **kvargs):
+    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=10, simulation_params=None, **kvargs):
 
         self._verbosity = verbosity
         self._n_nodes = n_nodes
@@ -59,7 +59,7 @@ class Simulator:
         # Total elapsed time doesn't include initialization!
         self.timeStart = time.time()
         # ER_singlequorumset
-        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER_singlequorumset')
+        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER_singlequorumset') # next
 
         if simulation_params is not None:
             self.simulation_params = simulation_params
