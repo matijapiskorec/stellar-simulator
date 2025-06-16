@@ -53,3 +53,6 @@ class SCPNominateTest(unittest.TestCase):
 
         self.assertEqual(parsed1[0], Value.combine([value1, value2])) # value1 and value2 should be present
         self.assertEqual(parsed1[1], value3)  # accepted field should be an empty list
+
+if __name__ == "__main__":
+    unittest.main()

@@ -35,15 +35,15 @@ from Mempool import Mempool
 from Globals import Globals
 from SCPExternalize import SCPExternalize
 
-VERBOSITY_DEFAULT = 1
-N_NODES_DEFAULT = 15
+VERBOSITY_DEFAULT = 5
+N_NODES_DEFAULT = 50
 
 class Simulator:
     '''
     Command line (CLI) interface for the simulator.
     '''
 
-    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=10, simulation_params=None, **kvargs):
+    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=5, simulation_params=None, **kvargs):
 
         self._verbosity = verbosity
         self._n_nodes = n_nodes
@@ -59,7 +59,7 @@ class Simulator:
         # Total elapsed time doesn't include initialization!
         self.timeStart = time.time()
         # ER_singlequorumset
-        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER_singlequorumset') # next
+        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='BA') # next
 
         if simulation_params is not None:
             self.simulation_params = simulation_params
@@ -124,8 +124,8 @@ class Simulator:
             }
             """
             self.simulation_params = {
-                'mine': {'tau': 1.0, 'tau_domain': self._nodes},  # Faster mining improves tx availability moderately
-                'retrieve_transaction_from_mempool': {'tau':1.0, 'tau_domain': self._nodes},
+                'mine': {'tau': 0.50, 'tau_domain': self._nodes},  # Faster mining improves tx availability moderately
+                'retrieve_transaction_from_mempool': {'tau': 0.50, 'tau_domain': self._nodes},
                 # Processing
                 'prepare_commit': {'tau': 0.01, 'tau_domain': self._nodes},  # Quickly move to commit stage
                 'prepare_externalize_message': {'tau':0.01, 'tau_domain': self._nodes},

@@ -510,6 +510,7 @@ class Node():
                 message = self.retrieve_broadcast_message(priority_node)
 
                 if message is not None:
+                    log.node.critical('Node %s receiving SCPNominate message', self.name, priority_node.name)
                     message = message.parse_message_state(message) # message is an array of 2 arrays, the first being the voted values and the second the accepted values
                     self.process_received_message(message)
                     self.update_statement_count(priority_node, message)
@@ -1070,6 +1071,7 @@ class Node():
             log.node.info('Node %s found no transactions to nominate after queue processing.', self.name)
             return
 
+        log.node.critical('Node %s preparing SCPNominate message', self.name)
         # Step 4: Build new Value and merge with existing 'voted'
         new_value = Value(transactions=set(to_nominate))
         if self.is_value_already_present(new_value):
@@ -1639,6 +1641,7 @@ class Node():
             log.node.info('Node %s created SCPBallot: %s', self.name, ballot.value)
 
         if not self.check_if_finalised(ballot):
+            log.node.critical('Node %s created SCPBallot', self.name)
             # Get counters for new SCPPrepare message
             prepare_msg_counters = self.get_prepared_ballot_counters(confirmed_val)
             if prepare_msg_counters is not None:
@@ -1861,7 +1864,7 @@ class Node():
         if not unseen:
             log.node.info('Node %s: no new prepare messages from %s', self.name, peer.name)
             return
-
+        log.node.critical('Node %s processing SCPPrepare messages %s', self.name)
         for msg in unseen:
             seen.add(msg)
 
@@ -1940,6 +1943,8 @@ class Node():
                     self.commit_ballot_statement_counter[confirmed_ballot.value]['voted'].add(self)
             log.node.info('Node %s has prepared SCPCommit message with ballot %s, preparedCounter=%d.', self.name, confirmed_ballot, confirmed_ballot.counter)
             log.node.info('Node %s appended SCPPrepare message to its storage and state, message = %s', self.name, commit_msg)
+
+            log.node.critical('Node %s prepared and appended SCPCommit message message %s', self.name, commit_msg)
         log.node.info('Node %s could not retrieve a confirmed SCPPrepare messages from its peer!')
 
 
@@ -2101,6 +2106,7 @@ class Node():
             return
 
         for msg in unseen:
+            log.node.critical('Node %s retrieved SCPCommit message %s from %s', self.name, msg, peer.name)
             seen.add(msg)
 
             b = msg.ballot
@@ -2166,6 +2172,10 @@ class Node():
             self.externalize_broadcast_flags.add((self.slot, externalize_msg))
             self.externalized_slot_counter.add(externalize_msg)
             log.node.info('Node %s appended SCPExternalize message for slot %d to its storage and state, message = %s', self.name, self.slot, externalize_msg)
+
+            log.node.critical(
+                'Node %s appended SCPExternalize message for slot %d to its storage and state, message = %s', self.name,
+                self.slot, externalize_msg)
             # save to log file
             self.log_to_file(f"NODE - INFO - Node {self.name} appended SCPExternalize message for slot {self.slot} to its storage and state, message = {externalize_msg}")
 
@@ -2243,6 +2253,7 @@ class Node():
         # Adopt the externalized value.
         log.node.info(f'Node {self.name}  adopting externalized value for slot {slot_number}: {message.ballot.value}', self.name, slot_number, message.ballot.value)
         # save to log file
+        log.node.critical("Node %s received an adopted externalise message for slot %s", self.name, slot_number)
 
         self.log_to_file(f"Node {self.name}  adopting externalized value for slot {slot_number}: {message.ballot.value}")
         self.ledger.add_slot(slot_number, message)

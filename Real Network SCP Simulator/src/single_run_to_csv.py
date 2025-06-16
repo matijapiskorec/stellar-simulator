@@ -149,37 +149,46 @@ SRC = os.path.join(ROOT, "src")
 sys.path.insert(0, SRC)
 from Simulator import Simulator
 
-def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
-    run_dir = os.path.join("logs", f"run_{run_id}")
+import os
+import sys
+import argparse
+import json
+import csv
+
+# ... [rest of your imports and helper functions as before]
+
+
+def run_single_sim(run_id, n_nodes, max_sim_time):
+    run_dir = os.path.join("../scripts/logs", f"run_{run_id}")
     os.makedirs(run_dir, exist_ok=True)
     cwd = os.getcwd()
     os.chdir(run_dir)
     try:
-        sim = Simulator(verbosity=1, n_nodes=n_nodes, max_simulation_time=max_sim_time)
+        sim = Simulator(
+            verbosity=1,
+            n_nodes=n_nodes,
+            max_simulation_time=max_sim_time,
+            network_type='HARDCODE',  # Only if your Simulator expects this
+        )
         sim.run()
         events_log = "simulator_events_log.txt"
-        print(f"[worker] Parsing events from {events_log}")
-        (total_tx_created,
-         total_slots,
-         total_tx_in_all_slots,
-         avg_txs_per_slot,
-         avg_inter_slot_time) = compute_summary_metrics(events_log)
-        print(f"[worker] → created: {total_tx_created}, slots: {total_slots}, finalised: {total_tx_in_all_slots}")
+        (total_tx_created, total_slots, total_tx_in_all_slots,
+         avg_txs_per_slot, avg_inter_slot_time) = compute_summary_metrics(events_log)
 
-        #mine_log = "simulation_mine_events.txt"
-        #total_tx_created = compute_total_tx_created(mine_log)
-        #print(f"[worker] total_tx_created (mined): {total_tx_created}")
         mine_log = "simulator_mine_events.txt"
         if os.path.isfile(mine_log):
             total_tx_created = compute_total_tx_created(mine_log)
         else:
-            print(f"[worker] Mine log missing: {mine_log} -- will report 0 mined txs")
             total_tx_created = 0
 
         append_summary_row({
             "node_count": n_nodes,
             "simulation_time": max_sim_time,
-            "sim_params": json.dumps({"n_nodes": n_nodes, "sim_duration": max_sim_time}),
+            "sim_params": json.dumps({
+                "n_nodes": n_nodes,
+                "sim_duration": max_sim_time,
+                "network_type": "HARDCODE",
+            }),
             "total_tx_created": total_tx_created,
             "total_slots": total_slots,
             "total_tx_in_all_slots": total_tx_in_all_slots,
@@ -187,37 +196,30 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
             "avg_inter_slot_time": f"{avg_inter_slot_time:.2f}",
             "all_tests_passed": True,
         })
-        return True
+        print(f"Run {run_id} finished. Logs in {run_dir}")
     except Exception as e:
         print(f"[worker] Exception: {e!r}")
         append_summary_row({
             "node_count": n_nodes,
             "simulation_time": max_sim_time,
-            "sim_params": json.dumps({"n_nodes": n_nodes, "sim_duration": max_sim_time}),
+            "sim_params": json.dumps({
+                "n_nodes": n_nodes,
+                "sim_duration": max_sim_time,
+                "network_type": "HARDCODE",
+            }),
             **dict.fromkeys(FIELDNAMES[3:], 0),
             "all_tests_passed": False,
         })
-        return False
     finally:
         os.chdir(cwd)
-        print(f"Run {run_id} finished. Logs in {run_dir}")
-
-def main():
-    p = argparse.ArgumentParser("Parallel sim runs → summary CSV")
-    p.add_argument("--n-nodes", type=int, nargs='+', required=True)
-    p.add_argument("--max-simulation-time", type=float, nargs='+', required=True)
-    args = p.parse_args()
-    if len(args.n_nodes) != len(args.max_simulation_time):
-        p.error("Must supply equal counts of --n-nodes and --max-simulation-time")
-    params = [(i + 1, n, t) for i, (n, t) in enumerate(zip(args.n_nodes, args.max_simulation_time))]
-    cores = min(multiprocessing.cpu_count(), len(params))
-    print(f"Launching {len(params)} jobs on up to {cores} cores…")
-    with multiprocessing.Pool(cores) as pool:
-        results = pool.starmap(worker, params)
-    if not all(results):
-        print("❌ Some runs failed—check logs.")
-        sys.exit(1)
-    print("✅ All simulations complete.")
 
 if __name__ == "__main__":
-    main()
+    test_configs = [
+        {"n_nodes": 7, "max_sim_time": 1000.0},
+        # Add more as needed:
+        # {"n_nodes": 12, "max_sim_time": 800.0},
+    ]
+    for run_id, params in enumerate(test_configs, 1):
+        print(f"\n=== Running simulation {run_id} ===")
+        run_single_sim(run_id, **params)
+

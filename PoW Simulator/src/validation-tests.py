@@ -420,3 +420,5 @@ class TestPoWSimulator(unittest.TestCase):
             f"Too-deep forks: max depth {max_depth}"
         )
 
+if __name__ == "__main__":
+    unittest.main()

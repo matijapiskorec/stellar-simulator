@@ -25,3 +25,6 @@ class NetworkTest(unittest.TestCase):
         for node in nodes:
                 log.test.debug('Node %s, all peers in quorum set = %s',node.name,node.quorum_set.get_nodes())
                 self.assertTrue(len(node.quorum_set.nodes) > 1)
+
+if __name__ == "__main__":
+    unittest.main()

@@ -621,4 +621,5 @@ class NodeTest(unittest.TestCase):
 
         self.assertEqual(missing, [])  # All blocks already known
 
-
+if __name__ == "__main__":
+    unittest.main()

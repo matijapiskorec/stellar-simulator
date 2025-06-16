@@ -25,3 +25,6 @@ class SCPExternalizeTest(unittest.TestCase):
 
     def test_scp_externalize_repr(self):
         self.assertEqual(repr(self.scp_externalize),f"SCPExternalize(ballot={self.ballot}, hCounter=5, time={self.scp_externalize._time})")
+
+if __name__ == "__main__":
+    unittest.main()

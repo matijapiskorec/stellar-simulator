@@ -452,3 +452,6 @@ class TestBlockchain(unittest.TestCase):
         headers = self.node.blockchain.get_headers(locator=locator)
         # should return next 2000 blocks: blocks[1:2001]
         self.assertEqual(headers, blocks[1:2001])
+
+if __name__ == "__main__":
+    unittest.main()

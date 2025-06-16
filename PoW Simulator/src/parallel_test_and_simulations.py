@@ -22,6 +22,7 @@ FIELDNAMES = [
     "avg_depth_stale_blocks",
     "avg_blocks_per_node",
     "avg_inter_block_time",
+    "avg_messages_per_block",
     "all_tests_passed"
 ]
 
@@ -173,6 +174,24 @@ class TestPoWSimulator(unittest.TestCase):
             f"Too-deep forks: max depth {max_depth}"
         )
 
+    def compute_avg_messages_per_block(ledger_log_path, n_blocks):
+            """
+            Counts all protocol messages (lines with '- NODE - INFO -') in ledger_logs.txt
+            and returns average per main-chain block.
+            """
+            total_msg_count = 0
+            with open(ledger_log_path, 'r') as f:
+                for line in f:
+                    if "- NODE - CRITICAL -" not in line:
+                        continue
+                    # Optionally: exclude mining events or any non-protocol lines
+                    if "mined to the mempool" in line or "mined block" in line:
+                        continue
+                    total_msg_count += 1
+            if n_blocks == 0:
+                return 0.0
+            return total_msg_count / n_blocks
+
 
 def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
     """Runs PoW tests in its own log folder; returns True if all tests pass."""
@@ -196,6 +215,16 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
              contextlib.redirect_stdout(log_file), \
              contextlib.redirect_stderr(log_file): # everything that goes to standard error is logged
             result = runner.run(suite)
+
+        import time
+        ledger_log_path = "ledger_logs.txt"
+        # Wait up to 2 seconds in 0.2s intervals for the file to appear
+        for _ in range(10):
+            if os.path.exists(ledger_log_path):
+                break
+            time.sleep(5)
+        else:
+            print(f"[WARN] ledger_logs.txt not found after simulation run {run_id}")
 
         # 2) Now the TestPoWSimulator class has already built:
         #    - sim (the Simulator instance)
@@ -279,8 +308,6 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
                 & mined_df["node"].notnull()
                 ]
 
-
-
         # 2) total count
         num_blocks = len(blocks)
         print(f"Total main-chain blocks: {num_blocks}")
@@ -296,6 +323,8 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
         # 5) average (guarding against a single‐block corner case, though you say you always have >1)
         avg_inter = sum(intervals) / len(intervals) if intervals else float("nan")
         print(f"Average inter-block time: {avg_inter:.3f} seconds")
+
+        avg_messages_per_block = TestPoWSimulator.compute_avg_messages_per_block(ledger_log_path=ledger_log_path, n_blocks=num_blocks)
 
         #print(f"\nAverage inter-block time: {avg_inter_block_time:.2f} seconds")
 
@@ -313,7 +342,8 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
             "simulation_time": max_sim_time,
             "sim_params": json.dumps({
                 "n_nodes": n_nodes,
-                "sim_duration": max_sim_time
+                "sim_duration": max_sim_time,
+                "mine": 0.25
             }),
             "total_tx_created": total_tx_created,
             "main_chain_length": main_chain_length,
@@ -322,6 +352,7 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
             "avg_depth_stale_blocks": f"{avg_depth_stale:.2f}",
             "avg_blocks_per_node": f"{avg_blocks_per_node:.2f}",
             "avg_inter_block_time": f"{avg_inter:.2f}",
+            "avg_messages_per_block": f"{avg_messages_per_block:.2f}",
             "all_tests_passed": result.wasSuccessful(),
         })
 

@@ -12,7 +12,7 @@ import pandas as pd
 print(f" Booting {__file__}, argv={sys.argv!r}")
 
 SUMMARY_CSV = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "simulation_summary.csv")
+    os.path.join(os.path.dirname(__file__), "ER_SCP_scaling_txs_simulation_summary.csv")
 )
 FIELDNAMES = [
     "node_count",
@@ -23,8 +23,10 @@ FIELDNAMES = [
     "total_tx_in_all_slots",
     "avg_txs_per_slot",
     "avg_inter_slot_time",
+    "messages_per_slot_finalisation",   # <-- add this
     "all_tests_passed",
 ]
+
 
 def append_summary_row(row: dict):
     os.makedirs(os.path.dirname(SUMMARY_CSV), exist_ok=True)
@@ -52,6 +54,43 @@ def get_node_name(line):
     match = re.search(pattern, line)
     return match.group(1) if match else None
 
+
+def extract_slot_finalisation_times(file_path):
+    slot_times = {}
+    pattern = re.compile(r"(\d+\.\d+).*?Node [A-Z0-9]+.*?(?:appended|adopting) externalize.*?slot (\d+)", re.IGNORECASE)
+    with open(file_path, 'r') as file:
+        for line in file:
+            m = pattern.search(line)
+            if m:
+                timestamp = float(m.group(1))
+                slot = int(m.group(2))
+                # Only record the first externalize seen for each slot
+                if slot not in slot_times:
+                    slot_times[slot] = timestamp
+    # Return sorted list of finalisation times by slot number
+    return [slot_times[slot] for slot in sorted(slot_times)]
+
+
+def compute_messages_per_slot_finalisation(ledger_log_path, n_slots):
+    """
+    Count all '- NODE - INFO -' lines. Return average per slot.
+    """
+    total_msg_count = 0
+    try:
+        with open(ledger_log_path, 'r') as file:
+            for line in file:
+                if '- NODE - CRITICAL -' in line:
+                    total_msg_count += 1
+    except FileNotFoundError:
+        print(f"[WARN] Ledger log not found: {ledger_log_path}")
+        return 0.0
+
+    if n_slots == 0:
+        return 0.0
+    avg_msgs_per_slot = total_msg_count / n_slots
+    return avg_msgs_per_slot
+
+
 def process_log_lines(file_path):
     node_data = defaultdict(lambda: {
         "Timestamp of finalisation": None,
@@ -78,7 +117,7 @@ def process_log_lines(file_path):
     df["No. of finalised transactions"] = df["Finalised transactions"].apply(len)
     return df
 
-def compute_summary_metrics(events_log_path: str):
+def compute_summary_metrics(events_log_path: str, ledger_log_path: str, n_nodes: int):
     # Mining: count unique hashes from "mined to the mempool!" lines
     mined_hashes = set()
     mining_pat = re.compile(r"\[Transaction ([A-Fa-f0-9]+) time = [\d\.]+\] mined to the mempool!")
@@ -96,16 +135,23 @@ def compute_summary_metrics(events_log_path: str):
         all_finalized.update(s)
     total_tx_in_all_slots = len(all_finalized)
     #total_tx_in_all_slots = df["No. of finalised transactions"].sum()
+
     avg_txs_per_slot = (total_tx_in_all_slots / total_slots) if total_slots else 0.0
-    timestamps = sorted(ts for ts in df["Timestamp of finalisation"] if ts is not None)
-    intervals = [t2 - t1 for t1, t2 in zip(timestamps, timestamps[1:])]
+
+    slot_finalisation_times = extract_slot_finalisation_times(events_log_path)
+    intervals = [t2 - t1 for t1, t2 in zip(slot_finalisation_times, slot_finalisation_times[1:])]
     avg_inter_slot_time = (sum(intervals) / len(intervals)) if intervals else 0.0
+
+    no_slots = total_slots / n_nodes
+    avg_msgs_to_finalise = compute_messages_per_slot_finalisation(ledger_log_path, no_slots)
+
     return (
         total_tx_created,
         total_slots,
         total_tx_in_all_slots,
         avg_txs_per_slot,
-        avg_inter_slot_time
+        avg_inter_slot_time,
+        avg_msgs_to_finalise
     )
 
 
@@ -136,14 +182,25 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
     os.chdir(run_dir)
     try:
         sim = Simulator(verbosity=1, n_nodes=n_nodes, max_simulation_time=max_sim_time)
-        sim.run()
+        sim.run()  # Only after sim.run() do we process logs
+        # Now ledger_logs.txt should be present
         events_log = "simulator_events_log.txt"
-        print(f"[worker] Parsing events from {events_log}")
+        ledger_log = "ledger_logs.txt"
+        # Add a check: Wait up to a few seconds for ledger_logs.txt to exist
+        import time
+        for _ in range(10):
+            if os.path.exists(ledger_log):
+                break
+            time.sleep(5)
+        else:
+            print(f"[WARN] ledger_logs.txt not found after simulation for run {run_id}")
+        # Now parse and write CSV
         (total_tx_created,
          total_slots,
          total_tx_in_all_slots,
          avg_txs_per_slot,
-         avg_inter_slot_time) = compute_summary_metrics(events_log)
+         avg_inter_slot_time,
+         avg_msgs_to_finalise) = compute_summary_metrics(events_log, ledger_log, n_nodes)
         print(f"[worker] → created: {total_tx_created}, slots: {total_slots}, finalised: {total_tx_in_all_slots}")
 
         #mine_log = "simulation_mine_events.txt"
@@ -165,6 +222,7 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
             "total_tx_in_all_slots": total_tx_in_all_slots,
             "avg_txs_per_slot": f"{avg_txs_per_slot:.2f}",
             "avg_inter_slot_time": f"{avg_inter_slot_time:.2f}",
+            "messages_per_slot_finalisation" : f"{avg_msgs_to_finalise:.2f}",
             "all_tests_passed": True,
         })
         return True

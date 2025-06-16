@@ -27,3 +27,5 @@ class SCPBallot_test(unittest.TestCase):
     def test_ballot_repr(self):
         self.assertEqual(repr(self.ballot1), f"SCPBallot(counter=1, value={self.value1})")
 
+if __name__ == "__main__":
+    unittest.main()

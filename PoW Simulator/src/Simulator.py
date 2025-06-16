@@ -51,7 +51,7 @@ class Simulator:
         self._nodes = []
 
         # TODO: _max_simulation_time should be loaded from the config!
-        self._max_simulation_time = 25
+        self._max_simulation_time = 5
         # self._simulation_time = 0
 
         self._set_logging()
@@ -92,9 +92,9 @@ class Simulator:
         # PoW‐style peer network: Erdős–Rényi with avg degree ≈10 (default)
         # (remove the old topology arg)
         self._nodes = Network.generate_nodes(
-            topology='ER',
+            topology='BA',
             n_nodes=self._n_nodes,
-            degree=10,  # or pull from self._config if you’ve made it configurable
+            degree=5,  # or pull from self._config if you’ve made it configurable
         )
 
         # give each node its own mempool
@@ -115,8 +115,8 @@ class Simulator:
 
         }"""
         simulation_params = {
-            'create transaction': {'tau': 1.0, 'tau_domain': self._nodes}, # avg tx creation of 1.1 per node
-            'retrieve transaction': {'tau': 0.3, 'tau_domain': self._nodes},
+            'create transaction': {'tau': 0.50, 'tau_domain': self._nodes}, # avg tx creation of 1.1 per node
+            'retrieve transaction': {'tau': 0.50, 'tau_domain': self._nodes},
             'mine': {'tau': 10.0, 'tau_domain': self._nodes},
             'receive block': {'tau': 0.01, 'tau_domain': self._nodes}
         }

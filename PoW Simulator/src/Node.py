@@ -133,6 +133,9 @@ class Node():
         log.node.info("Node %s pulls txs from peer %s", self.name, peer.name)
         self.log_to_file(f"NODE - INFO - Node {self.name} pulls txs from peer {peer.name}")
 
+        log.node.critical("Node %s pulls txs from peer %s", self.name, peer.name)
+        self.log_to_file(f"NODE - CRITICAL - Node {self.name} pulls txs from peer {peer.name}")
+
         # 2. Simulate network delay (can be expanded later)
         #delay = random.expovariate(1 / 0.05)  # mean 50ms
         #log.node.debug("Simulated delay: %.4f sec for tx transfer", delay)
@@ -221,6 +224,22 @@ class Node():
             f"in timestamp {Globals.simulation_time:.3f}"
         )
 
+        log.node.critical(
+            "Node %s mined block %s at height %d with %d txs: [%s] in timestamp %s", self.name,
+            self.name,
+            new_block.hash,
+            new_block.height,
+            len(selected),
+            ", ".join(tx.hash for tx in selected),
+            Globals.simulation_time
+        )
+        self.log_to_file(
+            f'NODE - CRITICAL - Node {self.name}: mined block {new_block.hash} '
+            f'at height {new_block.height} with {len(selected)} txs: '
+            f'[{", ".join(tx.hash for tx in selected)}]'
+            f"in timestamp {Globals.simulation_time:.3f}"
+        )
+
         return new_block
 
 
@@ -277,7 +296,13 @@ class Node():
         if block.prev_hash in self.blockchain.chain:
             log.node.info("Node %s received directly connectable block %s", self.name, block.hash)
             self.log_to_file(f"NODE - INFO - Node {self.name} received directly connectable block {block.hash}")
+
+            log.node.critical("Node %s received directly connectable block %s", self.name, block.hash)
+            self.log_to_file(f"NODE - CRITICAL - Node {self.name} received directly connectable block {block.hash}")
+
             self.add_block_and_update_chain(block)
+
+
         else:
             log.node.info("Node %s received orphan block %s; requesting missing blocks...", self.name, block.hash)
             self.log_to_file(f"NODE - INFO - Node {self.name} received orphan block {block.hash}")
@@ -333,6 +358,10 @@ class Node():
         log.node.info("Node %s reorganized chain: old tip=%s new tip=%s",
                       self.name, old_tip.hash, new_tip.hash)
         self.log_to_file(f"NODE - INFO - Node {self.name.hash} reorganized chain: old tip={old_tip.hash} new tip={new_tip.hash}")
+
+        log.node.critical("Node %s reorganized chain: old tip=%s new tip=%s",
+                      self.name, old_tip.hash, new_tip.hash)
+        self.log_to_file(f"NODE - CRITICAL - Node {self.name.hash} reorganized chain: old tip={old_tip.hash} new tip={new_tip.hash}")
 
     def find_fork_point(self, old_chain, new_chain):
         """Find index at which two chains differentiate

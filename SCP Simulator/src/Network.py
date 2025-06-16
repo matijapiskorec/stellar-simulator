@@ -17,7 +17,7 @@ import networkx as nx
 
 class Network():
 
-    topologies = ['FULL','ER','ER_singlequorumset','HARDCODE', 'LUNCH']
+    topologies = ['FULL','ER','ER_singlequorumset', 'ER_SQ_FIXED_DEGREE', 'BA', 'HARDCODE', 'LUNCH']
 
     @classmethod
     def parse_all_validators(cls, file_path):
@@ -157,6 +157,121 @@ class Network():
                     node.set_quorum(nodes=quorum_members, inner_sets=[])
 
                 # 5) return exactly the validators that made it into the LCC
+
+                # Calculate and log average peer degree for SCP nodes in LCC (excluding self)
+                peer_degrees = []
+                for node in sq_nodes:
+                    # node.quorum_set.nodes includes the node itself, so subtract one
+                    degree = len(node.quorum_set.nodes) - 1
+                    peer_degrees.append(degree)
+                avg_degree = sum(peer_degrees) / len(peer_degrees) if peer_degrees else 0
+
+                # Log to file
+                with open('simulator_events_log.txt', 'a') as f:
+                    f.write(
+                        f"[ER_singlequorumset] n_nodes={n_nodes}, LCC_size={len(sq_nodes)}, avg_peer_degree={avg_degree:.2f}\n")
+
+                return sq_nodes
+
+            case 'ER_SQ_FIXED_DEGREE':
+                degree = 10
+                if n_nodes * degree % 2 != 0:
+                    raise ValueError("n_nodes * degree must be even for a regular graph.")
+
+                # 1) create all nodes
+                nodes = []
+                for i in range(n_nodes):
+                    nodes.append(Node(i))
+                    log.network.debug('Node created: %s', nodes[-1])
+                node_map = {int(n.name): n for n in nodes}
+
+                # 2) build random regular graph & find LCC (should be connected but double-check)
+                log.network.debug(f'Building random regular graph with degree={degree}')
+                graph = nx.random_regular_graph(degree, n_nodes)
+                lcc = max(nx.connected_components(graph), key=len)
+                missing = [i for i in range(n_nodes) if i not in lcc]
+                if missing:
+                    log.network.debug('Dropping isolated/excluded nodes: %s', missing)
+
+                # 3) restrict execution to the LCC
+                sq_nodes = [node_map[i] for i in lcc]
+
+                # 4) for each node, quorum = its LCC-neighbors + itself
+                for node in sq_nodes:
+                    idx = int(node.name)
+                    nbrs = [nbr for nbr in graph.neighbors(idx) if nbr in lcc]
+                    peers = [node_map[n] for n in nbrs]
+                    quorum_members = peers + [node]
+
+                    log.network.debug(
+                        'Adding nodes %s to the flat quorum of Node %s',
+                        [n.name for n in quorum_members], node
+                    )
+                    node.set_quorum(nodes=quorum_members, inner_sets=[])
+
+                # 5) return exactly the validators that made it into the LCC
+
+                # Calculate and log average peer degree for SCP nodes in LCC (excluding self)
+                peer_degrees = []
+                for node in sq_nodes:
+                    degree = len(node.quorum_set.nodes) - 1  # excluding self
+                    peer_degrees.append(degree)
+                avg_degree = sum(peer_degrees) / len(peer_degrees) if peer_degrees else 0
+
+                # Log to file
+                with open('simulator_events_log.txt', 'a') as f:
+                    f.write(
+                        f"[ER_SQ_FIXED_DEGREE] n_nodes={n_nodes}, LCC_size={len(sq_nodes)}, avg_peer_degree={avg_degree:.2f}\n")
+
+                return sq_nodes
+
+            case 'BA':
+                # 1) create all nodes
+                nodes = []
+                for i in range(n_nodes):
+                    nodes.append(Node(i))
+                    log.network.debug('Node created: %s', nodes[-1])
+                node_map = {int(n.name): n for n in nodes}
+
+                # 2) build BA graph & find LCC
+                m = 5  # degree is 2*m
+                log.network.debug(f'Building BA graph with m={m}')
+                graph = nx.barabasi_albert_graph(n_nodes, m)
+                lcc = max(nx.connected_components(graph), key=len)
+                missing = [i for i in range(n_nodes) if i not in lcc]
+                if missing:
+                    log.network.debug('Dropping isolated/excluded nodes: %s', missing)
+
+                # 3) restrict execution to the LCC
+                sq_nodes = [node_map[i] for i in lcc]
+
+                # 4) for each node, quorum = its LCC-neighbors + itself
+                for node in sq_nodes:
+                    idx = int(node.name)
+                    nbrs = [nbr for nbr in graph.neighbors(idx) if nbr in lcc]
+                    peers = [node_map[n] for n in nbrs]
+                    quorum_members = peers + [node]
+
+                    log.network.debug(
+                        'Adding nodes %s to the flat quorum of Node %s',
+                        [n.name for n in quorum_members], node
+                    )
+                    node.set_quorum(nodes=quorum_members, inner_sets=[])
+
+                # 5) return exactly the validators that made it into the LCC
+
+                # Calculate and log average peer degree for SCP nodes in LCC (excluding self)
+                peer_degrees = []
+                for node in sq_nodes:
+                    degree = len(node.quorum_set.nodes) - 1  # excluding self
+                    peer_degrees.append(degree)
+                avg_degree = sum(peer_degrees) / len(peer_degrees) if peer_degrees else 0
+
+                # Log to file
+                with open('simulator_events_log.txt', 'a') as f:
+                    f.write(
+                        f"[BA] n_nodes={n_nodes}, LCC_size={len(sq_nodes)}, avg_peer_degree={avg_degree:.2f}\n")
+
                 return sq_nodes
 
                 """ case 'HARDCODE':

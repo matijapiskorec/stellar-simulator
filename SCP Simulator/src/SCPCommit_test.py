@@ -22,3 +22,6 @@ class SCPCommitTest(unittest.TestCase):
 
     def test_scp_commit_repr(self):
         self.assertEqual(repr(self.scp_commit),f"SCPCommit(ballot={self.ballot}, preparedCounter=1, hCounter=2, cCounter=3)")
+
+if __name__ == "__main__":
+    unittest.main()

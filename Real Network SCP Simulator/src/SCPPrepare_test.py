@@ -23,3 +23,7 @@ class SCPPrepare_test(unittest.TestCase):
 
     def test_scp_prepare_repr(self):
         self.assertEqual(repr(self.scp_prepare), f"SCPPrepare(ballot={self.ballot}, prepared={self.prepared}, aCounter=1, hCounter=2, cCounter=1)")
+
+
+if __name__ == "__main__":
+    unittest.main()

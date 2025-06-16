@@ -2429,3 +2429,5 @@ class NodeTest(unittest.TestCase):
                 self.assertNotEqual(msg.ballot.value.hash, value_finalized.hash,
                                     f"Received prepare broadcast messages for peer {peer} should not include messages with the finalized value.")
 
+if __name__ == "__main__":
+    unittest.main()

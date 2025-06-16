@@ -42,3 +42,5 @@ class TestSimulatorPoW(unittest.TestCase):
         self.assertTrue(isinstance(gillespie,Gillespie))
 
 
+if __name__ == "__main__":
+    unittest.main()

@@ -163,7 +163,7 @@ class Network():
             case 'HARDCODE':
                 import math
 
-                PERCENT_THRESHOLD = 1.0
+                PERCENT_THRESHOLD = 0.8
 
                 file_path = "quorumset_05_06_2025.json"
                 with open(file_path, 'r') as f:
