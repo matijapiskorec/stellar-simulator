@@ -23,7 +23,7 @@ class Network():
         """
         Return a connected peer graph according to `topology`:
         - FULL: complete graph (every node peers with every other).
-        - ER: random connected Erdős–Rényi G(n,p) with avg degree ≈ `degree`.
+        - ER-SINGLEQUORUMSET: random connected Erdős–Rényi G(n,p) with avg degree ≈ `degree`.
         - BA: Barabási–Albert scale-free network with ~`degree` edges per new node.
         """
         assert topology in cls.topologies, f"Unknown topology: {topology}"

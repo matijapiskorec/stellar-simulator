@@ -252,7 +252,7 @@ class SimulatorIntegrationTest(unittest.TestCase):
 
         for n_nodes in node_counts:
             with self.subTest(n_nodes=n_nodes):
-                nodes = Network.generate_nodes(n_nodes=n_nodes, topology='ER')  # pre-generate nodes to assign to params
+                nodes = Network.generate_nodes(n_nodes=n_nodes, topology='ER-SINGLEQUORUMSET')  # pre-generate nodes to assign to params
 
                 # Get all three simulation parameter sets
                 param_sets = self.get_simulation_param_sets(nodes)

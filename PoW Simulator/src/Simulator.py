@@ -43,7 +43,7 @@ class Simulator:
     Command line (CLI) interface for the simulator.
     '''
 
-    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT,**kvargs):
+    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, simulation_params=None,**kvargs):
 
         self._verbosity = verbosity
         self._n_nodes = n_nodes
@@ -58,6 +58,8 @@ class Simulator:
 
         # Total elapsed time doesn't include initialization!
         self.timeStart = time.time()
+
+        self.simulation_params = simulation_params
 
     @property
     def verbosity(self):
@@ -114,27 +116,38 @@ class Simulator:
             'receive block': {'tau': 2.5, 'tau_domain': self._nodes},
 
         }"""
-        simulation_params = {
-            'create transaction': {'tau': 0.50, 'tau_domain': self._nodes}, # avg tx creation of 1.1 per node
-            'retrieve transaction': {'tau': 0.50, 'tau_domain': self._nodes},
-            'mine': {'tau': 10.0, 'tau_domain': self._nodes},
-            'receive block': {'tau': 0.01, 'tau_domain': self._nodes}
-        }
+        if self.simulation_params is None:
+            self.simulation_params = {
+                'create transaction': {'tau': 0.125, 'tau_domain': self._nodes}, # avg tx creation of 1.1 per node
+                'retrieve transaction': {'tau': 0.125, 'tau_domain': self._nodes},
+                'mine': {'tau': 10.0, 'tau_domain': self._nodes},
+                'receive block': {'tau': 0.01, 'tau_domain': self._nodes}
+            }
 
+        else:
+            for v in self.simulation_params.values():
+                if isinstance(v, dict) and v.get('tau_domain') == "self._nodes":
+                    v['tau_domain'] = self._nodes
+
+        print("Parsed simulation_params for this run:", self.simulation_params)
 
         # Concatenate events you get from the FBAConsensus and Node class
         self._events = [*POWConsensus.get_events(), *Node.get_events()]
 
         # Set the simulation parameters of all events for which we have them
         for event in self._events:
-            if event.name in simulation_params:
-                event.simulation_params = simulation_params[event.name]
+            if event.name in self.simulation_params:
+                event.simulation_params = self.simulation_params[event.name]
             else:
                 if self._verbosity:
                     log.simulator.warning('No simulation parameters for event %s - igoring the event!', event.name)
 
         # Remove events for which we don't have simulation parameters
         self._events = [event for event in self._events if event.simulation_params is not None]
+
+        print("Loaded events:")
+        for event in self._events:
+            print(f"  {event.name} — tau: {event.simulation_params.get('tau')}")
 
         # Initialize Gillespie with a collection of events and their probabilities
         # Then query it repeatedly to receive next event
@@ -171,7 +184,7 @@ class Simulator:
                 node = np.random.choice(self._nodes)
                 node.create_transaction()
 
-            case 'retrieve_transaction':
+            case 'retrieve transaction':
                 node = np.random.choice(self._nodes)
                 node.receive_txs_from_peer()
                 # Choose a random node which retrieves the transaction from mempool.

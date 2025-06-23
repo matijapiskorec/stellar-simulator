@@ -17,7 +17,7 @@ import networkx as nx
 
 class Network():
 
-    topologies = ['FULL','ER','ER_singlequorumset', 'ER_SQ_FIXED_DEGREE', 'BA', 'HARDCODE', 'LUNCH']
+    topologies = ['FULL','ER-SINGLEQUORUMSET','ER_singlequorumset', 'ER_SQ_FIXED_DEGREE', 'BA', 'HARDCODE', 'LUNCH']
 
     @classmethod
     def parse_all_validators(cls, file_path):
@@ -64,7 +64,7 @@ class Network():
                     node.set_quorum(nodes, [])
 
                 return nodes
-            case 'ER':
+            case 'ER-SINGLEQUORUMSET':
                 # Create nodes
                 for i in range(n_nodes):
                     nodes.append(Node(i))
@@ -131,7 +131,7 @@ class Network():
                     log.network.debug('Node created: %s', nodes[-1])
                 node_map = {int(n.name): n for n in nodes}
 
-                # 2) build random ER graph & find LCC
+                # 2) build random ER-SINGLEQUORUMSET graph & find LCC
                 log.network.debug('Building ER_singlequorumset graph with p=0.5')
                 graph = nx.fast_gnp_random_graph(n_nodes, 0.5)
                 lcc = max(nx.connected_components(graph), key=len)

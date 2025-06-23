@@ -1,0 +1,41 @@
+node_count,simulation_time,sim_params,total_tx_created,total_slots,total_tx_in_all_slots,avg_txs_per_slot,avg_inter_slot_time,all_tests_passed
+50,10.0,"{'mine': {'tau': 0.015625, 'tau_domain': 'self._nodes'}, 'retrieve_transaction_from_mempool': {'tau': 0.015625, 'tau_domain': 'self._nodes'}, 'prepare_commit': {'tau': 0.01, 'tau_do>
+50,10.0,"{'mine': {'tau': 0.0625, 'tau_domain': 'self._nodes'}, 'retrieve_transaction_from_mempool': {'tau': 0.0625, 'tau_domain': 'self._nodes'}, 'prepare_commit': {'tau': 0.01, 'tau_domain>
+50,10.0,"{'mine': {'tau': 0.03125, 'tau_domain': 'self._nodes'}, 'retrieve_transaction_from_mempool': {'tau': 0.03125, 'tau_domain': 'self._nodes'}, 'prepare_commit': {'tau': 0.01, 'tau_doma>
+50,10.0,"{'mine': {'tau': 0.0078125, 'tau_domain': 'self._nodes'}, 'retrieve_transaction_from_mempool': {'tau': 0.0078125, 'tau_domain': 'self._nodes'}, 'prepare_commit': {'tau': 0.01, 'tau_>
+50,15.0,"{'mine': {'tau': 1.0, 'tau_domain': 'self._nodes'}, 'retrieve_transaction_from_mempool': {'tau': 1.0, 'tau_domain': 'self._nodes'}, 'prepare_commit': {'tau': 0.01, 'tau_domain': 'se>
+50,15.0,"{'mine': {'tau': 0.5, 'tau_domain': 'self._nodes'}, 'retrieve_transaction_from_mempool': {'tau': 0.5, 'tau_domain': 'self._nodes'}, 'prepare_commit': {'tau': 0.01, 'tau_domain': 'se>
+50,15.0,"{'mine': {'tau': 0.25, 'tau_domain': 'self._nodes'}, 'retrieve_transaction_from_mempool': {'tau': 0.25, 'tau_domain': 'self._nodes'}, 'prepare_commit': {'tau': 0.01, 'tau_domain': '>
+50,15.0,"{'mine': {'tau': 0.125, 'tau_domain': 'self._nodes'}, 'retrieve_transaction_from_mempool': {'tau': 0.125, 'tau_domain': 'self._nodes'}, 'prepare_commit': {'tau': 0.01, 'tau_domain
+
+
+sage': {'tau': 0.05, 'tau_domain': 'self._nodes'}, 'receive_externalize_msg': {'tau': 0.001, 'tau_domain': 'self._nodes'}}",0,0,0,0,0,False
+': {'tau': 0.05, 'tau_domain': 'self._nodes'}, 'receive_externalize_msg': {'tau': 0.001, 'tau_domain': 'self._nodes'}}",1783,50,200,4.00,0.00,True
+ge': {'tau': 0.05, 'tau_domain': 'self._nodes'}, 'receive_externalize_msg': {'tau': 0.001, 'tau_domain': 'self._nodes'}}",3484,50,200,4.00,0.00,True
+essage': {'tau': 0.05, 'tau_domain': 'self._nodes'}, 'receive_externalize_msg': {'tau': 0.001, 'tau_domain': 'self._nodes'}}",0,0,0,0,0,False
+au': 0.05, 'tau_domain': 'self._nodes'}, 'receive_externalize_msg': {'tau': 0.001, 'tau_domain': 'self._nodes'}}",157,200,83,0.41,2.85,True
+au': 0.05, 'tau_domain': 'self._nodes'}, 'receive_externalize_msg': {'tau': 0.001, 'tau_domain': 'self._nodes'}}",321,200,180,0.90,2.30,True
+'tau': 0.05, 'tau_domain': 'self._nodes'}, 'receive_externalize_msg': {'tau': 0.001, 'tau_domain': 'self._nodes'}}",613,150,236,1.57,3.16,True
+ {'tau': 0.05, 'tau_domain': 'self._nodes'}, 'receive_externalize_msg': {'tau': 0.001, 'tau_domain': 'self._nodes'}}",1299,100,400,4.00,4.25
+
+
+
+
+RUN 2 BELOW
+
+
+
+
+node_count,simulation_time,sim_params,total_tx_created,total_slots,total_tx_in_all_slots,avg_txs_per_slot,avg_inter_slot_time,all_tests_passed
+50,10.0,"{'mine': {'tau': 0.0625, 'tau_domain': 'self._nodes'}, 'retrieve_transaction_from_mempool': {'tau': 0.0625, 'tau_domain': 'self._nodes'}, 'prepare_commit': {'tau': 0.01, 'tau_domain>
+50,10.0,"{'mine': {'tau': 0.03125, 'tau_domain': 'self._nodes'}, 'retrieve_transaction_from_mempool': {'tau': 0.03125, 'tau_domain': 'self._nodes'}, 'prepare_commit': {'tau': 0.01, 'tau_doma>
+50,15.0,"{'mine': {'tau': 1.0, 'tau_domain': 'self._nodes'}, 'retrieve_transaction_from_mempool': {'tau': 1.0, 'tau_domain': 'self._nodes'}, 'prepare_commit': {'tau': 0.01, 'tau_domain': 'se>
+50,10.0,"{'mine': {'tau': 0.0078125, 'tau_domain': 'self._nodes'}, 'retrieve_transaction_from_mempool': {'tau': 0.0078125, 'tau_domain': 'self._nodes'}, 'prepare_commit': {'tau': 0.01, 'tau_>
+50,15.0,"{'mine': {'tau': 0.5, 'tau_domain': 'self._nodes'}, 'retrieve_transaction_from_mempool': {'tau': 0.5, 'tau_domain': 'self._nodes'}, 'prepare_commit': {'tau': 0.01, 'tau_domain': 'se>
+50,10.0,"{'mine': {'tau': 0.015625, 'tau_domain': 'self._nodes'}, 'retrieve_transaction_from_mempool': {'tau': 0.015625, 'tau_domain': 'self._nodes'}, 'prepare_commit': {'tau': 0.01, 'tau_do>
+50,15.0,"{'mine': {'tau': 0.25, 'tau_domain': 'self._nodes'}, 'retrieve_transaction_from_mempool': {'tau': 0.25, 'tau_domain': 'self._nodes'}, 'prepare_commit': {'tau': 0.01, 'tau_domain': '>
+50,15.0,"{'mine': {'tau': 0.125, 'tau_domain': 'self._nodes'}, 'retrieve_transaction_from_mempool': {'tau': 0.125, 'tau_domain': 'self._nodes'}, 'prepare_commit': {'tau': 0.01, 'tau_domain':>
+
+
+
+

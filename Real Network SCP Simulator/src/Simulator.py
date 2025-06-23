@@ -43,7 +43,7 @@ class Simulator:
     Command line (CLI) interface for the simulator.
     '''
 
-    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=25, simulation_params=None, **kvargs):
+    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=5, simulation_params=None, **kvargs):
 
         self._verbosity = verbosity
         self._n_nodes = n_nodes
@@ -125,8 +125,8 @@ class Simulator:
             }
             """
             self.simulation_params = {
-                'mine': {'tau': 1.0, 'tau_domain': self._nodes},  # Faster mining improves tx availability moderately
-                'retrieve_transaction_from_mempool': {'tau':1.0, 'tau_domain': self._nodes},
+                'mine': {'tau': 0.250, 'tau_domain': self._nodes},  # Faster mining improves tx availability moderately
+                'retrieve_transaction_from_mempool': {'tau':0.250, 'tau_domain': self._nodes},
                 # Processing
                 'prepare_commit': {'tau': 0.01, 'tau_domain': self._nodes},  # Quickly move to commit stage
                 'prepare_externalize_message': {'tau':0.01, 'tau_domain': self._nodes},
@@ -188,7 +188,7 @@ class Simulator:
 
         # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='FULL')
         # self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='HARDCODE')
-        #self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER')
+        #self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER-SINGLEQUORUMSET')
         #self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='LUNCH')
 
         #self._mempool = Mempool()

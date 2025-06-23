@@ -1,0 +1,9 @@
+node_count,simulation_time,sim_params,total_tx_created,main_chain_length,total_tx_in_mainchain,total_stale_blocks,avg_depth_stale_blocks,avg_blocks_per_node,>
+12,100.0,"{""n_nodes"": 12, ""sim_duration"": 100.0, ""mine"": 0.25}",1107,126,1022,0,0.00,0.00,0.38,939.49,False
+25,100.0,"{""n_nodes"": 25, ""sim_duration"": 100.0, ""mine"": 0.25}",2181,235,1878,3,1.00,0.00,0.44,1058.07,False
+50,100.0,"{""n_nodes"": 50, ""sim_duration"": 100.0, ""mine"": 0.25}",4040,412,3577,3,1.00,0.00,0.58,1209.51,False
+100,100.0,"{""n_nodes"": 100, ""sim_duration"": 100.0, ""mine"": 0.25}",6353,622,5435,8,1.62,0.00,1.19,1600.71,False
+200,100.0,"{""n_nodes"": 200, ""sim_duration"": 100.0, ""mine"": 0.25}",9608,851,7466,7,1.00,0.00,4.31,2326.93,False
+400,100.0,"{""n_nodes"": 400, ""sim_duration"": 100.0, ""mine"": 0.25}",13799,1045,9539,9,1.22,0.00,19.69,3758.89,False
+800,25.0,"{""n_nodes"": 800, ""sim_duration"": 25.0, ""mine"": 0.25}",8895,306,1835,18,1.44,0.00,8.35,6292.86,False
+1600,25.0,"{""n_nodes"": 1600, ""sim_duration"": 25.0, ""mine"": 0.25}",16749,337,2155,42,1.62,0.00,27.16,11103.53,False

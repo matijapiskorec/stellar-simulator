@@ -53,13 +53,13 @@ class NodeTest(unittest.TestCase):
     # Test whether we can calculate priority for each peer in the quorum set
     def test_priority_of_nodes(self):
 
-        for topology in ['FULL', 'ER']:
+        for topology in ['FULL', 'ER-SINGLEQUORUMSET']:
             nodes = Network.generate_nodes(n_nodes=30, topology=topology)
 
             mempool = Mempool()
             for node in nodes:
                 node.attach_mempool(mempool)
-                # if topology == 'ER':
+                # if topology == 'ER-SINGLEQUORUMSET':
                 # print(f"Node {node.name} has QuorumSet = {node.quorum_set.nodes} with inner sets {node.quorum_set.inner_sets}")
 
             for node in nodes:
@@ -206,7 +206,7 @@ class NodeTest(unittest.TestCase):
 
 
     def test_quorum_of_nodes_ER(self):
-        nodes = Network.generate_nodes(n_nodes=5, topology='ER')
+        nodes = Network.generate_nodes(n_nodes=5, topology='ER-SINGLEQUORUMSET')
         for node in nodes:
             log.test.debug('Node %s, quorum_set = %s',node.name,node.quorum_set)
             log.test.debug('Node %s, check_threshold = %s',node.name,node.quorum_set.get_quorum())
@@ -244,7 +244,7 @@ class NodeTest(unittest.TestCase):
 
 
     def test_prepare_nomination_msg_correctly_adds_value(self):
-        for topology in ['FULL','ER']:
+        for topology in ['FULL','ER-SINGLEQUORUMSET']:
             nodes = Network.generate_nodes(n_nodes=5, topology=topology)
             mempool = Mempool()
             for node in nodes:
@@ -264,7 +264,7 @@ class NodeTest(unittest.TestCase):
                 self.assertEqual(len(node.broadcast_flags), 1)
 
     def test_prepare_nomination_phase_correctly_adds_many_values(self):
-        for topology in ['FULL', 'ER']:
+        for topology in ['FULL', 'ER-SINGLEQUORUMSET']:
             nodes = Network.generate_nodes(n_nodes=5, topology=topology)
             mempool = Mempool()
             for node in nodes:

@@ -68,7 +68,7 @@ class Node():
         self.priority_list = set()
         self.finalised_transactions = set()
         self._seen_finalised_ballots = set()
-        self.MAX_SLOT_TXS = 20
+        self.MAX_SLOT_TXS = 200
 
         #  TODO: function get/retrieve nomination round which gets nomination round based on current global sim time - not class variable, but running function
         #   this needs time of externalise - to compare with sim time (what is time 1?)
@@ -498,7 +498,7 @@ class Node():
                 message = self.retrieve_broadcast_message(priority_node)
 
                 if message is not None:
-                    log.node.critical('Node %s receiving SCPNominate message', self.name, priority_node.name)
+                    log.node.critical('Node %s receiving SCPNominate message', self.name)
                     message = message.parse_message_state(message) # message is an array of 2 arrays, the first being the voted values and the second the accepted values
                     self.process_received_message(message)
                     self.update_statement_count(priority_node, message)

@@ -23,7 +23,7 @@ class TestSCPSimulatorIntegration(unittest.TestCase):
     def setUp(self):
         """
         Initialize the simulator with a reasonably large number of nodes and appropriate parameters.
-        You can try different topologies (e.g. 'ER', 'HARDCODE') if available.
+        You can try different topologies (e.g. 'ER-SINGLEQUORUMSET', 'HARDCODE') if available.
         """
         # Adjust the parameters as needed.
         self.simulator = Simulator(verbosity=5, n_nodes=60)
@@ -262,7 +262,7 @@ class TestSCPSimulatorIntegration2(unittest.TestCase):
         self.simulator = Simulator(verbosity=5, n_nodes=60)
 
         from src.Network import Network
-        self.simulator._nodes = Network.generate_nodes(n_nodes=self.simulator.n_nodes, topology='ER')
+        self.simulator._nodes = Network.generate_nodes(n_nodes=self.simulator.n_nodes, topology='ER-SINGLEQUORUMSET')
 
         self.shared_mempool = Mempool()
         # Attach this mempool to every node.

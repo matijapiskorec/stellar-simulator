@@ -216,7 +216,7 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
         append_summary_row({
             "node_count": n_nodes,
             "simulation_time": max_sim_time,
-            "sim_params": json.dumps({"n_nodes": n_nodes, "sim_duration": max_sim_time}),
+            "sim_params": json.dumps({"n_nodes": n_nodes, "sim_duration": max_sim_time, "mine": 1.0, "Max_Txs": 100}),
             "total_tx_created": total_tx_created,
             "total_slots": total_slots,
             "total_tx_in_all_slots": total_tx_in_all_slots,

@@ -167,13 +167,7 @@ class Node():
         # Remove transactions from mempool
         # 1) Select transactions by descending fee
 
-        # TODO: Add randomised difficulty for different speeds of mine?
-        # if random.random() < (node.hashrate / total_hashrate):
-        #     mine
-        #     block
-        # TODO: ADD RANDOMISED TIME DELAY TO LOWER ORPHAN RATE??
-
-        MAX_TXS = 1000
+        MAX_TXS =3200
         # Sort by fee-per-byte; here tx.size == 100 so equivalent to fee alone
         sorted_txs = sorted(
             self.mempool.transactions,
@@ -209,7 +203,7 @@ class Node():
                 self.log_to_file(f"NODE - ERROR - Node {self.name}: tx {tx.hash} missing from mempool during prune")
 
         log.node.info(
-            "Node %s mined block %s at height %d with %d txs: [%s] in timestamp %s", self.name,
+            "Node %s mined block %s at height %d with %d txs: [%s] in timestamp %s",
             self.name,
             new_block.hash,
             new_block.height,
@@ -225,7 +219,7 @@ class Node():
         )
 
         log.node.critical(
-            "Node %s mined block %s at height %d with %d txs: [%s] in timestamp %s", self.name,
+            "Node %s mined block %s at height %d with %d txs: [%s] in timestamp %s",
             self.name,
             new_block.hash,
             new_block.height,

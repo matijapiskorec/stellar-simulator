@@ -343,7 +343,8 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
             "sim_params": json.dumps({
                 "n_nodes": n_nodes,
                 "sim_duration": max_sim_time,
-                "mine": 0.25
+                "mine": 1.0,
+                "Max_Txs": 100
             }),
             "total_tx_created": total_tx_created,
             "main_chain_length": main_chain_length,

@@ -26,8 +26,8 @@ class TestFinalizedStateIntegrity(unittest.TestCase):
         # Create the simulator with desired number of nodes.
         self.simulator = Simulator(verbosity=5, n_nodes=60)
 
-        # Use a selected topology; here we use 'ER'.
-        self.simulator._nodes = Network.generate_nodes(n_nodes=self.simulator.n_nodes, topology='ER')
+        # Use a selected topology; here we use 'ER-SINGLEQUORUMSET'.
+        self.simulator._nodes = Network.generate_nodes(n_nodes=self.simulator.n_nodes, topology='ER-SINGLEQUORUMSET')
 
         # Create a shared mempool and attach it to every node.
         self.shared_mempool = Mempool()
