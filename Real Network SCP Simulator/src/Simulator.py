@@ -35,7 +35,7 @@ from Mempool import Mempool
 from Globals import Globals
 from SCPExternalize import SCPExternalize
 
-VERBOSITY_DEFAULT = 5
+VERBOSITY_DEFAULT = 1
 N_NODES_DEFAULT = 50
 
 class Simulator:
@@ -125,8 +125,8 @@ class Simulator:
             }
             """
             self.simulation_params = {
-                'mine': {'tau': 0.250, 'tau_domain': self._nodes},  # Faster mining improves tx availability moderately
-                'retrieve_transaction_from_mempool': {'tau':0.250, 'tau_domain': self._nodes},
+                'mine': {'tau': 0.50, 'tau_domain': self._nodes},  # Faster mining improves tx availability moderately
+                'retrieve_transaction_from_mempool': {'tau': 0.50, 'tau_domain': self._nodes},
                 # Processing
                 'prepare_commit': {'tau': 0.01, 'tau_domain': self._nodes},  # Quickly move to commit stage
                 'prepare_externalize_message': {'tau':0.01, 'tau_domain': self._nodes},

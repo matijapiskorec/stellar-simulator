@@ -55,7 +55,7 @@ class Simulator:
 
         self.timeStart = time.time()
         # ER_singlequorumset
-        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='ER_singlequorumset', )
+        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='FULL')
 
         if simulation_params is not None:
             self.simulation_params = simulation_params

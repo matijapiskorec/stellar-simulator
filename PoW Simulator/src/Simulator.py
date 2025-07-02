@@ -118,8 +118,8 @@ class Simulator:
         }"""
         if self.simulation_params is None:
             self.simulation_params = {
-                'create transaction': {'tau': 0.125, 'tau_domain': self._nodes}, # avg tx creation of 1.1 per node
-                'retrieve transaction': {'tau': 0.125, 'tau_domain': self._nodes},
+                'create transaction': {'tau': 1.0, 'tau_domain': self._nodes}, # avg tx creation of 1.1 per node
+                'retrieve transaction': {'tau': 1.0, 'tau_domain': self._nodes},
                 'mine': {'tau': 10.0, 'tau_domain': self._nodes},
                 'receive block': {'tau': 0.01, 'tau_domain': self._nodes}
             }

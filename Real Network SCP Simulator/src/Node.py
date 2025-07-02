@@ -71,7 +71,7 @@ class Node():
         self.priority_list = set()
         self.finalised_transactions = set()
         self._seen_finalised_ballots = set()
-        self.MAX_SLOT_TXS = 20
+        self.MAX_SLOT_TXS = 200
 
         #  TODO: function get/retrieve nomination round which gets nomination round based on current global sim time - not class variable, but running function
         #   this needs time of externalise - to compare with sim time (what is time 1?)

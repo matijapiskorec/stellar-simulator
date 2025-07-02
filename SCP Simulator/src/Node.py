@@ -1338,7 +1338,7 @@ class Node():
         if not unseen:
             log.node.info('Node %s: no new prepare messages from %s', self.name, peer.name)
             return
-        log.node.critical('Node %s processing SCPPrepare messages %s', self.name)
+        log.node.critical('Node %s processing SCPPrepare messages', self.name)
         for msg in unseen: # process all unseen prepare msgs
             seen.add(msg)
 

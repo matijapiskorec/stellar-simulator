@@ -167,7 +167,7 @@ class Node():
         # Remove transactions from mempool
         # 1) Select transactions by descending fee
 
-        MAX_TXS =3200
+        MAX_TXS =200
         # Sort by fee-per-byte; here tx.size == 100 so equivalent to fee alone
         sorted_txs = sorted(
             self.mempool.transactions,
