@@ -22,11 +22,6 @@ class SimulatorTest(unittest.TestCase):
         simulator = Simulator(verbosity=0)
         self.assertTrue(isinstance(simulator,Simulator))
 
-        # # Can we initialize the simulator with different verbosity levels?
-        # for i in range(1,6):
-        #     simulator = Simulator(verbosity=i)
-        #     self.assertTrue(isinstance(simulator,Simulator))
-
     def test_run_simulator(self):
         verbosity = 0
         n_nodes = 2

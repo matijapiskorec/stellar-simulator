@@ -175,26 +175,27 @@ SRC = os.path.join(ROOT, "src")
 sys.path.insert(0, SRC)
 from Simulator import Simulator
 
-def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
+def worker(run_id: int, n_nodes: int, max_sim_time: float, simulation_params: dict) -> bool:
+    serializable_simulation_params = copy.deepcopy(simulation_params)
+
     run_dir = os.path.join("logs", f"run_{run_id}")
     os.makedirs(run_dir, exist_ok=True)
     cwd = os.getcwd()
     os.chdir(run_dir)
     try:
-        sim = Simulator(verbosity=1, n_nodes=n_nodes, max_simulation_time=max_sim_time)
-        sim.run()  # Only after sim.run() do we process logs
-        # Now ledger_logs.txt should be present
+        print("instantiating simulator")
+        sim = Simulator(
+            verbosity=1,
+            n_nodes=n_nodes,
+            max_simulation_time=max_sim_time,
+            simulation_params=simulation_params
+        )
+        print("RUNNING SIMULATION!!!")
+        sim.run()
+        print("RAN SIMULATION!!!")
         events_log = "simulator_events_log.txt"
-        ledger_log = "ledger_logs.txt"
-        # Add a check: Wait up to a few seconds for ledger_logs.txt to exist
-        import time
-        for _ in range(10):
-            if os.path.exists(ledger_log):
-                break
-            time.sleep(5)
-        else:
-            print(f"[WARN] ledger_logs.txt not found after simulation for run {run_id}")
-        # Now parse and write CSV
+        ledger_log = "ledger_logs.txt"  # <-- Make sure this is set!
+        print(f"[worker] Parsing events from {events_log}")
         (total_tx_created,
          total_slots,
          total_tx_in_all_slots,
@@ -203,9 +204,6 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
          avg_msgs_to_finalise) = compute_summary_metrics(events_log, ledger_log, n_nodes)
         print(f"[worker] → created: {total_tx_created}, slots: {total_slots}, finalised: {total_tx_in_all_slots}")
 
-        #mine_log = "simulation_mine_events.txt"
-        #total_tx_created = compute_total_tx_created(mine_log)
-        #print(f"[worker] total_tx_created (mined): {total_tx_created}")
         mine_log = "simulator_mine_events.txt"
         if os.path.isfile(mine_log):
             total_tx_created = compute_total_tx_created(mine_log)
@@ -216,7 +214,7 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
         append_summary_row({
             "node_count": n_nodes,
             "simulation_time": max_sim_time,
-            "sim_params": json.dumps({"n_nodes": n_nodes, "sim_duration": max_sim_time}),
+            "sim_params": json.dumps({"n_nodes": n_nodes, "sim_duration": max_sim_time, "mine": 1.0, "Max_Txs": 100}),
             "total_tx_created": total_tx_created,
             "total_slots": total_slots,
             "total_tx_in_all_slots": total_tx_in_all_slots,
@@ -231,7 +229,7 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
         append_summary_row({
             "node_count": n_nodes,
             "simulation_time": max_sim_time,
-            "sim_params": json.dumps({"n_nodes": n_nodes, "sim_duration": max_sim_time}),
+            "sim_params": simulation_params,
             **dict.fromkeys(FIELDNAMES[3:], 0),
             "all_tests_passed": False,
         })
@@ -239,6 +237,7 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
     finally:
         os.chdir(cwd)
         print(f"Run {run_id} finished. Logs in {run_dir}")
+
 
 def main():
     p = argparse.ArgumentParser("Parallel sim runs → summary CSV")

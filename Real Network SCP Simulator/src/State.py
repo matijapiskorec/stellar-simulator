@@ -47,11 +47,6 @@ class State(enum.Enum):
 
         return None
 
-    # # TODO: For some reason __repr__ doesn't work for State so we have to use __str__!
-    # def __str__(self):
-    # # def __repr__(self):
-    #     return self.name
-
     def is_next(self, state):
         return state.value > self.value
 

@@ -7,7 +7,7 @@ class NetworkTest(unittest.TestCase):
         pass
 
     def test_generate_nodes_ER(self):
-        topology = 'ER'
+        topology = 'ER-SINGLEQUORUMSET'
         nodes = Network.generate_nodes(n_nodes=5, topology=topology)
 
         for node in nodes:

@@ -13,7 +13,7 @@ from Log import log
 
 import numpy as np
 
-THRESHOLD_DEFAULT = 30 # 25% threshold by default
+THRESHOLD_DEFAULT = 35 # 25% threshold by default
 
 class QuorumSet():
 
@@ -51,13 +51,11 @@ class QuorumSet():
         if type(nodes) is not list:
             nodes = [nodes]
 
-        # TODO: Perform duplicate checks while adding nodes to the quorum!
         self.nodes = nodes
         self.inner_sets = inner_sets if inner_sets is not None else []
 
         log.quorum.info('Set nodes %s as the quorum set of Node %s.', nodes, self.node)
         log.quorum.info('Set nodes %s as the inner sets of Node %s.', inner_sets, self.node)
-
         return
 
     def get_node(self):
@@ -81,7 +79,6 @@ class QuorumSet():
     def get_quorum(self):
         return self.get_nodes(), self.get_inner_sets()
 
-    # This function checks if the quorum meets threshold - it checks every node, it doesn't check for nested QuorumSlices
     def check_threshold(self, val, quorum, threshold, node_statement_counter):
         signed_counter = 0
         # Safely get the entry for the candidate's hash; if not present, default to empty sets.

@@ -49,10 +49,6 @@ class Gillespie:
         log.gillespie.info('Initialized Gillespie algorithm.')
 
     def next_event(self):
-
-        # TODO: We are assuming that all events are asynchronous, while this is not true!
-        # TODO: - Synchronous events: 1) slot (every 5 seconds), 2) ballot counter timeout
-
         # Time increment to the next random event
         time_increment = -np.log(np.random.random()) / self.lambda_sum
 
@@ -62,11 +58,9 @@ class Gillespie:
         # Random event happens
         event_random = np.random.choice(self.events, p=self.event_probabilities)
 
-        # TODO: Events will be handled in the Simulator rather than in Gillespie!
         return [event_random, self.time]
 
     def check_max_time(self):
-        # TODO: If check_max_time is used to stop the simulation, then the last event will happen after max_time!
         return self.time < self.max_time
 
 

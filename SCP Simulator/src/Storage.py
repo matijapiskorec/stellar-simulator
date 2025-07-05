@@ -17,19 +17,10 @@ from Value import Value
 
 class Storage:
     _messages = None
-    # pending = None
-    # ballot_history = None
 
     def __init__(self, node):
-
-        # # TODO: Potential problem with circular imports?!
-        # assert isinstance(node, Node)
-
         self.node = node
         self._messages = []
-
-        # self.pending = list()
-        # self.ballot_history = dict()
 
         log.storage.info('Initialized storage for node %(node)s!' % self.__dict__)
 
@@ -55,8 +46,6 @@ class Storage:
         # Get a random message from storage.
         message = np.random.choice(self._messages) if len(self._messages) > 0 else None
         return message
-
-    # TODO: With @property we are returning a reference while we would probably want to return a copy!
 
     @property
     def messages(self):

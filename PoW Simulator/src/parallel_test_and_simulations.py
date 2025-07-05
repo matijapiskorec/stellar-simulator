@@ -27,7 +27,6 @@ FIELDNAMES = [
 ]
 
 def append_summary_row(row: dict):
-    """Append a single row to the shared CSV, creating it with headers if necessary."""
     os.makedirs(os.path.dirname(SUMMARY_CSV), exist_ok=True)
     file_exists = os.path.isfile(SUMMARY_CSV)
     with open(SUMMARY_CSV, "a", newline="") as f:
@@ -37,16 +36,14 @@ def append_summary_row(row: dict):
         writer.writerow(row)
 
 
-# adjust path so we can import Simulator, Globals, parse_pow_logs, Block
 ROOT = os.path.abspath(os.path.join(__file__, os.pardir, os.pardir))
 SRC = os.path.join(ROOT, "src")
 sys.path.insert(0, SRC)
 
 from Simulator import Simulator, Globals
-from TestPOWSimulator import parse_pow_logs    # adjust import path if necessary
-from Block import Block                        # adjust import path if necessary
+from TestPOWSimulator import parse_pow_logs
+from Block import Block
 
-# adjust path so we can import Simulator, Globals, parse_pow_logs, Block
 ROOT = os.path.abspath(os.path.join(__file__, os.pardir, os.pardir))
 SRC = os.path.join(ROOT, "src")
 sys.path.insert(0, SRC)
@@ -57,7 +54,6 @@ class TestPoWSimulator(unittest.TestCase):
     Runs one PoW simulation and verifies chain agreement, tx coverage,
     mining distribution, block sizes, and fork-depth distribution.
     """
-
     @classmethod
     def setUpClass(cls):
         cls.sim_duration = getattr(cls, "_sim_duration", 50.0)
@@ -184,7 +180,7 @@ class TestPoWSimulator(unittest.TestCase):
                 for line in f:
                     if "- NODE - CRITICAL -" not in line:
                         continue
-                    # Optionally: exclude mining events or any non-protocol lines
+
                     if "mined to the mempool" in line or "mined block" in line:
                         continue
                     total_msg_count += 1
@@ -209,11 +205,9 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
 
         log_filename = 'test_results.log'
 
-        # Save all prints and TestRunner's errors, etc.
-        # everything printed goes to log
         with open(log_filename, 'w') as log_file, \
              contextlib.redirect_stdout(log_file), \
-             contextlib.redirect_stderr(log_file): # everything that goes to standard error is logged
+             contextlib.redirect_stderr(log_file):
             result = runner.run(suite)
 
         import time
@@ -226,9 +220,6 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
         else:
             print(f"[WARN] ledger_logs.txt not found after simulation run {run_id}")
 
-        # 2) Now the TestPoWSimulator class has already built:
-        #    - sim (the Simulator instance)
-        #    - mined_df (parsed ledger_logs.txt)
         sim = TestPoWSimulator.sim
         mined_df = TestPoWSimulator.mined_df
         main_hashes = TestPoWSimulator.main_chain_hashes
@@ -238,8 +229,6 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
         blocks.sort(key=lambda blk: blk.height)
 
 
-        # 3) Re-compute any “extra” metrics not already on the TestPoWSimulator class:
-        #    (a) total_tx_created
         all_created = set()
         for node in sim.nodes:
             # from mempool
@@ -253,25 +242,13 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
                     all_created.update(tx._hash for tx in orphan.transactions)
         total_tx_created = len(all_created)
 
-        #    (b) main_chain_length
         main_chain_length = len(main_hashes)
-
-        """
-        #    (c) total_tx_in_mainchain
-        total_tx_in_mainchain = 0
-        for node in sim.nodes:
-            for blk in node.blockchain.get_longest_chain():
-                if blk.hash in main_hashes:
-                    total_tx_in_mainchain += len(blk.transactions) """
 
         total_tx_in_mainchain = sum(
             len(TestPoWSimulator.hash_to_block[h].transactions) for h in main_hashes )
 
-        #    (d) total_stale_blocks
         total_stale_blocks = len(stale_hashes)
 
-        #    (e) avg_depth_stale_blocks
-        #        (re-compute the depth‐of‐fork logic)
         h2b = {}
         for node in sim.nodes:
             for blk in node.blockchain.get_longest_chain():
@@ -283,7 +260,6 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
             d, cur = 0, block
             while cur.hash not in main_hashes:
                 d += 1
-                # Safeguard for genesis or missing block
                 if cur.prev_hash is None or cur.prev_hash not in h2b:
                     break
                 cur = h2b[cur.prev_hash]
@@ -295,39 +271,30 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
         if "block_hash" not in mined_df.columns:
             print("Ledger log parsing error: 'block_hash' column missing in mined_df. Columns are:", mined_df.columns)
             print("First few rows:", mined_df.head())
-            # Optionally, raise a custom error to help debugging
             raise RuntimeError(
                 "parse_pow_logs did not produce expected columns. Check ledger_logs.txt and parse_pow_logs.")
 
         if "block_hash" not in mined_df.columns or mined_df.empty:
             print("WARNING: No mining/creation events parsed from ledger_logs.txt")
         else:
-            #    (f) avg_blocks_per_node (on main chain)
             df_main = mined_df[
                 mined_df["block_hash"].isin(main_hashes)
                 & mined_df["node"].notnull()
                 ]
 
-        # 2) total count
         num_blocks = len(blocks)
         print(f"Total main-chain blocks: {num_blocks}")
 
-        # 3) heights for sanity check
         heights = [blk.height for blk in blocks]
         print(f"Heights on main chain: {heights}")
 
-        # 4) compute inter-block intervals
+        # compute inter-block intervals
         times = [blk.timestamp for blk in blocks]
         intervals = [t2 - t1 for t1, t2 in zip(times, times[1:])]
-
-        # 5) average (guarding against a single‐block corner case, though you say you always have >1)
         avg_inter = sum(intervals) / len(intervals) if intervals else float("nan")
-        print(f"Average inter-block time: {avg_inter:.3f} seconds")
+        print(f"Average inter-block time: {avg_inter:.3f} time units")
 
         avg_messages_per_block = TestPoWSimulator.compute_avg_messages_per_block(ledger_log_path=ledger_log_path, n_blocks=num_blocks)
-
-        #print(f"\nAverage inter-block time: {avg_inter_block_time:.2f} seconds")
-
         counts_dict = df_main.drop_duplicates(["node", "block_hash"]) \
             .groupby("node") \
             .size() \
@@ -336,14 +303,14 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
         blocks_per_node = [counts_dict.get(i, 0) for i in range(n_nodes)]
         avg_blocks_per_node = sum(blocks_per_node) / n_nodes
 
-        # 4) Finally, append to the shared CSV:
         append_summary_row({
             "node_count": n_nodes,
             "simulation_time": max_sim_time,
             "sim_params": json.dumps({
                 "n_nodes": n_nodes,
                 "sim_duration": max_sim_time,
-                "mine": 0.25
+                "mine": 1.0,
+                "Max_Txs": 100
             }),
             "total_tx_created": total_tx_created,
             "main_chain_length": main_chain_length,

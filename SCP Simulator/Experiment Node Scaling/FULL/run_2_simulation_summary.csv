@@ -1,0 +1,6 @@
+node_count,simulation_time,sim_params,total_tx_created,total_slots,total_tx_in_all_slots,avg_txs_per_slot,avg_inter_slot_time,messages_per_slot_finalisation
+12,100.0,"{""n_nodes"": 12, ""sim_duration"": 100.0}",1215,660,1200,1.82,1.75,3994.51
+25,50.0,"{""n_nodes"": 25, ""sim_duration"": 50.0}",1170,250,828,3.31,4.15,38720.20
+50,50.0,"{""n_nodes"": 50, ""sim_duration"": 50.0}",2452,100,374,3.74,17.99,380181.50
+100,50.0,"{""n_nodes"": 100, ""sim_duration"": 50.0}",4933,200,400,2.00,4.83,490830.50
+200,25.0,"{""n_nodes"": 200, ""sim_duration"": 25.0}",0,0,0,0,0,0

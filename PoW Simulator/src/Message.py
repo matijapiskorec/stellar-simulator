@@ -36,8 +36,6 @@ class Message():
         return new
 
     def __repr__(self):
-        # return '[SCPNominate message, voted = %s, accepted = %s]' % (self._voted, self._accepted)
-        # return '[%s message, data = %s]' % (type(self).__name__, self.__dict__)
         return '[%s message, data = %s]' % (type(self).__name__, self.__dict__)
 
     def __eq__(self, other):
@@ -46,12 +44,6 @@ class Message():
             return other._message_id == self._message_id
         else:
             return False
-
-    # def generate_id(self):
-    #     # self.message_id = uuid.uuid1(clock_seq=CLOCK_SEQ).hex
-    #     self.message_id = uuid.uuid4().hex[:UUID_LENGTH]
-
-    # TODO: With @property we are returning a reference while we would probably want to return a copy!
 
     @property
     def message_id(self):

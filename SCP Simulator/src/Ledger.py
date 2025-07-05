@@ -22,7 +22,7 @@ class Ledger():
         self._transactions = []
         self.node = node
 
-        self.slots = {}  # Dictionary to store {slot_number: value}
+        self.slots = {}
 
         log.ledger.info('Initialized ledger for node %(node)s!' % self.__dict__)
 
@@ -45,8 +45,6 @@ class Ledger():
         transaction_random = np.random.choice(self._transactions) if len(self.transactions) > 0 else None
 
         return transaction_random
-
-    # TODO: With @property we are returning a reference while we would probably want to return a copy!
 
     @property
     def transactions(self):

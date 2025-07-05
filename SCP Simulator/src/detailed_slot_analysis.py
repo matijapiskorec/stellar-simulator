@@ -12,11 +12,11 @@ class TestFinalizedIntegration(unittest.TestCase):
         # bump this high enough to let at least one slot externalize
         self.sim_duration = 200.0
 
-        # build a 60‑node ER sim
+        # build a 60‑node ER-SINGLEQUORUMSET sim
         self.sim = Simulator(verbosity=5, n_nodes=60)
         self.sim._nodes = Network.generate_nodes(
             n_nodes=self.sim.n_nodes,
-            topology='ER'
+            topology='ER-SINGLEQUORUMSET'
         )
         # share one mempool
         self.shared_mempool = Mempool()

@@ -16,11 +16,6 @@ class FBAConsensus:
 
     @classmethod
     def get_events(cls):
-
-        # mine - Node should add a new transaction to its ledger.
-        # gossip - Node should send a message to one of its peers.
-
-        # TODO: Add event for a node to retrieve transaction from the mempool!
         events = [Event('mine'),
                   Event('retrieve_transaction_from_mempool'),
                   Event('nominate'),
@@ -31,9 +26,6 @@ class FBAConsensus:
                   Event('receive_commit_message'),
                   Event('prepare_externalize_message'),
                   Event('receive_externalize_msg')]
-
-        # # TODO: Remove gossip event from the consensus!
-        # Event('gossip'),
 
         log.consensus.info('Sending FBAConsensus events %s.' %events)
 

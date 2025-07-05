@@ -20,7 +20,6 @@ class Transaction():
         log.transaction.info('Created transaction with hash %s and time %s', self._hash,self._time)
 
     def __repr__(self):
-        # return '[Transaction %s]' % (self._hash)
         return '[Transaction %s time = %.4f]' % (self._hash,self._time)
 
     @property

@@ -105,14 +105,13 @@ def compute_summary_metrics(events_log_path: str):
             if m:
                 mined_hashes.add(m.group(1))
     total_tx_created = len(mined_hashes)
-    # Finalisation/slots/adoption/externalize
+
     df = process_log_lines(events_log_path)
     total_slots = df["Externalize messages"].apply(len).sum()
     all_finalized = set()
     for s in df["Finalised transactions"]:
         all_finalized.update(s)
     total_tx_in_all_slots = len(all_finalized)
-    #total_tx_in_all_slots = df["No. of finalised transactions"].sum()
 
     avg_txs_per_slot = (total_tx_in_all_slots / total_slots) if total_slots else 0.0
 
@@ -154,8 +153,6 @@ import sys
 import argparse
 import json
 import csv
-
-# ... [rest of your imports and helper functions as before]
 
 
 def run_single_sim(run_id, n_nodes, max_sim_time):
@@ -215,9 +212,7 @@ def run_single_sim(run_id, n_nodes, max_sim_time):
 
 if __name__ == "__main__":
     test_configs = [
-        {"n_nodes": 7, "max_sim_time": 1000.0},
-        # Add more as needed:
-        # {"n_nodes": 12, "max_sim_time": 800.0},
+        {"n_nodes": 7, "max_sim_time": 1000.0}
     ]
     for run_id, params in enumerate(test_configs, 1):
         print(f"\n=== Running simulation {run_id} ===")
