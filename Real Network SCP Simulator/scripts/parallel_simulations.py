@@ -105,7 +105,7 @@ def compute_summary_metrics(events_log_path: str):
             if m:
                 mined_hashes.add(m.group(1))
     total_tx_created = len(mined_hashes)
-    # Finalisation/slots/adoption/externalize
+
     df = process_log_lines(events_log_path)
     total_slots = df["Externalize messages"].apply(len).sum()
     all_finalized = set()
