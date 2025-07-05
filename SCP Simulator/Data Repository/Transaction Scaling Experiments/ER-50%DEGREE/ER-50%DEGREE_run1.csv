@@ -1,0 +1,8 @@
+node_count,simulation_time,sim_params,total_tx_created,total_slots,total_tx_in_all_slots,avg_txs_per_slot,avg_inter_slot_time,messages_per_slot
+50,20.0,"{""n_nodes"": 50, ""sim_duration"": 20.0, ""mine"": 0.5, ""Max_Txs"": 100}",1949,100,400,4.00,2.05,192301.50
+50,20.0,"{""n_nodes"": 50, ""sim_duration"": 20.0, ""mine"": 0.25, ""Max_Txs"": 100}",4000,200,600,3.00,2.21,53129.00
+50,20.0,"{""n_nodes"": 50, ""sim_duration"": 20.0, ""mine"": 0.125, ""Max_Txs"": 100}",7972,100,400,4.00,3.51,184773.00
+50,20.0,"{""n_nodes"": 50, ""sim_duration"": 20.0, ""mine"": 0.0625, ""Max_Txs"": 100}",15866,100,400,4.00,2.83,118738.00
+50,20.0,"{""n_nodes"": 50, ""sim_duration"": 20.0, ""mine"": 0.03125, ""Max_Txs"": 100}",0,0,0,0,0,0
+50,20.0,"{""n_nodes"": 50, ""sim_duration"": 20.0, ""mine"": 0.15625, ""Max_Txs"": 100}",64238,150,487,3.25,2.56,97618.33
+50,20.0,"{""n_nodes"": 50, ""sim_duration"": 20.0, ""mine"": 0.0078125, ""Max_Txs"": 100}",0,0,0,0,0,0
