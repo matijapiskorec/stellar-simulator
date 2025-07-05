@@ -21,35 +21,6 @@ class NodeTest(unittest.TestCase):
     def setup(self):
         pass
 
-    # TODO: WRITE INTEGRATION TESTS ACROSS PHASES
-    # RUN SIMULATION FOR 10 SLOTS AND TEST TO SEE WHAT HAPPENS: SPECIFIC ASSERTS TO VERIFY CONSENSUS
-
-    # Commented out this test as it fails - fail is unrelated to our changes as it failed since we recieved code from Matija
-
-    # def test_generation_of_nodes(self):
-    #     nodes = Network.generate_nodes(n_nodes=5, topology='FULL')
-    #
-    #     mempool = Mempool()
-    #     for node in nodes:
-    #         node.attach_mempool(mempool)
-    #
-    #     mempool.mine()
-    #     nodes[0].retrieve_transaction_from_mempool()
-    #     nodes[0].nominate()
-    #     # nodes[1].retrieve_message_from_mempool()
-    #     nodes[1].retrieve_message_from_peer()
-    #
-    #     mempool.mine()
-    #     mempool.mine()
-    #     nodes[0].retrieve_transaction_from_mempool()
-    #     nodes[0].retrieve_transaction_from_mempool()
-    #     # nodes[1].retrieve_message_from_mempool()
-    #     nodes[1].retrieve_message_from_peer()
-    #
-    #     # Newly added transactions should not be visible in the message that was already posted to the mempool!
-    #     # This is true if we are sending a copy of transactions rather than a reference to transactions
-    #     self.assertTrue(len(nodes[1].messages[0]._voted[0]._transactions)==1)
-
     # Test whether we can calculate priority for each peer in the quorum set
     def test_priority_of_nodes(self):
 
@@ -2053,22 +2024,20 @@ class NodeTest(unittest.TestCase):
         # Create two transactions.
         tx_finalized = Transaction(400)
         tx_pending = Transaction(500)
-        # Wrap them in Value objects.
+
         value_finalized = Value(transactions={tx_finalized})
         value_pending = Value(transactions={tx_pending})
         # Create two SCPNominate messages using these Values, wrapped in lists.
         msg_finalized = SCPNominate(voted=[value_finalized], accepted=[value_finalized])
         msg_pending = SCPNominate(voted=[value_pending], accepted=[value_pending])
-        # Set the node's broadcast_flags.
+
         node.broadcast_flags = [msg_finalized, msg_pending]
-        # Simulate that the ledger finalized the Value for tx_finalized.
         node.ledger.slots[1] = {'value': value_finalized, 'timestamp': 123.0}
-        # Run the prune function.
         node.prune_nomination_phase_data()
-        # The message referencing the finalized Value should be pruned.
+
         self.assertNotIn(msg_finalized, node.broadcast_flags,
                          "Broadcast message with finalized Value should be pruned.")
-        # The message referencing the pending Value should remain.
+
         self.assertIn(msg_pending, node.broadcast_flags,
                       "Broadcast message with pending Value should remain.")
 
@@ -2088,23 +2057,21 @@ class NodeTest(unittest.TestCase):
         self.assertIn(value_pending.hash, node.statement_counter,
                       "Non-finalized Value should remain in statement_counter.")
 
-    # Optionally, add an extra test to check that even if a Value contains multiple transactions,
-    # if any one of them is finalized (by matching a Value exactly stored in the ledger),
-    # the entire Value is removed.
+
     def test_prune_removes_value_if_any_contained_tx_finalized(self):
         node = Node("test_node")
         # Create two transactions.
         tx1 = Transaction(700)
         tx2 = Transaction(800)
-        # Wrap both in one Value.
+
         value_mixed = Value(transactions={tx1, tx2})
-        # Simulate that the ledger finalized the entire Value (value_mixed) for a slot.
+        # Simulate that the ledger finalized the entire Value (value_mixed) for a slot
         node.ledger.slots[1] = {'value': value_mixed, 'timestamp': 456.0}
-        # Populate statement counter with this Value.
+
         node.statement_counter[value_mixed.hash] = {"voted": {"peer1": 1}, "accepted": {"peer1": 1}}
-        # Run pruning.
+
         node.prune_nomination_phase_data()
-        # Since value_mixed was finalized, it should be pruned.
+        # Since value_mixed was finalized, it should be pruned
         self.assertNotIn(value_mixed.hash, node.statement_counter,
                          "Value containing a finalized transaction(s) should be removed from statement counter.")
 
@@ -2131,22 +2098,17 @@ class NodeTest(unittest.TestCase):
             value_pending: {"voted": {"peer2"}, "accepted": {"peer2"}, "confirmed": set(), "aborted": set()}
         }
 
-        # 2. Set up commit_ballot_state for states 'voted', 'accepted', 'confirmed'.
-        # Each state's dictionary maps keys (could be any identifier) to an SCPBallot.
         node.commit_ballot_state = {
             'voted': {"k1": ballot_finalized, "k2": ballot_pending},
             'accepted': {"k1": ballot_finalized, "k2": ballot_pending},
             'confirmed': {"k1": ballot_finalized, "k2": ballot_pending}
         }
 
-        # 3. Set up commit_ballot_broadcast_flags.
-        # For the commit phase we use SCPCommit messages.
         commit_msg_finalized = SCPCommit(ballot=ballot_finalized, preparedCounter=ballot_finalized.counter)
         commit_msg_pending = SCPCommit(ballot=ballot_pending, preparedCounter=ballot_pending.counter)
-        # Now store them in a set.
         node.commit_ballot_broadcast_flags = {commit_msg_finalized, commit_msg_pending}
 
-        # 4. Set up received_commit_ballot_broadcast_msgs for a peer.
+
         node.received_commit_ballot_broadcast_msgs = {
             "peer1": [commit_msg_finalized, commit_msg_pending]
         }
@@ -2155,11 +2117,8 @@ class NodeTest(unittest.TestCase):
         # Its Value contains only tx_finalized.
         finalized_ballot = SCPBallot(counter=1, value=Value(transactions={tx_finalized}))
 
-        # Call the reset_commit_phase_state, which should remove any commit-phase entries referencing a ballot
-        # whose Value contains a transaction with the same hash as tx_finalized.
         node.reset_commit_phase_state(finalized_ballot)
 
-        # Helper functions to check if a Value or SCPBallot contains the finalized transaction.
         def value_contains_finalized_tx(value):
             return any(tx.hash == tx_finalized.hash for tx in value.transactions)
 
@@ -2209,7 +2168,7 @@ class NodeTest(unittest.TestCase):
         ballot_pending1 = SCPBallot(counter=1, value=value_pending1)
         ballot_pending2 = SCPBallot(counter=1, value=value_pending2)
 
-        # Set up commit_ballot_statement_counter (keys are Value objects).
+        # Set up commit_ballot_statement_counter
         node.commit_ballot_statement_counter = {
             value_pending1: {"voted": {"peer1"}, "accepted": {"peer1"}, "confirmed": set(), "aborted": set()},
             value_pending2: {"voted": {"peer2"}, "accepted": {"peer2"}, "confirmed": set(), "aborted": set()}
@@ -2222,8 +2181,6 @@ class NodeTest(unittest.TestCase):
             'confirmed': {"k1": ballot_pending1, "k2": ballot_pending2}
         }
 
-        # Set up commit_ballot_broadcast_flags (as a list or set is acceptable if the ballots are hashable);
-        # here we use a list for simplicity.
         commit_msg1 = SCPCommit(ballot=ballot_pending1, preparedCounter=ballot_pending1.counter)
         commit_msg2 = SCPCommit(ballot=ballot_pending2, preparedCounter=ballot_pending2.counter)
         node.commit_ballot_broadcast_flags = [commit_msg1, commit_msg2]
@@ -2237,10 +2194,9 @@ class NodeTest(unittest.TestCase):
         tx_unrelated = Transaction(600)
         finalized_ballot = SCPBallot(counter=1, value=Value(transactions={tx_unrelated}))
 
-        # Call reset_commit_phase_state.
         node.reset_commit_phase_state(finalized_ballot)
 
-        # Assert that commit-phase state remains unchanged.
+        # Assert that commit-phase state remains unchanged
         self.assertEqual(len(node.commit_ballot_statement_counter), 2,
                          "No commit ballot statement should be pruned if none contain the finalized transaction.")
         for state in ['voted', 'accepted', 'confirmed']:
@@ -2268,14 +2224,14 @@ class NodeTest(unittest.TestCase):
         node.commit_ballot_broadcast_flags = []
         node.received_commit_ballot_broadcast_msgs = {}
 
-        # Create a finalized_ballot (its value doesn't really matter here).
+        # Create a finalized_ballot
         tx = Transaction(700)
         finalized_ballot = SCPBallot(counter=1, value=Value(transactions={tx}))
 
-        # Call reset_commit_phase_state.
+        # Call reset_commit_phase_state
         node.reset_commit_phase_state(finalized_ballot)
 
-        # Assert that all commit-phase data structures remain empty.
+        # Assert that all commit-phase data structures remain empty
         self.assertEqual(node.commit_ballot_statement_counter, {},
                          "Empty commit_ballot_statement_counter should remain empty.")
         for state in ['voted', 'accepted', 'confirmed']:
@@ -2391,10 +2347,8 @@ class NodeTest(unittest.TestCase):
         # Create a finalized_ballot that finalizes value_finalized.
         finalized_ballot = SCPBallot(counter=1, value=value_finalized)
 
-        # Call the reset function.
         node.reset_prepare_ballot_phase(finalized_ballot)
 
-        # --- Assertions ---
         # (A) In balloting_state: All entries whose ballot.value.hash equals value_finalized.hash should be removed.
         for state in ['voted', 'accepted', 'confirmed', 'aborted']:
             for key, ballot in node.balloting_state[state].items():
@@ -2428,8 +2382,6 @@ class NodeTest(unittest.TestCase):
             for msg in msgs:
                 self.assertNotEqual(msg.ballot.value.hash, value_finalized.hash,
                                     f"Received prepare broadcast messages for peer {peer} should not include messages with the finalized value.")
-
-
 
 if __name__ == "__main__":
     unittest.main()

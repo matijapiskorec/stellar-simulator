@@ -9,27 +9,23 @@ from SCPExternalize import SCPExternalize
 
 class TestFinalizedIntegration(unittest.TestCase):
     def setUp(self):
-        # bump this high enough to let at least one slot externalize
         self.sim_duration = 200.0
 
-        # build a 60‑node ER-SINGLEQUORUMSET sim
         self.sim = Simulator(verbosity=5, n_nodes=60)
         self.sim._nodes = Network.generate_nodes(
             n_nodes=self.sim.n_nodes,
             topology='ER-SINGLEQUORUMSET'
         )
-        # share one mempool
+
         self.shared_mempool = Mempool()
         for n in self.sim._nodes:
             n.attach_mempool(self.shared_mempool)
         self.sim._mempool = self.shared_mempool
 
-        # reset time and extend sim time
         Globals.simulation_time = 0.0
         self.sim._max_simulation_time = self.sim_duration
 
     def tearDown(self):
-        # clean up any logs
         for fn in ("ledger_logs.txt", self.shared_mempool.log_path):
             if os.path.exists(fn):
                 os.remove(fn)
@@ -39,20 +35,16 @@ class TestFinalizedIntegration(unittest.TestCase):
         self.sim.run()
 
         first = self.sim.get_first_externalized_values()
-        # sanity: every node got something
         self.assertEqual(
             set(self.sim._nodes),
             set(first.keys()),
             "Every node should have externalized at least one value"
         )
 
-        # and exactly one
         for v, val in first.items():
-            # The simulator only records the *first* externalize per node
-            # in externalize_broadcast_flags, so we know there's just one.
             self.assertIsInstance(val, SCPExternalize)
             self.assertEqual(
-                val.value,                # the XDR SCPExternalize carries its ballot/value
+                val.value,
                 v.ledger.slots[val.slot]['value'],
                 f"Node {v.name}: mismatch between first‑externalized and ledger"
             )
@@ -80,7 +72,6 @@ class TestFinalizedIntegration(unittest.TestCase):
         for node, ext in first.items():
             final_val = ext.value
 
-            # Prepare machine states
             for state in ('voted','accepted','confirmed','aborted'):
                 for b in node.balloting_state[state].values():
                     with self.subTest(node=node.name, state=state, ballot=b):
@@ -89,7 +80,6 @@ class TestFinalizedIntegration(unittest.TestCase):
                             f"Node {node.name}: in prepare‑{state}, ballot {b} has wrong Value"
                         )
 
-            # Commit machine states
             for state in ('voted','accepted','confirmed'):
                 for b in node.commit_ballot_state[state].values():
                     with self.subTest(node=node.name, state=state, ballot=b):

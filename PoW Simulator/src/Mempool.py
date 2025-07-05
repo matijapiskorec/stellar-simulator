@@ -4,7 +4,7 @@ Mempool
 =========================
 
 Author: Matija Piskorec, Jaime de Vivero Woods
-Last update: April 2025
+Last update: July 2025
 
 Mempool class.
 
@@ -56,4 +56,3 @@ class Mempool():
         top_tx = max(self.transactions, key=lambda tx: tx.fee)
         log.mempool.info("Selected highest-fee transaction %s", top_tx)
         return top_tx
-

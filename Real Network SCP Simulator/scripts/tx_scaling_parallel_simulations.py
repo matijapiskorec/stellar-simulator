@@ -220,9 +220,9 @@ def main():
         print("RUNNING WITH PARAMS = ", params)
         results = pool.starmap(worker, params)
     if not all(results):
-        print("❌ Some runs failed—check logs.")
+        print("Some runs failed—check logs.")
         sys.exit(1)
-    print("✅ All simulations complete.")
+    print("All simulations complete.")
 
 
 if __name__ == "__main__":

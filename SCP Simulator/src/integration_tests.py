@@ -12,7 +12,6 @@ from Network import Network
 import re
 
 
-# A dummy event class is used here if the event objects are simple
 class DummyEvent:
     def __init__(self, name):
         self.name = name
@@ -28,9 +27,8 @@ class TestSCPSimulatorIntegration(unittest.TestCase):
         # Adjust the parameters as needed.
         self.simulator = Simulator(verbosity=5, n_nodes=60)
 
-        # Optionally, define a maximum simulation time for the integration test.
         self.simulation_duration = 50.0  # seconds, adjust as needed
-        # Set a maximum simulation time in Globals if your simulator uses that.
+        # Set a maximum simulation time in Globals if your simulator uses that
         Globals.simulation_time = 0.0
         self.simulator._max_simulation_time = self.simulation_duration
 
@@ -43,7 +41,7 @@ class TestSCPSimulatorIntegration(unittest.TestCase):
           - Trigger nomination.
           - Verify that at least one node has a new nominated Value in its nomination state.
         """
-        # Simulate mining events to populate the mempool.
+        # Simulate mining events to populate the mempool
         for _ in range(10):
             self.simulator._handle_event(DummyEvent('mine'))
 
@@ -147,9 +145,7 @@ class TestSlotFinalization(unittest.TestCase):
 
     def setUp(self):
         # Initialize the simulator with your desired parameters.
-        # (Make sure Simulator() instantiates nodes, the mempool, etc.)
         self.simulator = Simulator(verbosity=5, n_nodes=60)
-        # Set an extended simulation time—for instance, 100 simulation seconds.
         self.simulator._max_simulation_time = 200.0
         Globals.simulation_time = 0.0
 
@@ -200,10 +196,8 @@ class TestSlotFinalization(unittest.TestCase):
         self.assertGreater(new_count, initial_count, "Mempool did not increase after mine events.")
 
     def test_log_externalize_slot_progression(self):
-        # Run simulation.
         self.simulator.run()
         log_file = "ledger_logs.txt"
-        # This helper function processes the log into a pandas DataFrame.
         df = self._process_ledger_logs(log_file)
         unique_slots = df['Slot'].nunique()
         print(f"Total unique slots finalized according to log file: {unique_slots}")
@@ -294,8 +288,6 @@ class TestSCPSimulatorIntegration2(unittest.TestCase):
     def test_state_reset_logging(self):
         node = self.simulator._nodes[0]
 
-        # Create dummy objects to simulate a finalized ballot.
-        # For simplicity, we create one transaction, then a value and a ballot.
         from Transaction import Transaction
         from Value import Value
         from SCPBallot import SCPBallot
@@ -304,11 +296,9 @@ class TestSCPSimulatorIntegration2(unittest.TestCase):
         value = Value(transactions={tx})
         ballot = SCPBallot(counter=1, value=value)
 
-        # Insert the dummy ballot into commit_ballot_state.
         node.commit_ballot_state['confirmed'][1] = ballot
         node.commit_ballot_state['voted'][1] = ballot
 
-        # Log the counts before reset.
         count_before = len(node.commit_ballot_state['confirmed'])
         print(f"Before reset, Node {node.name} 'confirmed' ballots: {count_before}")
 
@@ -331,7 +321,7 @@ class TestSCPSimulatorIntegration2(unittest.TestCase):
         df = self._process_ledger_logs(log_file)
         unique_slots = df['Slot'].nunique()
         print(f"Unique slots finalized according to log file: {unique_slots}")
-        # Adjust the expected minimum as needed.
+
         self.assertGreater(unique_slots, 7, "The log indicates too few slots were finalized.")
 
     def _process_ledger_logs(self, file_path):
@@ -377,7 +367,6 @@ class TestSCPSimulatorIntegration2(unittest.TestCase):
                     })
         df = pd.DataFrame(data)
         return df
-
 
 if __name__ == '__main__':
     unittest.main()

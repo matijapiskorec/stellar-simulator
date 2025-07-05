@@ -11,7 +11,6 @@ from src.Mempool import Mempool
 from src.Globals import Globals
 
 
-# A dummy event class for triggering simulation events in tests.
 class DummyEvent:
     def __init__(self, name):
         self.name = name
@@ -35,14 +34,12 @@ class TestFinalizedStateIntegrity(unittest.TestCase):
             node.attach_mempool(self.shared_mempool)
         self.simulator._mempool = self.shared_mempool  # So that simulator events (like mine) can use it.
 
-        # Set global simulation time to 0.
         Globals.simulation_time = 0.0
 
         # Extend the maximum simulation time.
         self.simulator._max_simulation_time = self.sim_duration
 
     def tearDown(self):
-        # Optionally remove log files if needed.
         ledger_log = "ledger_logs.txt"
         if os.path.exists(ledger_log):
             os.remove(ledger_log)
@@ -57,7 +54,7 @@ class TestFinalizedStateIntegrity(unittest.TestCase):
         finalized_tx_ids = set()
         for slot_data in node.ledger.slots.values():
             finalized_value = slot_data['value']
-            # Here, we assume finalized_value.transactions is an iterable of Transaction objects.
+            # Here, we assume finalized_value.transactions is an iterable of Transaction objects
             for tx in finalized_value.transactions:
                 finalized_tx_ids.add(tx.hash)
         return finalized_tx_ids
@@ -68,19 +65,19 @@ class TestFinalizedStateIntegrity(unittest.TestCase):
         in key state dictionaries (mempool, nomination_state, balloting_state, commit_ballot_state)
         contain any transaction whose hash is in finalized_tx_ids.
         """
-        # Check mempool transactions.
+        # Check mempool transactions
         for tx in node.mempool.transactions:
             self.assertNotIn(tx.hash, finalized_tx_ids,
                              f"Node {node.name} mempool contains a finalized transaction {tx}.")
 
-        # Check nomination state (voted, accepted, confirmed).
+        # Check nomination state (voted, accepted, confirmed)
         for state in ['voted', 'accepted', 'confirmed']:
             for value in node.nomination_state.get(state, []):
                 for tx in value.transactions:
                     self.assertNotIn(tx.hash, finalized_tx_ids,
                                      f"Node {node.name} nomination state '{state}' contains a finalized transaction {tx}.")
 
-        # Check prepare (balloting_state) for all keys.
+        # Check prepare (balloting_state) for all keys
         for state in ['voted', 'accepted', 'confirmed', 'aborted']:
             for ballot in node.balloting_state.get(state, {}).values():
                 for tx in ballot.value.transactions:
@@ -100,15 +97,14 @@ class TestFinalizedStateIntegrity(unittest.TestCase):
         none of the internal state dictionaries (mempool, nomination state, balloting_state,
         commit_ballot_state) contain any transaction that has been finalized in any slot.
         """
-        # Run the simulation.
         self.simulator.run()
 
-        # For each node, collect the finalized transaction IDs from its ledger.
+        # For each node, collect the finalized transaction IDs from its ledger
         for node in self.simulator._nodes:
             finalized_tx_ids = self.collect_finalized_tx_ids(node)
             print(f"Node {node.name}: Finalized transactions: {finalized_tx_ids}")
 
-            # Now check each node's state.
+            # Now check each node's state
             self.check_state_for_finalized_txs(node, finalized_tx_ids)
 
     def test_slot_progression(self):
@@ -128,7 +124,6 @@ class TestFinalizedStateIntegrity(unittest.TestCase):
     def _process_ledger_logs(self, file_path):
 
         def get_transaction_count(line):
-            # Look for text within square brackets after 'transactions = '
             pattern = r"transactions\s*=\s*\[(.*?)\]"
             match = re.search(pattern, line)
             if match:

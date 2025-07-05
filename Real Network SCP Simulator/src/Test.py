@@ -18,21 +18,14 @@ class SimulatorTest(unittest.TestCase):
         pass
 
     def test_initialize_simulator(self):
-        # Can we initialize the simulator?
         simulator = Simulator(verbosity=0)
         self.assertTrue(isinstance(simulator,Simulator))
-
-        # # Can we initialize the simulator with different verbosity levels?
-        # for i in range(1,6):
-        #     simulator = Simulator(verbosity=i)
-        #     self.assertTrue(isinstance(simulator,Simulator))
 
     def test_run_simulator(self):
         verbosity = 0
         n_nodes = 2
         simulator = Simulator(verbosity=verbosity,n_nodes=n_nodes)
         simulator.run()
-        # Did we created the right number of nodes?
         self.assertTrue(len(simulator.nodes)==n_nodes)
 
     def test_gillespie(self):
@@ -54,7 +47,6 @@ class SimulatorTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    # Comment out if you are running multiple tests and don't want any output!
     log.set_level(5)
     unittest.main()
 

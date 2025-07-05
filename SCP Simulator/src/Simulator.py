@@ -55,7 +55,7 @@ class Simulator:
 
         self.timeStart = time.time()
         # ER_singlequorumset
-        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='FULL')
+        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='BA')
 
         if simulation_params is not None:
             self.simulation_params = simulation_params
@@ -113,10 +113,6 @@ class Simulator:
 
     def all_nodes_finalized(self):
         check = all(isinstance(node.externalized_slot_counter, SCPExternalize) for node in self._nodes)
-        print("THE CHECK IS ", check)
-        # for node in self._nodes:
-            # if not isinstance(node.externalize_broadcast_flags, SCPExternalize):
-                # log.simulator.info(f"Node {node.name} has not finalized yet. Flag: {node.externalize_broadcast_flags}")
         return check
 
     def run(self):
@@ -135,8 +131,6 @@ class Simulator:
         if self._verbosity:
             log.simulator.debug('Running Gillespie algorithm.')
 
-        # ALL SIMULATION EVENTS COULD OCCUR AT ANY POINT, WHEN WE IMPLEMENT BALLOTING WE'LL HAVE TO
-        # DISABLE NOMINATE
 
         # Concatenate events you get from the FBAConsensus and Node class
         self._events = [*FBAConsensus.get_events(), *Node.get_events()]
@@ -151,9 +145,6 @@ class Simulator:
 
         # Remove events for which we don't have simulation parameters
         self._events = [event for event in self._events if event.simulation_params is not None]
-
-        # Initialize Gillespie with a collection of events and their probabilities
-        # Then query it repeatedly to receive next event
 
         gillespie = Gillespie(self._events, max_time=self._max_simulation_time)
 
@@ -175,19 +166,11 @@ class Simulator:
 
         match event.name:
             case 'mine': # CREATE TRANSACTION
-
-                # Mempool is responsible for handling the mine event
-                #self._mempool.mine()
                 node = np.random.choice(self._nodes)
                 node.mempool.mine()
-                # Globals.mempool.mine()
 
             case 'retrieve_transaction_from_mempool':
-
-                # Choose a random node which retrieves the transaction from mempool.
                 node_random = np.random.choice(self._nodes)
-
-                # Send the event to the respective node and the mempool
                 node_random.retrieve_transaction_from_mempool()
 
             case 'nominate':

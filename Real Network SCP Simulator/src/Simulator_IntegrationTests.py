@@ -60,7 +60,6 @@ def process_log_lines(file_path):
                 data.append({'node': node, 'timestamp': ts, 'msg': line.strip(), 'slot': slot})
     return pd.DataFrame(data)
 
-
 def analyze_transaction_duplicates(df):
     occ, msg_types = defaultdict(set), defaultdict(set)
     for _, row in df.iterrows():
@@ -72,7 +71,6 @@ def analyze_transaction_duplicates(df):
             msg_types[tx].add(prefix)
     return {tx: {'occurrences': occ[tx], 'msg_types': msg_types[tx]}
             for tx in occ if len({s for (_, s) in occ[tx]}) > 1}
-
 
 def analyze_value_duplicates(df):
     occ, msg_types = defaultdict(set), defaultdict(set)
@@ -108,13 +106,6 @@ def analyze_slot_value_mismatches(df):
 def check_slot_consensus(df):
     """
     Checks consensus for each slot observed in the DataFrame.
-
-    Returns a dict:
-      slot_number -> {
-         'consensus': True if exactly one value was externalized,
-                       False otherwise,
-         'values': set of finalized value hashes
-      }
     """
     # Gather values per observed slot
     slot_to_values = defaultdict(set)
@@ -262,7 +253,6 @@ class SimulatorIntegrationTest(unittest.TestCase):
                         self.clean_log_files()
                         open("ledger_logs.txt", 'w').close()
 
-                        # Now create simulator WITH custom simulation params
                         simulator = Simulator(
                             verbosity=5,
                             n_nodes=n_nodes,
@@ -274,14 +264,10 @@ class SimulatorIntegrationTest(unittest.TestCase):
 
                         self.assertGreaterEqual(len(simulator.nodes), (n_nodes//2))
 
-                        # --- Analyze duplicates ---
+
                         df = process_log_lines("simulator_events_log.txt")
                         tx_dups = analyze_transaction_duplicates(df)
                         val_dups = analyze_value_duplicates(df)
-                        #consensus_results = check_slot_consensus(df)
                         consensus = check_slot_consensus(df)
                         mismatches = analyze_slot_value_mismatches(df)
                         self.log_run_results(n_nodes, simulation_params, tx_dups, val_dups, consensus, mismatches)
-
-
-                # TODO: After running all, add code to collect and check duplicates

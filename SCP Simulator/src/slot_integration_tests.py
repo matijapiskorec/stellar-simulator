@@ -11,7 +11,6 @@ from src.Mempool import Mempool
 from src.Globals import Globals
 
 
-# A dummy event class for triggering simulation events in tests.
 class DummyEvent:
     def __init__(self, name):
         self.name = name
@@ -20,29 +19,22 @@ class DummyEvent:
 
 class TestFinalizedStateIntegrity(unittest.TestCase):
     def setUp(self):
-        # Set simulation duration to a value long enough for at least one (or more) slots to be finalized.
-        self.sim_duration = 100.0  # E.g., 300 simulation time units.
+        self.sim_duration = 100.0
 
         # Create the simulator with desired number of nodes.
         self.simulator = Simulator(verbosity=5, n_nodes=60)
-
-        # Use a selected topology; here we use 'ER-SINGLEQUORUMSET'.
         self.simulator._nodes = Network.generate_nodes(n_nodes=self.simulator.n_nodes, topology='ER-SINGLEQUORUMSET')
 
-        # Create a shared mempool and attach it to every node.
         self.shared_mempool = Mempool()
         for node in self.simulator._nodes:
             node.attach_mempool(self.shared_mempool)
         self.simulator._mempool = self.shared_mempool  # So that simulator events (like mine) can use it.
 
-        # Set global simulation time to 0.
         Globals.simulation_time = 0.0
 
-        # Extend the maximum simulation time.
         self.simulator._max_simulation_time = self.sim_duration
 
     def tearDown(self):
-        # Optionally remove log files if needed.
         ledger_log = "ledger_logs.txt"
         if os.path.exists(ledger_log):
             os.remove(ledger_log)
@@ -57,7 +49,6 @@ class TestFinalizedStateIntegrity(unittest.TestCase):
         finalized_tx_ids = set()
         for slot_data in node.ledger.slots.values():
             finalized_value = slot_data['value']
-            # Here, we assume finalized_value.transactions is an iterable of Transaction objects.
             for tx in finalized_value.transactions:
                 finalized_tx_ids.add(tx.hash)
         return finalized_tx_ids
@@ -68,7 +59,6 @@ class TestFinalizedStateIntegrity(unittest.TestCase):
         in key state dictionaries (mempool, nomination_state, balloting_state, commit_ballot_state)
         contain any transaction whose hash is in finalized_tx_ids.
         """
-        # Check mempool transactions.
         for tx in node.mempool.transactions:
             self.assertNotIn(tx.hash, finalized_tx_ids,
                              f"Node {node.name} mempool contains a finalized transaction {tx}.")
@@ -118,7 +108,6 @@ class TestFinalizedStateIntegrity(unittest.TestCase):
         This confirms that the externalization phase is progressing.
         """
         self.simulator.run()
-        # Process ledger logs.
         log_file = "ledger_logs.txt"
         df = self._process_ledger_logs(log_file)
         unique_slots = df['Slot'].nunique()

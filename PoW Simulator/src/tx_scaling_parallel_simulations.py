@@ -70,7 +70,6 @@ def worker(run_id, n_nodes, max_sim_time, simulation_params):
 
         stale_hashes = set(hash_to_block) - main_hashes
 
-        # --- Robust, unique transaction counting ---
         all_created = set()
         for node in sim.nodes:
             # from mempool
@@ -84,7 +83,6 @@ def worker(run_id, n_nodes, max_sim_time, simulation_params):
                     all_created.update(getattr(tx, "_hash", getattr(tx, "hash", None)) for tx in orphan.transactions)
         all_created.discard(None)
         total_tx_created = len(all_created)
-        # --- End unique transaction counting ---
 
         total_tx_in_mainchain = sum(
             len(hash_to_block[h].transactions) for h in main_hashes if h in hash_to_block
@@ -163,9 +161,9 @@ def main():
         results = pool.starmap(worker, params)
 
     if not all(results):
-        print("❌ Some runs failed—check logs.")
+        print("Some runs failed—check logs.")
         sys.exit(1)
-    print("✅ All simulations completed.")
+    print("All simulations completed.")
 
 if __name__ == "__main__":
     main()

@@ -52,7 +52,6 @@ class Simulator:
 
         # TODO: _max_simulation_time should be loaded from the config!
         self._max_simulation_time = 5
-        # self._simulation_time = 0
 
         self._set_logging()
 
@@ -106,16 +105,6 @@ class Simulator:
         if self._verbosity:
             log.simulator.debug('Running Gillespie algorithm.')
 
-        """simulation_params = {
-            # EDIT MINE, SO THAT ITS OVER ALL NODES AND EACH NODE HAS LOCAL MEMPOOL
-            # having self.nodes as domain affects the poisson distribution, so tau
-            # has to be adjusted or total txs will scale based on no. of nodes
-            'create transaction': {'tau': 1.0, 'tau_domain': self._nodes},
-            'retrieve transaction': {'tau': 1.0, 'tau_domain': self._nodes},
-            'mine' : {'tau': 5.0, 'tau_domain': self._nodes},
-            'receive block': {'tau': 2.5, 'tau_domain': self._nodes},
-
-        }"""
         if self.simulation_params is None:
             self.simulation_params = {
                 'create transaction': {'tau': 1.0, 'tau_domain': self._nodes}, # avg tx creation of 1.1 per node
@@ -131,7 +120,6 @@ class Simulator:
 
         print("Parsed simulation_params for this run:", self.simulation_params)
 
-        # Concatenate events you get from the FBAConsensus and Node class
         self._events = [*POWConsensus.get_events(), *Node.get_events()]
 
         # Set the simulation parameters of all events for which we have them
@@ -166,20 +154,14 @@ class Simulator:
         """
 
         if self._verbosity:
-            # log.simulator.info('Handling event %s at simulation time = %.3f',event.name,self._simulation_time)
             log.simulator.info('Handling event %s at simulation time = %.3f',event.name,Globals.simulation_time)
 
         match event.name:
 
-            case 'mine': # CREATE TRANSACTION
-                # Mempool is responsible for handling the mine event
-                #self._mempool.mine()
+            case 'mine':
                 node = np.random.choice(self._nodes)
                 node.mine()
 
-                #node = np.random.choice(self._nodes)
-                #node.mempool.mine()
-                # Globals.mempool.mine()
             case 'create transaction':
                 node = np.random.choice(self._nodes)
                 node.create_transaction()
@@ -187,11 +169,6 @@ class Simulator:
             case 'retrieve transaction':
                 node = np.random.choice(self._nodes)
                 node.receive_txs_from_peer()
-                # Choose a random node which retrieves the transaction from mempool.
-                #node_random = np.random.choice(self._nodes)
-
-                # Send the event to the respective node and the mempool
-                #node_random.retrieve_transaction_from_mempool()
 
             case 'receive block':
                 node = np.random.choice(self._nodes)

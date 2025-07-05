@@ -18,7 +18,6 @@ class Blockchain():
         self._transactions = []
         self.node = node
         self.chain = {} # Map block hash to Block
-        # orphan blocks: block_hash -> Block
         self.orphans = {}
 
         log.blockchain.info('Initialized ledger for node %(node)s!' % self.__dict__)
@@ -28,7 +27,7 @@ class Blockchain():
 
     def add_block(self, block):
         """
-        Add a block to the chain store. Handles genesis, forks, orphans, and re-orgs.
+        Add a block to the chain. Handles genesis, forks, orphans, and re-orgs.
         Returns True if block processed (even if orphaned), False if duplicate.
         """
         # Check if this block is the Genesis block
@@ -153,7 +152,6 @@ class Blockchain():
                 continue
             break
 
-        # Return the “headers” (Blocks without downloading txs again)
         return longest[start : start + 2000]
 
 

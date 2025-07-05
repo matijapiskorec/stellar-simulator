@@ -112,7 +112,6 @@ def compute_summary_metrics(events_log_path: str):
     for s in df["Finalised transactions"]:
         all_finalized.update(s)
     total_tx_in_all_slots = len(all_finalized)
-    #total_tx_in_all_slots = df["No. of finalised transactions"].sum()
 
     avg_txs_per_slot = (total_tx_in_all_slots / total_slots) if total_slots else 0.0
 
@@ -166,9 +165,6 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float) -> bool:
          avg_inter_slot_time) = compute_summary_metrics(events_log)
         print(f"[worker] → created: {total_tx_created}, slots: {total_slots}, finalised: {total_tx_in_all_slots}")
 
-        #mine_log = "simulation_mine_events.txt"
-        #total_tx_created = compute_total_tx_created(mine_log)
-        #print(f"[worker] total_tx_created (mined): {total_tx_created}")
         mine_log = "simulator_mine_events.txt"
         if os.path.isfile(mine_log):
             total_tx_created = compute_total_tx_created(mine_log)
@@ -215,9 +211,9 @@ def main():
     with multiprocessing.Pool(cores) as pool:
         results = pool.starmap(worker, params)
     if not all(results):
-        print("❌ Some runs failed—check logs.")
+        print("Some runs failed—check logs.")
         sys.exit(1)
-    print("✅ All simulations complete.")
+    print("All simulations complete.")
 
 if __name__ == "__main__":
     main()

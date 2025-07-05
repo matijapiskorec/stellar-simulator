@@ -14,16 +14,6 @@ from Transaction import Transaction
 import time
 
 class Block():
-    """
-    A PoW Block:
-      - prev_hash: hash of parent block
-      - transactions: list of Transaction
-      - difficulty: current network difficulty
-      - timestamp: seconds since epoch
-      - nonce: the proof‐of‐work nonce
-      - _hash: computed block hash
-    """
-
     def __init__(self, *, prev_hash, transactions=None, timestamp=None, height: int = 0):
         self.prev_hash = prev_hash
         self._transactions = transactions if transactions is not None else []
@@ -56,10 +46,6 @@ class Block():
         return self._hash
 
     def _compute_hash(self):
-        """
-        Compute a (Python) hash of the block’s contents.
-        Using Python’s hash() for simulation purposes.
-        """
         return hash(( self.prev_hash, frozenset(self._transactions), self.timestamp,))
 
     @property

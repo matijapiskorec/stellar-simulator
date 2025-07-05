@@ -49,10 +49,6 @@ class Gillespie:
         log.gillespie.info('Initialized Gillespie algorithm.')
 
     def next_event(self):
-
-        # TODO: We are assuming that all events are asynchronous, while this is not true!
-        # TODO: - Synchronous events: 1) slot (every 5 seconds), 2) ballot counter timeout
-
         # Time increment to the next random event
         time_increment = -np.log(np.random.random()) / self.lambda_sum
 

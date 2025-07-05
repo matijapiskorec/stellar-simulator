@@ -31,7 +31,7 @@ class Ledger():
 
     def add(self, transaction):
 
-        # Only add a transaction if it's not already in node's ledger!
+        # Only add a transaction if it's not already in node's ledger
         if transaction not in self._transactions:
             self._transactions.append(transaction)
             log.ledger.info('Node %s: transaction %s added!', self.node.name, transaction)
@@ -40,13 +40,9 @@ class Ledger():
         return
 
     def get_transaction(self):
-
-        # Get a random transaction from the ledger.
         transaction_random = np.random.choice(self._transactions) if len(self.transactions) > 0 else None
 
         return transaction_random
-
-    # TODO: With @property we are returning a reference while we would probably want to return a copy!
 
     @property
     def transactions(self):
@@ -65,5 +61,4 @@ class Ledger():
             log.ledger.info('Node %s: transaction for slot %d already exists!',self.node.name, slot)
 
     def get_slot(self, slot):
-        print("SLOTS LOOKS LIKE : ", self.slots)
         return self.slots.get(slot, None)

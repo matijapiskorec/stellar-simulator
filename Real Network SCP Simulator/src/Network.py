@@ -125,14 +125,14 @@ class Network():
                 return nodes
 
             case 'ER_singlequorumset':
-                # 1) create all nodes
+                # create all nodes
                 nodes = []
                 for i in range(n_nodes):
                     nodes.append(Node(i))
                     log.network.debug('Node created: %s', nodes[-1])
                 node_map = {int(n.name): n for n in nodes}
 
-                # 2) build random ER-SINGLEQUORUMSET graph & find LCC
+                # build random ER-SINGLEQUORUMSET graph & find LCC
                 log.network.debug('Building ER_singlequorumset graph with p=0.5')
                 graph = nx.fast_gnp_random_graph(n_nodes, 0.5)
                 lcc = max(nx.connected_components(graph), key=len)
@@ -140,10 +140,10 @@ class Network():
                 if missing:
                     log.network.debug('Dropping isolated/excluded nodes: %s', missing)
 
-                # 3) restrict execution to the LCC
+                # restrict execution to the LCC
                 sq_nodes = [node_map[i] for i in lcc]
 
-                # 4) for each node, quorum = its LCC-neighbors + itself
+                # for each node, quorum = its LCC-neighbors + itself
                 for node in sq_nodes:
                     idx = int(node.name)
                     nbrs = [nbr for nbr in graph.neighbors(idx) if nbr in lcc]
@@ -154,10 +154,9 @@ class Network():
                         'Adding nodes %s to the flat quorum of Node %s',
                         [n.name for n in quorum_members], node
                     )
-                    # your signature only needs the member list
                     node.set_quorum(nodes=quorum_members, inner_sets=[])
 
-                # 5) return exactly the validators that made it into the LCC
+                # return exactly the validators that made it into the LCC
                 return sq_nodes
 
             case 'HARDCODE':
@@ -193,7 +192,6 @@ class Network():
                         result.append(build_inner_list(sub, parent_id))
                     return result
 
-                # 5) second pass: wire up each node
                 for entry in data_list:
                     node_id = entry["publicKey"]
                     node = nodes_dict[node_id]
@@ -237,7 +235,6 @@ class Network():
                         len(referenced_undefined), sorted(referenced_undefined)
                     )
 
-                # 7) return them
                 return list(nodes_dict.values())
 
 

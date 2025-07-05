@@ -240,8 +240,6 @@ class QuorumSetTest(unittest.TestCase):
         self.assertEqual(self.node.quorum_set.weight(inner_node2), 0.5)
 
 
-
-
 if __name__ == '__main__':
     unittest.main()
 

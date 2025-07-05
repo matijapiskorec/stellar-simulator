@@ -5,7 +5,7 @@ Node
 
 Author: Matija Piskorec, Jaime de Vivero Woods
 
-Last update: May 2025
+Last update: July 2025
 
 Node class.
 
@@ -23,7 +23,7 @@ from Globals import Globals
 import copy
 from Transaction import Transaction
 
-FEE_MEAN_LOG = 3.5      # log‑normal parameters → heavy‑tailed fee distribution
+FEE_MEAN_LOG = 3.5
 FEE_SIGMA    = 1.2
 class Node():
     name = None
@@ -40,10 +40,9 @@ class Node():
         self.mempool = mempool if mempool is not None else Mempool()
         self.peers = []
 
-        # Internal state
         self.received_blocks = set()      # track known block hashes
-        self.received_transactions = set()# track known tx hashes
-        self.orphan_pool = {}              # optional, in addition to blockchain.orphans
+        self.received_transactions = set() # track known tx hashes
+        self.orphan_pool = {}
 
         self.broadcast_flags = []  # Add every message here for other
         self.received_broadcast_msgs = {} # This hashmap (or dictionary) keeps track of all Messages retrieved by each node
@@ -62,11 +61,9 @@ class Node():
     def __eq__(self, name):
         return self.name == name
 
-    # To make Node hashable so that we can store them in a Set or as keys in dictionaries.
     def __hash__(self):
         return hash(self.name)
 
-    # TODO: Not really used now, but just to show that we can have node specific events.
     @classmethod
     def get_events(cls):
         events = [Event('node')]
@@ -92,20 +89,13 @@ class Node():
     def create_transaction(self) -> Transaction:
         """
         Generate a tx, push it to the mempool, and set a fee equal to
-        A log-normal distribution models real-world variables that:
-
-        Are strictly positive (no negative fees),
-        Have many small values and a few very large ones,
-
-        Result from multiplicative effects"""
-        # 1. Choose a random fee
+        A log-normal distribution that models real-world variables.
+        The fee cant be negative
+        """
         fee = max(1, int(random.lognormvariate(FEE_MEAN_LOG, FEE_SIGMA)))
-
-        # 2. Build the Transaction object
         tx = Transaction(fee=fee, timestamp=Globals.simulation_time)
-        #tx = Transaction(fee=fee)
 
-        # 3. Insert into local mempool (if duplicate, skip)
+        # Add local mempool but skip if duplicate
         if self.mempool.add_transaction(tx):
             log.node.info("Node %s added new tx %s with fee %s sat",
                           self.name, tx._hash, tx.fee)
@@ -119,16 +109,11 @@ class Node():
 
 
     def receive_txs_from_peer(self):
-        """
-        receive txs from a peer -> sending node's mempool should be copied and txs not matching should be added
-        maybe add a randomised delay ~ delay = rng.exponential(mean=0.05) or store delay avg per node edges
-        """
         if not self.peers:
             log.node.warning("Node %s has no peers to receive transactions from", self.name)
             self.log_to_file(f"NODE - WARNING - Node {self.name} has no peers to receive transactions from")
             return
 
-        # 1. Select a random peer
         peer = random.choice(self.peers)
         log.node.info("Node %s pulls txs from peer %s", self.name, peer.name)
         self.log_to_file(f"NODE - INFO - Node {self.name} pulls txs from peer {peer.name}")
@@ -136,14 +121,10 @@ class Node():
         log.node.critical("Node %s pulls txs from peer %s", self.name, peer.name)
         self.log_to_file(f"NODE - CRITICAL - Node {self.name} pulls txs from peer {peer.name}")
 
-        # 2. Simulate network delay (can be expanded later)
-        #delay = random.expovariate(1 / 0.05)  # mean 50ms
-        #log.node.debug("Simulated delay: %.4f sec for tx transfer", delay)
-
-        # 3. Get all txs from peer's mempool
+        # Get all txs from peer's mempool
         peer_txs = peer.mempool.get_all_transactions()
 
-        # 4. Insert only new txs
+        # Insert only new txs, exclude matching
         added_count = 0
         for tx in peer_txs:
             if self.mempool.add_transaction(tx):
@@ -154,10 +135,7 @@ class Node():
         self.log_to_file(f"NODE - INFO - Node {self.name} received {added_count} new txs from {peer.name}. Mempool now has size {len(self.mempool.transactions)}")
 
     def mine(self):
-        "Pick top X txs by fee to fill a block - 3000 txs per block (ARBITRARY NUMBER)"
         # Step 1: Retrieve txs from mempool based on fees
-        # block size limit is 1mb, assume each tx is 100byte, so max 1000txs per block
-
         # Step 2: Retrieve the current blockchain tip
         # use hash of current blockchain tip as the previous block hash for the new block to be created
         # Create the new block with previous hash and the selected transactions to it
@@ -165,10 +143,9 @@ class Node():
         # Step 3: Update local Blockchain and Mempool
         # Add new block as tip to chain
         # Remove transactions from mempool
-        # 1) Select transactions by descending fee
 
         MAX_TXS =200
-        # Sort by fee-per-byte; here tx.size == 100 so equivalent to fee alone
+        # Sort by fee and get top 200
         sorted_txs = sorted(
             self.mempool.transactions,
             key=lambda tx: tx.fee,
@@ -176,25 +153,25 @@ class Node():
         )
         selected = sorted_txs[:MAX_TXS]
 
-        # 2) Get the previous hash from the current tip
+        # Get the previous hash from the current tip
         tip = self.blockchain.get_tip()
         new_height = (tip.height + 1) if tip else 0
         prev_hash = tip.hash if tip else None
 
-        # 3) Create the new block
+        # Create the new block
         new_block = Block(
             prev_hash=prev_hash,
             transactions=selected,
             height=new_height
         )
 
-        # 4) Add to local blockchain
+        # Add to local blockchain
         added = self.blockchain.add_block(new_block)
         if not added:
             log.node.warning("Node %s: failed to add new block %s", self.name, new_block.hash)
             self.log_to_file(f"NODE - WARNING - Node {self.name} failed to add new block {new_block.hash}")
 
-        # 5) Remove selected txs from mempool
+        # Remove selected txs from mempool
         for tx in selected:
             try:
                 self.mempool.transactions.remove(tx)
@@ -238,9 +215,6 @@ class Node():
 
 
     def receive_block_from_peer(self):
-        """retrieve a block from a peer-> sending node's mempool should be copied and if not matching should be added
-        maybe add a randomised delay ~ delay = rng.exponential(mean=0.05) or store delay avg per node edges"""
-
         """
         When a Bitcoin node receives a new block, it does the following:
         1. Checks if the block directly connects to the current tip (previous hash matches).
@@ -260,7 +234,7 @@ class Node():
             log.node.warning("Node %s has no peers.", self.name)
             return
 
-        # 1. Get random peer and tip block
+        # Get random peer and tip block
         peer = random.choice(self.peers)
         peer_tip_block = peer.blockchain.get_tip()
 
@@ -271,10 +245,6 @@ class Node():
             return
 
         self.process_received_block(peer, peer_tip_block)
-
-        # 2. Simulate latency
-        #delay = random.expovariate(1 / 0.05)
-        #log.node.debug("Simulated delay: %.4f sec", delay)
 
 
     def process_received_block(self, peer, block):
@@ -295,7 +265,6 @@ class Node():
             self.log_to_file(f"NODE - CRITICAL - Node {self.name} received directly connectable block {block.hash}")
 
             self.add_block_and_update_chain(block)
-
 
         else:
             log.node.info("Node %s received orphan block %s; requesting missing blocks...", self.name, block.hash)
@@ -402,5 +371,3 @@ class Node():
             if header.hash not in self.blockchain.chain:
                 missing.append(header.hash)
         return missing
-
-

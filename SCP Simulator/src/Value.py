@@ -17,8 +17,6 @@ import random
 
 class Value():
 
-    # For our purposes a value is just a set of transactions.
-    # def __init__(self,transactions,**kwargs):
     def __init__(self,**kwargs):
 
         self._transactions = kwargs['transactions'] if 'transactions' in kwargs else []
@@ -37,15 +35,12 @@ class Value():
     def __repr__(self):
         return '[Value, hash = %s, state = %s, transactions = %s]' % (self._hash,self._state,self._transactions)
 
-    # TODO: With @property we are returning a reference while we would probably want to return a copy!
-
     def __eq__(self, other):
         return (self.hash == other.hash and self.state == other.state and set(self.transactions) == set(other.transactions))
 
 
     def __hash__(self):
         return hash(self._hash)
-
 
     @property
     def transactions(self):
@@ -69,14 +64,10 @@ class Value():
         for value in values:
             combined_txs.update(value.transactions)
         return Value(transactions=combined_txs)
-    # TODO: Combine with union, and then take
-    #  New combine function that instead of union, takes first transaction from another value
-    # based on alphanumeric order
 
     @transactions.setter
     def transactions(self, tx_list):
         # sanity check
         assert all(isinstance(tx, Transaction) for tx in tx_list)
         self._transactions = tx_list
-        # recompute your internal hash so equality still works
         self._hash = hash(frozenset(self._transactions))

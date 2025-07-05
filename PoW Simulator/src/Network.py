@@ -22,9 +22,9 @@ class Network():
     def generate_nodes(cls, n_nodes: int = 50, topology: str = 'FULL', *, degree: int = 10, seed=None):
         """
         Return a connected peer graph according to `topology`:
-        - FULL: complete graph (every node peers with every other).
+        - FULL: fully conntected graph (every node peers with every other).
         - ER-SINGLEQUORUMSET: random connected Erdős–Rényi G(n,p) with avg degree ≈ `degree`.
-        - BA: Barabási–Albert scale-free network with ~`degree` edges per new node.
+        - BA: Barabási–Albert scale-free network
         """
         assert topology in cls.topologies, f"Unknown topology: {topology}"
 
@@ -83,7 +83,7 @@ class Network():
                 nbrs = [nbr for nbr in lcc_graph.neighbors(idx)]
                 for n in nbrs:
                     node.add_peer(node_map[n])  # Add peers (bi-directional)
-            # Optionally: ensure symmetric add_peer for undirected network
+
             for node in ba_nodes:
                 for peer in node.peers:
                     if node not in peer.peers:

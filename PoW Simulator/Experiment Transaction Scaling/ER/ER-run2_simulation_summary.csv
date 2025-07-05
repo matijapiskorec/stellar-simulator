@@ -1,4 +1,0 @@
-node_count,simulation_time,sim_params,total_tx_created,main_chain_length,total_tx_in_mainchain,total_stale_blocks,avg_depth_stale_blocks,avg_blocks_per_node,avg_inter_block_time,avg_messages>
-50,25.0,"{""n_nodes"": 50, ""sim_duration"": 25.0, ""mine"": 0.25}",2494,98,15039,1,1.00,1.96,4.60,1282.20,False
-50,25.0,"{""n_nodes"": 50, ""sim_duration"": 25.0, ""mine"": 0.25}",2493,96,14621,1,1.00,1.92,4.74,1309.85,False
-50,25.0,"{""n_nodes"": 50, ""sim_duration"": 25.0, ""mine"": 0.25}",2497,94,14281,1,1.00,1.88,4.96,1335.15,Fals

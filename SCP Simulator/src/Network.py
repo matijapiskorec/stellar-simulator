@@ -86,12 +86,8 @@ class Network():
                 nodes = [node for node in nodes if int(node.name) in lcc_set]
                 nodes = [node_map[i] for i in lcc_set]
 
-
-
-                # For each node in the remaining (connected) set, build quorum sets
                 for node in nodes:
                     # For each node, get its edges from the graph
-                    # filtered_nodes = [nodes[edge[1]] for edge in graph.edges(node.name)]
                     filtered_nodes = [nodes[edge[1]] for edge in graph.edges(node.name) if edge[1] < len(nodes)]
 
                     if len(filtered_nodes) > 1:
@@ -153,7 +149,6 @@ class Network():
                         'Adding nodes %s to the flat quorum of Node %s',
                         [n.name for n in quorum_members], node
                     )
-                    # your signature only needs the member list
                     node.set_quorum(nodes=quorum_members, inner_sets=[])
 
                 # 5) return exactly the validators that made it into the LCC
@@ -161,7 +156,6 @@ class Network():
                 # Calculate and log average peer degree for SCP nodes in LCC (excluding self)
                 peer_degrees = []
                 for node in sq_nodes:
-                    # node.quorum_set.nodes includes the node itself, so subtract one
                     degree = len(node.quorum_set.nodes) - 1
                     peer_degrees.append(degree)
                 avg_degree = sum(peer_degrees) / len(peer_degrees) if peer_degrees else 0
@@ -274,46 +268,7 @@ class Network():
 
                 return sq_nodes
 
-                """ case 'HARDCODE':
-                file_path = "quorumset_20250131_095020.json"
-
-                with open(file_path, 'r') as file:
-                    data = json.load(file)
-
-                nodes = {}
-
-                for validator_data in data:
-                    node_id = validator_data["publicKey"]
-                    node_list = validator_data.get("validators", [])
-                    threshold = validator_data.get("threshold", 1)
-
-                    if node_id not in nodes:
-                        nodes[node_id] = Node(node_id)
-
-                    node = nodes[node_id]
-
-                    # We are only parsing the first inner set
-                    inner_quorum_sets = []
-                    for inner_set in validator_data.get("innerQuorumSets", []):
-                        inner_threshold = inner_set.get("threshold", 1)
-                        inner_validators = inner_set.get("validators", [])
-
-                        inner_nodes = []
-                        for v in inner_validators:
-                            if v not in nodes:
-                                nodes[v] = Node(v)
-                            inner_nodes.append(nodes[v])
-
-                        inner_quorum_sets.append(Node(f"InnerSet-{node_id}"))  # Represent inner quorum as Node
-
-                    node.set_quorum( nodes=[nodes[v] for v in node_list if v in nodes], inner_sets=inner_quorum_sets, threshold=threshold)
-
-                    log.network.debug( 'Node %s initialized with %d validators and %d inner quorum sets', node_id, len(node_list), len(inner_quorum_sets) )
-
-                return list(nodes.values())
-                """
-
-            case 'HARDCODE': # fix for HARDCODE TO REMOVE DUPLICATES
+            case 'HARDCODE':
                 file_path = "quorumset_20250131_095020.json"
 
                 with open(file_path, 'r') as file:
@@ -346,13 +301,10 @@ class Network():
                                 nodes_dict[v] = Node(v)
                             inner_nodes.append(nodes_dict[v])
 
-                        # Instead of creating a generic Node with "InnerSet-{node_id}",
-                        # create a unique inner set identifier (using an index).
                         inner_set_id = f"InnerSet-{node_id}-{idx}"
                         if inner_set_id not in nodes_dict:
                             nodes_dict[inner_set_id] = Node(inner_set_id)
-                        # Optionally, you could attach the inner_nodes list to the inner set node
-                        # if you want to preserve that information.
+
                         inner_quorum_sets.append(nodes_dict[inner_set_id])
 
                     # Set the quorum for the node.
@@ -363,7 +315,6 @@ class Network():
                     log.network.debug('Node %s initialized with %d validators and %d inner quorum sets',
                                       node_id, len(node_list), len(inner_quorum_sets))
 
-                # Return all unique nodes.
                 nodes = list(nodes_dict.values())
                 return nodes
 
