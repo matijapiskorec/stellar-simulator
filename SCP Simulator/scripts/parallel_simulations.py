@@ -8,11 +8,13 @@ import json
 import re
 from collections import defaultdict
 import pandas as pd
+import copy
+
 
 print(f" Booting {__file__}, argv={sys.argv!r}")
 
 SUMMARY_CSV = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "ER_SCP_scaling_txs_simulation_summary.csv")
+    os.path.join(os.path.dirname(__file__), "simulation_summary.csv")
 )
 FIELDNAMES = [
     "node_count",
@@ -23,10 +25,10 @@ FIELDNAMES = [
     "total_tx_in_all_slots",
     "avg_txs_per_slot",
     "avg_inter_slot_time",
-    "messages_per_slot_finalisation",   # <-- add this
+    "messages_per_slot_finalisation",
     "all_tests_passed",
+    "topology"
 ]
-
 
 def append_summary_row(row: dict):
     os.makedirs(os.path.dirname(SUMMARY_CSV), exist_ok=True)
@@ -175,26 +177,27 @@ SRC = os.path.join(ROOT, "src")
 sys.path.insert(0, SRC)
 from Simulator import Simulator
 
-def worker(run_id: int, n_nodes: int, max_sim_time: float, simulation_params: dict) -> bool:
+def worker(run_id: int, n_nodes: int, max_sim_time: float, simulation_params: dict, topology: str) -> bool:
     serializable_simulation_params = copy.deepcopy(simulation_params)
 
-    run_dir = os.path.join("logs", f"run_{run_id}")
+    run_dir = os.path.join("logs", f"run_{run_id}_{topology}")
     os.makedirs(run_dir, exist_ok=True)
     cwd = os.getcwd()
     os.chdir(run_dir)
     try:
         print("instantiating simulator")
         sim = Simulator(
-            verbosity=1,
+            verbosity=5,
             n_nodes=n_nodes,
             max_simulation_time=max_sim_time,
-            simulation_params=simulation_params
+            simulation_params=simulation_params,
+            topology=topology
         )
         print("RUNNING SIMULATION!!!")
         sim.run()
         print("RAN SIMULATION!!!")
         events_log = "simulator_events_log.txt"
-        ledger_log = "ledger_logs.txt"  # <-- Make sure this is set!
+        ledger_log = "ledger_logs.txt"
         print(f"[worker] Parsing events from {events_log}")
         (total_tx_created,
          total_slots,
@@ -214,7 +217,7 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float, simulation_params: di
         append_summary_row({
             "node_count": n_nodes,
             "simulation_time": max_sim_time,
-            "sim_params": json.dumps({"n_nodes": n_nodes, "sim_duration": max_sim_time, "mine": 1.0, "Max_Txs": 100}),
+            "sim_params": simulation_params,
             "total_tx_created": total_tx_created,
             "total_slots": total_slots,
             "total_tx_in_all_slots": total_tx_in_all_slots,
@@ -222,6 +225,7 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float, simulation_params: di
             "avg_inter_slot_time": f"{avg_inter_slot_time:.2f}",
             "messages_per_slot_finalisation" : f"{avg_msgs_to_finalise:.2f}",
             "all_tests_passed": True,
+            "topology": topology
         })
         return True
     except Exception as e:
@@ -232,29 +236,43 @@ def worker(run_id: int, n_nodes: int, max_sim_time: float, simulation_params: di
             "sim_params": simulation_params,
             **dict.fromkeys(FIELDNAMES[3:], 0),
             "all_tests_passed": False,
+            "topology": topology
         })
         return False
     finally:
         os.chdir(cwd)
         print(f"Run {run_id} finished. Logs in {run_dir}")
 
-
 def main():
     p = argparse.ArgumentParser("Parallel sim runs → summary CSV")
     p.add_argument("--n-nodes", type=int, nargs='+', required=True)
     p.add_argument("--max-simulation-time", type=float, nargs='+', required=True)
+    p.add_argument("--simulation-params", type=str, nargs='+', required=True,
+                   help="Simulation parameters as JSON string, one per run")
+    p.add_argument("--topology", type=str, required=True, help="Network topology (e.g., FULL, ER, BA)")
     args = p.parse_args()
-    if len(args.n_nodes) != len(args.max_simulation_time):
-        p.error("Must supply equal counts of --n-nodes and --max-simulation-time")
-    params = [(i + 1, n, t) for i, (n, t) in enumerate(zip(args.n_nodes, args.max_simulation_time))]
+
+    # All must be the same length
+    if not (len(args.n_nodes) == len(args.max_simulation_time) == len(args.simulation_params)):
+        p.error("Must supply equal counts of --n-nodes, --max-simulation-time, and --simulation-params")
+
+    params = []
+    for i, (n, t, sim_json) in enumerate(zip(args.n_nodes, args.max_simulation_time, args.simulation_params)):
+        try:
+            sim_params = json.loads(sim_json)
+        except json.JSONDecodeError as e:
+            print(f"Error parsing simulation params JSON at index {i}: {e}")
+            sys.exit(1)
+        params.append((i + 1, n, t, sim_params, args.topology))
     cores = min(multiprocessing.cpu_count(), len(params))
     print(f"Launching {len(params)} jobs on up to {cores} cores…")
     with multiprocessing.Pool(cores) as pool:
+        print("RUNNING WITH PARAMS = ", params)
         results = pool.starmap(worker, params)
     if not all(results):
-        print("❌ Some runs failed—check logs.")
+        print("Some runs failed—check logs.")
         sys.exit(1)
-    print("✅ All simulations complete.")
+    print("All simulations complete.")
 
 if __name__ == "__main__":
     main()

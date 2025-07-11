@@ -43,21 +43,17 @@ class Simulator:
     Command line (CLI) interface for the simulator.
     '''
 
-    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, simulation_params=None,**kvargs):
+    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, simulation_params=None, topology='ER',**kvargs):
 
         self._verbosity = verbosity
         self._n_nodes = n_nodes
-
         self._nodes = []
-
-        # TODO: _max_simulation_time should be loaded from the config!
         self._max_simulation_time = 5
-
+        self.topology = topology
         self._set_logging()
 
         # Total elapsed time doesn't include initialization!
         self.timeStart = time.time()
-
         self.simulation_params = simulation_params
 
     @property
@@ -109,7 +105,7 @@ class Simulator:
             self.simulation_params = {
                 'create transaction': {'tau': 1.0, 'tau_domain': self._nodes}, # avg tx creation of 1.1 per node
                 'retrieve transaction': {'tau': 1.0, 'tau_domain': self._nodes},
-                'mine': {'tau': 10.0, 'tau_domain': self._nodes},
+                'mine': {'tau': 16.0, 'tau_domain': self._nodes},
                 'receive block': {'tau': 0.01, 'tau_domain': self._nodes}
             }
 

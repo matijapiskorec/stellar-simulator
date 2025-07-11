@@ -84,9 +84,14 @@ def worker(run_id, n_nodes, max_sim_time, simulation_params):
         all_created.discard(None)
         total_tx_created = len(all_created)
 
-        total_tx_in_mainchain = sum(
-            len(hash_to_block[h].transactions) for h in main_hashes if h in hash_to_block
-        )
+        mainchain_txs = set()
+        for h in main_hashes:
+            if h in hash_to_block:
+                mainchain_txs.update(
+                    getattr(tx, "_hash", getattr(tx, "hash", None)) for tx in hash_to_block[h].transactions
+                )
+        mainchain_txs.discard(None)
+        total_tx_in_mainchain = len(mainchain_txs)
 
         def depth_of(block):
             d, cur = 0, block
@@ -149,12 +154,19 @@ def main():
     parser.add_argument("--n-nodes", type=int, nargs='+', required=True)
     parser.add_argument("--max-simulation-time", type=float, nargs='+', required=True)
     parser.add_argument("--simulation-params", type=str, nargs='+', required=True, help="List of JSON strings")
+    parser.add_argument("--topology", type=str, required=True, help="Network topology (e.g., FULL, ER, BA)")
     args = parser.parse_args()
 
     if not (len(args.n_nodes) == len(args.max_simulation_time) == len(args.simulation_params)):
         parser.error("Argument lengths must match for --n-nodes, --max-simulation-time, and --simulation-params")
 
-    parsed_params = [json.loads(p.replace("'", '"')) for p in args.simulation_params]
+    # Inject the topology into all simulation params
+    parsed_params = []
+    for p in args.simulation_params:
+        param_dict = json.loads(p.replace("'", '"'))
+        param_dict["topology"] = args.topology
+        parsed_params.append(param_dict)
+
     params = [(i + 1, n, t, p) for i, (n, t, p) in enumerate(zip(args.n_nodes, args.max_simulation_time, parsed_params))]
 
     with multiprocessing.Pool(min(len(params), multiprocessing.cpu_count())) as pool:
