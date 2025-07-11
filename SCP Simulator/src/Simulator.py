@@ -44,18 +44,19 @@ class Simulator:
     Command line (CLI) interface for the simulator.
     '''
 
-    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=50, simulation_params=None, **kvargs):
+    def __init__(self,verbosity=VERBOSITY_DEFAULT,n_nodes=N_NODES_DEFAULT, max_simulation_time=50, simulation_params=None, topology='BA', **kvargs):
 
         self._verbosity = verbosity
         self._n_nodes = n_nodes
         self._nodes = []
         self._max_simulation_time = max_simulation_time
+        self.topology = topology
 
         self._set_logging()
 
         self.timeStart = time.time()
         # ER_singlequorumset
-        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology='BA')
+        self._nodes = Network.generate_nodes(n_nodes=self._n_nodes, topology=self.topology)
 
         if simulation_params is not None:
             self.simulation_params = simulation_params
