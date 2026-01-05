@@ -1,0 +1,54 @@
+{
+  "nodes": [
+    {
+      "name": "ValidatorA",
+      "publicKey": "A",
+      "quorumSet": {
+        "threshold": 2,
+        "validators": [],
+        "innerQuorumSets": [
+          {
+            "threshold": 1,
+            "validators": ["D", "E"],
+            "innerQuorumSets": []
+          },
+          {
+            "threshold": 1,
+            "validators": ["F"],
+            "innerQuorumSets": [
+              {
+                "threshold": 1,
+                "validators": ["G", "H"],
+                "innerQuorumSets": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "ValidatorB",
+      "publicKey": "B",
+      "quorumSet": {
+        "threshold": 1,
+        "validators": [],
+        "innerQuorumSets": [
+          {
+            "threshold": 1,
+            "validators": ["A"],
+            "innerQuorumSets": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "ValidatorC",
+      "publicKey": "C",
+      "quorumSet": {
+        "threshold": 1,
+        "validators": [],
+        "innerQuorumSets": []
+      }
+    }
+  ]
+}
